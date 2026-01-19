@@ -142,7 +142,7 @@ export default function NewTestForm({ onTestComplete }: NewTestFormProps) {
               <Button
                 onClick={handleStartTest}
                 disabled={!appName || !appUrl || !testType}
-                className="w-full h-14 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-semibold text-lg transition-all duration-200 mt-4"
+                className="w-full h-14 rounded-xl bg-primary text-primary-foreground hover:bg-orange-600 font-semibold text-lg transition-all duration-200 mt-4"
               >
                 <Play className="w-5 h-5 mr-2" />
                 Start Test
