@@ -26,7 +26,41 @@ class Application(models.Model):
         return f"{self.name} ({self.url})"
 
 
-# Placeholder for future test-related models
-# TODO: Add TestRun model when test execution is implemented
-# TODO: Add TestReport model when AI report generation is implemented
-# TODO: Add Screenshot model when browser automation is added
+class TestRun(models.Model):
+    """Model representing a test run for an application."""
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('running', 'Running'),
+        ('success', 'Success'),
+        ('failed', 'Failed'),
+    ]
+    
+    TEST_TYPE_CHOICES = [
+        ('functional', 'Functional'),
+        ('regression', 'Regression'),
+        ('performance', 'Performance'),
+        ('accessibility', 'Accessibility'),
+    ]
+    
+    application = models.ForeignKey(
+        Application,
+        on_delete=models.CASCADE,
+        related_name='test_runs',
+        help_text="Application being tested"
+    )
+    test_type = models.CharField(max_length=20, choices=TEST_TYPE_CHOICES, help_text="Type of test")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', help_text="Test status")
+    pass_rate = models.IntegerField(default=0, help_text="Percentage of tests that passed")
+    fail_rate = models.IntegerField(default=0, help_text="Percentage of tests that failed")
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        db_table = 'test_runs'
+        ordering = ['-started_at']
+        verbose_name = 'Test Run'
+        verbose_name_plural = 'Test Runs'
+    
+    def __str__(self):
+        return f"{self.application.name} - {self.test_type} ({self.status})"
