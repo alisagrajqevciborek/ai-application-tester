@@ -96,6 +96,23 @@ export default function Dashboard() {
     loadApplications()
   }
 
+  const handleDeleteTest = async (testId: string) => {
+    try {
+      await testRunsApi.delete(parseInt(testId))
+      // Remove from local state
+      setHistory(history.filter(test => test.id !== testId))
+      // If deleted test was selected, clear selection
+      if (selectedTest?.id === testId) {
+        setSelectedTest(null)
+      }
+      // Reload to ensure sync
+      loadTestRuns()
+    } catch (err) {
+      console.error("Failed to delete test run:", err)
+      setError(err instanceof Error ? err.message : "Failed to delete test run")
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <TopNav />
@@ -107,6 +124,7 @@ export default function Dashboard() {
           history={history}
           selectedId={selectedTest?.id || null}
           onSelectTest={setSelectedTest}
+          onDeleteTest={handleDeleteTest}
         />
 
         <main className="flex-1 overflow-auto p-6 lg:p-8">
@@ -136,7 +154,11 @@ export default function Dashboard() {
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <ReportView test={selectedTest} onBack={() => setSelectedTest(null)} />
+                  <ReportView 
+                    test={selectedTest} 
+                    onBack={() => setSelectedTest(null)}
+                    onDelete={handleDeleteTest}
+                  />
                 </motion.div>
               ) : (
                 <motion.div

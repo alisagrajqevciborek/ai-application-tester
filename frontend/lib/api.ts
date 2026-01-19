@@ -230,5 +230,11 @@ export const testRunsApi = {
       }),
     })
   },
+
+  async delete(id: number): Promise<void> {
+    return apiRequest<void>(`/applications/test-runs/${id}`, {
+      method: 'DELETE',
+    })
+  },
 }
 
