@@ -1,12 +1,21 @@
 "use client"
 
-import { useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import LoginPage from "@/components/login-page"
 import Dashboard from "@/components/dashboard"
+import { useAuth } from "@/contexts/AuthContext"
+import { Loader2 } from "lucide-react"
 
 export default function Home() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const { isAuthenticated, isLoading } = useAuth()
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -19,7 +28,7 @@ export default function Home() {
             exit={{ opacity: 0, x: -50 }}
             transition={{ duration: 0.3 }}
           >
-            <LoginPage onLogin={() => setIsAuthenticated(true)} />
+            <LoginPage onLogin={() => {}} />
           </motion.div>
         ) : (
           <motion.div
@@ -29,7 +38,7 @@ export default function Home() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <Dashboard onLogout={() => setIsAuthenticated(false)} />
+            <Dashboard />
           </motion.div>
         )}
       </AnimatePresence>

@@ -4,10 +4,12 @@ import type React from "react"
 
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { Eye, EyeOff, Mail, Lock, Zap, Loader2 } from "lucide-react"
+import { Eye, EyeOff, Mail, Lock, Zap, Loader2, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { useAuth } from "@/contexts/AuthContext"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface LoginPageProps {
   onLogin: () => void
@@ -18,13 +20,22 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const { login } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError(null)
     setIsLoading(true)
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    setIsLoading(false)
-    onLogin()
+    
+    try {
+      await login(email, password)
+      onLogin()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Invalid email or password")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -55,6 +66,13 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
+            {error && (
+              <Alert variant="destructive" className="bg-red-500/10 border-red-500/30">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-red-400">{error}</AlertDescription>
+              </Alert>
+            )}
+            
             <div className="space-y-2">
               <Label htmlFor="email" className="text-foreground/80">
                 Email

@@ -2,73 +2,159 @@
 
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Play, Globe, Tag, FileCode, Loader2, CheckCircle } from "lucide-react"
+import { Play, Globe, Tag, FileCode, Loader2, CheckCircle, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { TestHistory } from "@/lib/types"
 import { Progress } from "@/components/ui/progress"
+import { applicationsApi, testRunsApi, type Application, type TestRun } from "@/lib/api"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
+import type { TestHistory } from "@/lib/types"
 
 interface NewTestFormProps {
   onTestComplete: (test: TestHistory) => void
+  applications: Application[]
 }
 
-type TestState = "idle" | "running" | "completed"
+type TestState = "idle" | "creating" | "running" | "completed"
 type TestType = "functional" | "regression" | "performance" | "accessibility"
 
-export default function NewTestForm({ onTestComplete }: NewTestFormProps) {
+export default function NewTestForm({ onTestComplete, applications }: NewTestFormProps) {
+  const [selectedAppId, setSelectedAppId] = useState<string>("")
   const [appName, setAppName] = useState("")
   const [appUrl, setAppUrl] = useState("")
   const [testType, setTestType] = useState<TestType | "">("")
   const [testState, setTestState] = useState<TestState>("idle")
   const [progress, setProgress] = useState(0)
+  const [error, setError] = useState<string | null>(null)
+  const [showNewAppForm, setShowNewAppForm] = useState(false)
+
+  const selectedApp = applications.find((app) => app.id.toString() === selectedAppId)
+
+  const handleCreateApplication = async (): Promise<Application> => {
+    if (!appName || !appUrl) {
+      setError("Please fill in both application name and URL")
+      throw new Error("Please fill in both application name and URL")
+    }
+
+    setError(null)
+    setTestState("creating")
+
+    try {
+      const newApp = await applicationsApi.create(appName, appUrl)
+      setSelectedAppId(newApp.id.toString())
+      setAppName("")
+      setAppUrl("")
+      setShowNewAppForm(false)
+      setTestState("idle")
+      return newApp
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create application")
+      setTestState("idle")
+      throw err
+    }
+  }
+
+  const convertTestRunToHistory = (testRun: TestRun): TestHistory => {
+    return {
+      id: testRun.id.toString(),
+      appName: testRun.application_name,
+      status: testRun.status === 'success' ? 'success' : testRun.status === 'failed' ? 'failed' : 'running',
+      testType: testRun.test_type,
+      date: new Date(testRun.started_at).toISOString().split("T")[0],
+      passRate: testRun.pass_rate,
+      failRate: testRun.fail_rate,
+    }
+  }
 
   const handleStartTest = async () => {
-    if (!appName || !appUrl || !testType) return
+    if (!selectedApp && (!appName || !appUrl)) {
+      setError("Please select an application or create a new one")
+      return
+    }
+    if (!testType) {
+      setError("Please select a test type")
+      return
+    }
+
+    setError(null)
+
+    // If creating new app, do that first
+    let appToTest = selectedApp
+    if (!selectedApp && appName && appUrl) {
+      try {
+        const newApp = await handleCreateApplication()
+        appToTest = newApp
+        setSelectedAppId(newApp.id.toString())
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to create application")
+        setTestState("idle")
+        return
+      }
+    } else {
+      appToTest = applications.find((app) => app.id.toString() === selectedAppId)
+    }
+
+    if (!appToTest) {
+      setError("Application not found")
+      return
+    }
 
     setTestState("running")
     setProgress(0)
 
-    // Simulate test progress
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval)
-          return 100
+    try {
+      // Create test run via API
+      const testRun = await testRunsApi.create(appToTest.id, testType as string)
+      
+      // Poll for test completion
+      const pollInterval = setInterval(async () => {
+        try {
+          const updatedTestRun = await testRunsApi.get(testRun.id)
+          
+          // Update progress based on status
+          if (updatedTestRun.status === 'running') {
+            setProgress((prev) => Math.min(prev + 10, 90))
+          } else if (updatedTestRun.status === 'success' || updatedTestRun.status === 'failed') {
+            clearInterval(pollInterval)
+            setProgress(100)
+            setTestState("completed")
+            
+            // Convert to TestHistory format and complete
+            const testHistory = convertTestRunToHistory(updatedTestRun)
+            
+            // Short delay to show completed state
+            await new Promise((resolve) => setTimeout(resolve, 500))
+            onTestComplete(testHistory)
+            
+            // Reset form
+            setSelectedAppId("")
+            setTestType("")
+            setTestState("idle")
+            setProgress(0)
+          }
+        } catch (err) {
+          console.error("Error polling test run:", err)
         }
-        return prev + Math.random() * 15
-      })
-    }, 300)
+      }, 1000) // Poll every second
 
-    // Complete test after 3 seconds
-    await new Promise((resolve) => setTimeout(resolve, 3000))
-    clearInterval(interval)
-    setProgress(100)
-    setTestState("completed")
-
-    // Generate random results
-    const passRate = Math.floor(Math.random() * 40) + 60
-    const newTest: TestHistory = {
-      id: Date.now().toString(),
-      appName,
-      status: passRate > 70 ? "success" : "failed",
-      testType: testType as TestType,
-      date: new Date().toISOString().split("T")[0],
-      passRate,
-      failRate: 100 - passRate,
+      // Timeout after 30 seconds
+      setTimeout(() => {
+        clearInterval(pollInterval)
+        if (testState === "running") {
+          setError("Test is taking longer than expected. Please check the test run status.")
+          setTestState("idle")
+          setProgress(0)
+        }
+      }, 30000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to start test")
+      setTestState("idle")
+      setProgress(0)
     }
-
-    // Short delay to show completed state
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    onTestComplete(newTest)
-
-    // Reset form
-    setAppName("")
-    setAppUrl("")
-    setTestType("")
-    setTestState("idle")
-    setProgress(0)
   }
 
   return (
@@ -93,33 +179,82 @@ export default function NewTestForm({ onTestComplete }: NewTestFormProps) {
               exit={{ opacity: 0 }}
               className="space-y-6"
             >
-              <div className="space-y-2">
-                <Label htmlFor="appName" className="text-foreground/80 flex items-center gap-2">
-                  <Tag className="w-4 h-4" />
-                  Application Name
-                </Label>
-                <Input
-                  id="appName"
-                  placeholder="My Awesome App"
-                  value={appName}
-                  onChange={(e) => setAppName(e.target.value)}
-                  className="bg-input border-border/50 focus:border-primary h-12 rounded-xl"
-                />
-              </div>
+              {error && (
+                <Alert variant="destructive" className="bg-red-500/10 border-red-500/30">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-red-400">{error}</AlertDescription>
+                </Alert>
+              )}
 
               <div className="space-y-2">
-                <Label htmlFor="appUrl" className="text-foreground/80 flex items-center gap-2">
-                  <Globe className="w-4 h-4" />
-                  Application URL
+                <Label htmlFor="appSelect" className="text-foreground/80 flex items-center gap-2">
+                  <Tag className="w-4 h-4" />
+                  Select Application
                 </Label>
-                <Input
-                  id="appUrl"
-                  placeholder="https://myapp.com"
-                  value={appUrl}
-                  onChange={(e) => setAppUrl(e.target.value)}
-                  className="bg-input border-border/50 focus:border-primary h-12 rounded-xl"
-                />
+                <div className="flex gap-2">
+                  <Select value={selectedAppId} onValueChange={setSelectedAppId}>
+                    <SelectTrigger className="bg-input border-border/50 focus:border-primary h-12 rounded-xl flex-1">
+                      <SelectValue placeholder="Choose an application" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover border-border">
+                      {applications.map((app) => (
+                        <SelectItem key={app.id} value={app.id.toString()}>
+                          {app.name} - {app.url}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setShowNewAppForm(!showNewAppForm)
+                      setSelectedAppId("")
+                    }}
+                    className="h-12 rounded-xl border-border hover:bg-secondary"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    New
+                  </Button>
+                </div>
               </div>
+
+              {showNewAppForm && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-4 p-4 bg-secondary/30 rounded-xl border border-border/50"
+                >
+                  <div className="space-y-2">
+                    <Label htmlFor="appName" className="text-foreground/80 flex items-center gap-2">
+                      <Tag className="w-4 h-4" />
+                      Application Name
+                    </Label>
+                    <Input
+                      id="appName"
+                      placeholder="My Awesome App"
+                      value={appName}
+                      onChange={(e) => setAppName(e.target.value)}
+                      className="bg-input border-border/50 focus:border-primary h-12 rounded-xl"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="appUrl" className="text-foreground/80 flex items-center gap-2">
+                      <Globe className="w-4 h-4" />
+                      Application URL
+                    </Label>
+                    <Input
+                      id="appUrl"
+                      placeholder="https://myapp.com"
+                      value={appUrl}
+                      onChange={(e) => setAppUrl(e.target.value)}
+                      className="bg-input border-border/50 focus:border-primary h-12 rounded-xl"
+                    />
+                  </div>
+                </motion.div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="testType" className="text-foreground/80 flex items-center gap-2">
@@ -141,11 +276,20 @@ export default function NewTestForm({ onTestComplete }: NewTestFormProps) {
 
               <Button
                 onClick={handleStartTest}
-                disabled={!appName || !appUrl || !testType}
+                disabled={(!selectedApp && !appName && !appUrl) || !testType || testState === "creating"}
                 className="w-full h-14 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-semibold text-lg transition-all duration-200 mt-4"
               >
-                <Play className="w-5 h-5 mr-2" />
-                Start Test
+                {testState === "creating" ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Creating Application...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-5 h-5 mr-2" />
+                    Start Test
+                  </>
+                )}
               </Button>
             </motion.div>
           )}
@@ -174,7 +318,9 @@ export default function NewTestForm({ onTestComplete }: NewTestFormProps) {
                 {testState === "running" ? "Running Tests..." : "Test Completed!"}
               </h2>
               <p className="text-muted-foreground mb-6">
-                {testState === "running" ? `Testing ${appName}` : "Generating report..."}
+                {testState === "running"
+                  ? `Testing ${selectedApp?.name || appName || "application"}`
+                  : "Generating report..."}
               </p>
 
               <div className="max-w-md mx-auto">
