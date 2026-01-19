@@ -1,28 +1,235 @@
 # Python/Django
 __pycache__/
+**/__pycache__/
 *.py[cod]
+*$py.class
 *.so
+*.egg
 *.egg-info/
+dist/
+build/
 .Python
 env/
 venv/
+ENV/
+.venv/
+**/.venv/
 *.sqlite3
+*.db
+*.log
+*.pot
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.dmypy_cache/
+.dmypy.json
+dmypy.json
 
-# IDE
+# Django
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+**/db.sqlite3
+**/db.sqlite3-journal
+/media
+/staticfiles
+/static
+backend/media/
+backend/staticfiles/
+backend/static/
+**/media/
+**/staticfiles/
+**/static/
+
+# Django migrations (keep structure, ignore if needed)
+# Uncomment if you want to ignore migrations:
+# */migrations/*.py
+# !*/migrations/__init__.py
+
+# Node.js / Next.js
+node_modules/
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.pnpm-debug.log*
+.npm/
+.yarn/
+.pnp.*
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.js
+
+# Next.js
+.next/
+**/.next/
+out/
+**/out/
+build/
+dist/
+.vercel
+**/.vercel/
+*.tsbuildinfo
+next-env.d.ts
+**/next-env.d.ts
+
+# Testing
+.nyc_output
+coverage/
+*.cover
+.hypothesis/
+
+# IDEs and Editors
 .vscode/
+**/.vscode/
 .idea/
+**/.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+.vscode-test/
+.history/
+*.iml
+*.ipr
+*.iws
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# Playwright
+playwright-report/
+test-results/
+playwright/.cache/
+**/playwright-report/
+**/test-results/
+**/playwright/.cache/
+.ms-playwright/
+playwright-browsers/
+
+# Screenshots and media (but keep public images)
+backend/media/
+backend/staticfiles/
+backend/static/
+**/media/
+**/staticfiles/
+**/static/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+!public/**/*.png
+!public/**/*.jpg
+!public/**/*.jpeg
+!public/**/*.gif
+!public/**/*.webp
+!frontend/public/**/*.png
+!frontend/public/**/*.jpg
+!frontend/public/**/*.jpeg
+!frontend/public/**/*.gif
+!frontend/public/**/*.webp
+!frontend/public/**/*.svg
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
 *.swp
 *.swo
 *~
 
-# OS
-.DS_Store
-Thumbs.db
+# Database
+*.sqlite
+*.sqlite3
+*.db
 
-# Environment
-.env
-.env.local
+# Package manager locks (optional - some teams track these)
+# Uncomment if you don't want to track lock files:
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
 
-# Node modules
-node_modules/
-.next/
+# TypeScript
+*.tsbuildinfo
+
+# Misc
+.cache/
+.parcel-cache/
+.turbo/
+.vercel/
+
+# Project specific
+project/
+*.ps1.bak
+*.md.bak
+
+# Additional common ignores
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# Coverage reports
+coverage.xml
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+env.bak/
+venv.bak/
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
