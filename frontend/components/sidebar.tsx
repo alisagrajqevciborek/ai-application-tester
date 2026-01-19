@@ -66,7 +66,7 @@ export default function Sidebar({ collapsed, onToggle, history, selectedId, onSe
           variant="ghost"
           size="sm"
           onClick={onToggle}
-          className="w-full justify-center hover:bg-sidebar-accent text-sidebar-foreground"
+          className="w-full justify-center hover:bg-orange-600/10 hover:text-orange-600 text-sidebar-foreground"
         >
           {collapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
         </Button>
@@ -84,7 +84,7 @@ export default function Sidebar({ collapsed, onToggle, history, selectedId, onSe
               variant="ghost"
               size="sm"
               onClick={() => setShowFilters(!showFilters)}
-              className={cn("h-7 w-7 p-0 hover:bg-sidebar-accent", showFilters && "bg-sidebar-accent")}
+              className={cn("h-7 w-7 p-0 hover:bg-orange-600/10 hover:text-orange-600", showFilters && "bg-sidebar-accent")}
             >
               <Filter className="h-4 w-4" />
             </Button>
@@ -121,8 +121,8 @@ export default function Sidebar({ collapsed, onToggle, history, selectedId, onSe
                   className={cn(
                     "px-2.5 py-1 text-xs rounded-md transition-colors",
                     statusFilter === option.value
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-sidebar-accent text-sidebar-foreground hover:bg-sidebar-accent/80",
+                      ? "bg-orange-600 text-white"
+                      : "bg-sidebar-accent text-sidebar-foreground hover:bg-orange-600/10 hover:text-orange-600",
                   )}
                 >
                   {option.label}
@@ -142,8 +142,8 @@ export default function Sidebar({ collapsed, onToggle, history, selectedId, onSe
                   className={cn(
                     "px-2.5 py-1 text-xs rounded-md transition-colors",
                     typeFilter === option.value
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-sidebar-accent text-sidebar-foreground hover:bg-sidebar-accent/80",
+                      ? "bg-orange-600 text-white"
+                      : "bg-sidebar-accent text-sidebar-foreground hover:bg-orange-600/10 hover:text-orange-600",
                   )}
                 >
                   {option.label}
@@ -158,7 +158,7 @@ export default function Sidebar({ collapsed, onToggle, history, selectedId, onSe
               variant="ghost"
               size="sm"
               onClick={clearFilters}
-              className="w-full h-8 text-xs text-muted-foreground hover:text-foreground"
+              className="w-full h-8 text-xs text-muted-foreground hover:text-orange-600 hover:bg-orange-600/10"
             >
               <X className="h-3 w-3 mr-1" />
               Clear filters
@@ -188,8 +188,8 @@ export default function Sidebar({ collapsed, onToggle, history, selectedId, onSe
                 whileTap={{ scale: 0.99 }}
                 className={cn(
                   "w-full text-left px-3 py-2 mx-2 rounded-lg transition-colors",
-                  "hover:bg-sidebar-accent",
-                  selectedId === item.id && "bg-sidebar-accent",
+                  "hover:bg-orange-600/10",
+                  selectedId === item.id && "bg-orange-600/20",
                 )}
                 style={{ width: "calc(100% - 16px)" }}
               >
