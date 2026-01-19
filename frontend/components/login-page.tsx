@@ -118,7 +118,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
             <Button
               type="submit"
-              className="w-full h-12 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-semibold text-base transition-all duration-200"
+              className="w-full h-12 rounded-xl bg-primary text-primary-foreground hover:bg-orange-600 font-semibold text-base transition-all duration-200"
               disabled={isLoading}
             >
               {isLoading ? (
@@ -135,7 +135,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           {/* Footer */}
           <p className="text-center text-muted-foreground text-sm mt-6">
             Don&apos;t have an account?{" "}
-            <button className="text-primary hover:underline font-medium">Request Access</button>
+            <button className="text-primary hover:text-orange-600 hover:underline font-medium">Request Access</button>
           </p>
         </div>
       </motion.div>

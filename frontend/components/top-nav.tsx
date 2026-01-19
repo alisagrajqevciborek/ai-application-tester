@@ -35,7 +35,7 @@ export default function TopNav() {
         {/* User Profile */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+            <Button variant="ghost" className="relative h-10 w-10 rounded-full hover:bg-orange-600/10">
               <Avatar className="h-10 w-10 border-2 border-border">
                 <AvatarImage src="/professional-avatar.png" alt="User" />
                 <AvatarFallback className="bg-secondary text-secondary-foreground">{getInitials()}</AvatarFallback>

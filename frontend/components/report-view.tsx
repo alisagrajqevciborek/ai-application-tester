@@ -185,7 +185,7 @@ export default function ReportView({ test, onBack }: ReportViewProps) {
           animate={{ opacity: 1, y: 0 }}
           className="flex items-center justify-between mb-6"
         >
-          <Button variant="ghost" onClick={onBack} className="text-muted-foreground hover:text-foreground">
+          <Button variant="ghost" onClick={onBack} className="text-muted-foreground hover:text-orange-600 hover:bg-orange-600/10">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to New Test
           </Button>
@@ -265,7 +265,7 @@ export default function ReportView({ test, onBack }: ReportViewProps) {
           <div className="flex flex-col sm:flex-row gap-3">
             <Button
               onClick={() => setShowFullReport(true)}
-              className="flex-1 h-12 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
+              className="flex-1 h-12 rounded-xl bg-primary text-primary-foreground hover:bg-orange-600"
             >
               <ExternalLink className="w-4 h-4 mr-2" />
               View Full Report
@@ -274,7 +274,7 @@ export default function ReportView({ test, onBack }: ReportViewProps) {
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="outline"
-                  className="flex-1 h-12 rounded-xl border-border hover:bg-secondary bg-transparent"
+                  className="flex-1 h-12 rounded-xl border-border hover:bg-orange-600/10 hover:text-orange-600 hover:border-orange-600 bg-transparent"
                 >
                   <Download className="w-4 h-4 mr-2" />
                   Export Report
@@ -318,7 +318,7 @@ export default function ReportView({ test, onBack }: ReportViewProps) {
                   {/* Issue Header */}
                   <button
                     onClick={() => setExpandedIssue(isExpanded ? null : issue.id)}
-                    className="w-full p-4 flex items-start gap-4 text-left hover:bg-white/5 transition-colors"
+                    className="w-full p-4 flex items-start gap-4 text-left hover:bg-orange-600/10 transition-colors"
                   >
                     <div className={cn("p-2 rounded-lg", config.bg)}>
                       <Icon className={cn("w-5 h-5", config.color)} />
@@ -366,7 +366,7 @@ export default function ReportView({ test, onBack }: ReportViewProps) {
                             className="w-full h-full object-cover"
                           />
                           <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <Button size="sm" variant="secondary" className="gap-2">
+                            <Button size="sm" variant="secondary" className="gap-2 hover:bg-orange-600 hover:text-white">
                               <ZoomIn className="w-4 h-4" />
                               View Full Screenshot
                             </Button>
@@ -399,7 +399,7 @@ export default function ReportView({ test, onBack }: ReportViewProps) {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-4xl max-h-[85vh] overflow-hidden rounded-2xl bg-card border border-border shadow-2xl"
+              className="w-full max-w-4xl max-h-[85vh] rounded-2xl bg-card border border-border shadow-2xl flex flex-col"
             >
               {/* Modal Header */}
               <div className="flex items-center justify-between p-6 border-b border-border">
@@ -413,14 +413,14 @@ export default function ReportView({ test, onBack }: ReportViewProps) {
                   variant="ghost"
                   size="icon"
                   onClick={() => setShowFullReport(false)}
-                  className="text-muted-foreground hover:text-foreground"
+                  className="text-muted-foreground hover:text-orange-600 hover:bg-orange-600/10"
                 >
                   <X className="w-5 h-5" />
                 </Button>
               </div>
 
               {/* Modal Content */}
-              <div className="overflow-y-auto max-h-[calc(85vh-140px)] p-6 space-y-6">
+              <div className="overflow-y-auto flex-1 p-6 space-y-6">
                 {/* Executive Summary */}
                 <div className="glass rounded-xl p-5">
                   <div className="flex items-center gap-2 mb-3">
@@ -518,13 +518,13 @@ export default function ReportView({ test, onBack }: ReportViewProps) {
               </div>
 
               {/* Modal Footer */}
-              <div className="flex items-center justify-end gap-3 p-4 border-t border-border bg-card">
-                <Button variant="outline" onClick={() => setShowFullReport(false)} className="rounded-xl">
+              <div className="flex items-center justify-end gap-3 p-4 border-t border-border bg-card shrink-0">
+                <Button variant="outline" onClick={() => setShowFullReport(false)} className="rounded-xl hover:bg-orange-600/10 hover:text-orange-600 hover:border-orange-600">
                   Close
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button className="rounded-xl bg-primary text-primary-foreground">
+                    <Button className="rounded-xl bg-primary text-primary-foreground hover:bg-orange-600">
                       <Download className="w-4 h-4 mr-2" />
                       Export Report
                     </Button>
