@@ -175,3 +175,21 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
 ]
+
+# Email Configuration
+# Default to console backend for development, but use SMTP if credentials are provided
+email_backend = os.getenv('EMAIL_BACKEND', '')
+if not email_backend:
+    # Auto-detect: use SMTP if credentials are provided, otherwise use console
+    if os.getenv('EMAIL_HOST_USER') and os.getenv('EMAIL_HOST_PASSWORD'):
+        email_backend = 'django.core.mail.backends.smtp.EmailBackend'
+    else:
+        email_backend = 'django.core.mail.backends.console.EmailBackend'
+
+EMAIL_BACKEND = email_backend
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.getenv('EMAIL_FROM', EMAIL_HOST_USER or 'noreply@testflowai.com')

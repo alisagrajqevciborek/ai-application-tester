@@ -4,7 +4,93 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
-from .serializers import LoginSerializer, UserSerializer
+from django.contrib.auth import get_user_model
+from .serializers import (
+    LoginSerializer, UserSerializer, UserRegistrationSerializer,
+    EmailVerificationSerializer, ResendCodeSerializer
+)
+from .utils import send_verification_email
+
+User = get_user_model()
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def register_view(request):
+    """
+    POST /api/auth/register
+    Register a new user and send verification code.
+    """
+    try:
+        serializer = UserRegistrationSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+            # Email sending is handled in the serializer's create method
+            # If email fails, user is still created but we should log it
+            return Response({
+                'message': 'Registration successful. Please check your email for the verification code.',
+                'email': user.email
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        import traceback
+        print(f"Registration error: {e}")
+        print(traceback.format_exc())
+        return Response({
+            'error': 'An error occurred during registration. Please try again.'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_email_view(request):
+    """
+    POST /api/auth/verify-email
+    Verify email with code.
+    """
+    serializer = EmailVerificationSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.validated_data['user']
+        code = serializer.validated_data['code']
+        
+        if user.verify_code(code):
+            # Generate JWT tokens after successful verification
+            refresh = RefreshToken.for_user(user)
+            user_data = UserSerializer(user).data
+            
+            return Response({
+                'message': 'Email verified successfully',
+                'user': user_data,
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'error': 'Invalid or expired verification code'
+            }, status=status.HTTP_400_BAD_REQUEST)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def resend_code_view(request):
+    """
+    POST /api/auth/resend-code
+    Resend verification code.
+    """
+    serializer = ResendCodeSerializer(data=request.data)
+    if serializer.is_valid():
+        email = serializer.validated_data['email']
+        user = User.objects.get(email=email)
+        
+        # Generate new code
+        code = user.generate_verification_code()
+        send_verification_email(user.email, code)
+        
+        return Response({
+            'message': 'Verification code has been resent to your email.'
+        }, status=status.HTTP_200_OK)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['POST'])
@@ -23,6 +109,14 @@ def login_view(request):
     user = authenticate(request, username=email, password=password)
     
     if user is not None:
+        # Check if email is verified
+        if not user.email_verified:
+            return Response({
+                'error': 'Please verify your email before logging in. Check your email for the verification code.',
+                'email': user.email,
+                'requires_verification': True
+            }, status=status.HTTP_403_FORBIDDEN)
+        
         # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
         user_data = UserSerializer(user).data
@@ -67,3 +161,13 @@ def me_view(request):
     """
     serializer = UserSerializer(request.user)
     return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health_check(request):
+    """
+    GET /api/auth/health
+    Simple health check endpoint.
+    """
+    return Response({'status': 'ok', 'message': 'Backend is running'}, status=status.HTTP_200_OK)
