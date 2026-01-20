@@ -24,6 +24,8 @@ import DonutChart from "@/components/donut-chart"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import jsPDF from "jspdf"
+import * as XLSX from "xlsx"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -194,11 +196,261 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
       : `The test suite encountered ${test.failRate}% failures. ${criticalCount} critical and ${majorCount} major issues were found that require immediate attention. Review the detailed findings below.`
 
   const handleExportPDF = () => {
-    alert("Exporting report as PDF...")
+    const doc = new jsPDF()
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const margin = 20
+    let yPos = margin
+
+    // Title
+    doc.setFontSize(20)
+    doc.setTextColor(255, 140, 0) // Orange color
+    doc.text("TestFlow AI - Test Report", margin, yPos)
+    yPos += 12
+
+    // Test Information
+    doc.setFontSize(12)
+    doc.setTextColor(0, 0, 0)
+    doc.setFont("helvetica", "bold")
+    doc.text("Test Information", margin, yPos)
+    yPos += 8
+
+    doc.setFontSize(10)
+    doc.setFont("helvetica", "normal")
+    const testInfo = [
+      ["Application Name", test.appName],
+      ["Test Type", test.testType.charAt(0).toUpperCase() + test.testType.slice(1)],
+      ["Test Date", test.date],
+      ["Status", test.status.charAt(0).toUpperCase() + test.status.slice(1)],
+      ["Pass Rate", `${test.passRate}%`],
+      ["Fail Rate", `${test.failRate}%`],
+    ]
+
+    testInfo.forEach((row) => {
+      if (yPos > doc.internal.pageSize.getHeight() - 30) {
+        doc.addPage()
+        yPos = margin
+      }
+      doc.setFont("helvetica", "bold")
+      doc.text(row[0] + ":", margin, yPos)
+      doc.setFont("helvetica", "normal")
+      doc.text(row[1], margin + 60, yPos)
+      yPos += 7
+    })
+
+    yPos += 5
+
+    // Summary
+    if (yPos > doc.internal.pageSize.getHeight() - 50) {
+      doc.addPage()
+      yPos = margin
+    }
+    doc.setFontSize(12)
+    doc.setFont("helvetica", "bold")
+    doc.text("Test Summary", margin, yPos)
+    yPos += 8
+
+    doc.setFontSize(10)
+    doc.setFont("helvetica", "normal")
+    const summaryLines = doc.splitTextToSize(summaryText, pageWidth - 2 * margin)
+    summaryLines.forEach((line: string) => {
+      if (yPos > doc.internal.pageSize.getHeight() - 30) {
+        doc.addPage()
+        yPos = margin
+      }
+      doc.text(line, margin, yPos)
+      yPos += 6
+    })
+
+    yPos += 5
+
+    // Issue Statistics
+    if (yPos > doc.internal.pageSize.getHeight() - 50) {
+      doc.addPage()
+      yPos = margin
+    }
+    doc.setFontSize(12)
+    doc.setFont("helvetica", "bold")
+    doc.text("Issue Statistics", margin, yPos)
+    yPos += 8
+
+    doc.setFontSize(10)
+    doc.setFont("helvetica", "normal")
+    const stats = [
+      ["Critical Issues", criticalCount.toString()],
+      ["Major Issues", majorCount.toString()],
+      ["Minor Issues", minorCount.toString()],
+      ["Total Issues", issues.length.toString()],
+    ]
+
+    stats.forEach((row) => {
+      if (yPos > doc.internal.pageSize.getHeight() - 30) {
+        doc.addPage()
+        yPos = margin
+      }
+      doc.setFont("helvetica", "bold")
+      doc.text(row[0] + ":", margin, yPos)
+      doc.setFont("helvetica", "normal")
+      doc.text(row[1], margin + 60, yPos)
+      yPos += 7
+    })
+
+    yPos += 5
+
+    // Detailed Findings
+    if (yPos > doc.internal.pageSize.getHeight() - 50) {
+      doc.addPage()
+      yPos = margin
+    }
+    doc.setFontSize(12)
+    doc.setFont("helvetica", "bold")
+    doc.text("Detailed Findings", margin, yPos)
+    yPos += 10
+
+    issues.forEach((issue, index) => {
+      if (yPos > doc.internal.pageSize.getHeight() - 60) {
+        doc.addPage()
+        yPos = margin
+      }
+
+      // Issue header
+      doc.setFontSize(11)
+      doc.setFont("helvetica", "bold")
+      doc.text(`Issue ${index + 1}: ${issue.title}`, margin, yPos)
+      yPos += 7
+
+      // Severity
+      doc.setFontSize(9)
+      doc.setFont("helvetica", "normal")
+      doc.text(`Severity: ${issue.severity.charAt(0).toUpperCase() + issue.severity.slice(1)}`, margin, yPos)
+      yPos += 6
+
+      // Location
+      doc.text(`Location: ${issue.location}`, margin, yPos)
+      yPos += 6
+
+      // Description
+      doc.setFontSize(9)
+      const descLines = doc.splitTextToSize(issue.description, pageWidth - 2 * margin)
+      descLines.forEach((line: string) => {
+        if (yPos > doc.internal.pageSize.getHeight() - 30) {
+          doc.addPage()
+          yPos = margin
+        }
+        doc.text(line, margin, yPos)
+        yPos += 5
+      })
+
+      yPos += 5
+    })
+
+    // Footer
+    const totalPages = doc.getNumberOfPages()
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i)
+      doc.setFontSize(8)
+      doc.setTextColor(150, 150, 150)
+      doc.text(
+        `Page ${i} of ${totalPages} - TestFlow AI Test Report`,
+        pageWidth / 2,
+        doc.internal.pageSize.getHeight() - 10,
+        { align: "center" }
+      )
+    }
+
+    doc.save(`testflow-report-${test.appName.replace(/\s+/g, "-")}-${test.date.replace(/\//g, "-")}.pdf`)
   }
 
   const handleExportExcel = () => {
-    alert("Exporting report as Excel...")
+    // Prepare data for Excel
+    const excelData = [
+      ["TestFlow AI - Test Report"],
+      ["Exported on", new Date().toLocaleString()],
+      [""],
+      ["Test Information"],
+      ["Field", "Value"],
+      ["Application Name", test.appName],
+      ["Test Type", test.testType.charAt(0).toUpperCase() + test.testType.slice(1)],
+      ["Test Date", test.date],
+      ["Status", test.status.charAt(0).toUpperCase() + test.status.slice(1)],
+      ["Pass Rate", `${test.passRate}%`],
+      ["Fail Rate", `${test.failRate}%`],
+      [""],
+      ["Test Summary"],
+      ["Summary", summaryText],
+      [""],
+      ["Issue Statistics"],
+      ["Severity", "Count"],
+      ["Critical", criticalCount.toString()],
+      ["Major", majorCount.toString()],
+      ["Minor", minorCount.toString()],
+      ["Total", issues.length.toString()],
+      [""],
+      ["Detailed Findings"],
+      ["#", "Title", "Severity", "Location", "Description"],
+    ]
+
+    // Add issues
+    issues.forEach((issue, index) => {
+      excelData.push([
+        (index + 1).toString(),
+        issue.title,
+        issue.severity.charAt(0).toUpperCase() + issue.severity.slice(1),
+        issue.location,
+        issue.description,
+      ])
+    })
+
+    // Create workbook and worksheet
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.aoa_to_sheet(excelData)
+
+    // Set column widths
+    ws["!cols"] = [
+      { wch: 5 }, // #
+      { wch: 40 }, // Title
+      { wch: 12 }, // Severity
+      { wch: 30 }, // Location
+      { wch: 60 }, // Description
+    ]
+
+    // Merge cells for headers
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }, // Title row
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } }, // Export date row
+      { s: { r: 3, c: 0 }, e: { r: 3, c: 1 } }, // Test Information header
+      { s: { r: 12, c: 0 }, e: { r: 12, c: 1 } }, // Test Summary header
+      { s: { r: 15, c: 0 }, e: { r: 15, c: 1 } }, // Issue Statistics header
+      { s: { r: 22, c: 0 }, e: { r: 22, c: 4 } }, // Detailed Findings header
+    ]
+
+    // Style header rows
+    const headerRows = [0, 1, 3, 12, 15, 22]
+    headerRows.forEach((row) => {
+      const cellAddress = XLSX.utils.encode_cell({ r: row, c: 0 })
+      if (ws[cellAddress]) {
+        ws[cellAddress].s = {
+          font: { bold: true, color: { rgb: "FF8C00" } },
+        }
+      }
+    })
+
+    // Style issue header row
+    const issueHeaderRow = 23
+    for (let col = 0; col < 5; col++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: issueHeaderRow, c: col })
+      if (ws[cellAddress]) {
+        ws[cellAddress].s = {
+          font: { bold: true },
+          fill: { fgColor: { rgb: "FFF4E6" } },
+        }
+      }
+    }
+
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(wb, ws, "Test Report")
+
+    // Save file
+    XLSX.writeFile(wb, `testflow-report-${test.appName.replace(/\s+/g, "-")}-${test.date.replace(/\//g, "-")}.xlsx`)
   }
 
   return (
