@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { ArrowLeft, User, Mail, Lock, Save, Loader2, CheckCircle, AlertCircle, Eye, EyeOff, Download } from "lucide-react"
+import { ArrowLeft, User, Mail, Lock, Save, Loader2, CheckCircle, AlertCircle, Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -99,32 +99,6 @@ export default function ProfilePage({ onBack }: ProfilePageProps) {
     }
   }
 
-  const handleExportData = () => {
-    if (!user) return
-
-    const exportData = {
-      profile: {
-        email: user.email,
-        first_name: user.first_name,
-        last_name: user.last_name,
-        date_joined: user.date_joined,
-        email_verified: true,
-      },
-      export_date: new Date().toISOString(),
-      export_version: "1.0",
-    }
-
-    const dataStr = JSON.stringify(exportData, null, 2)
-    const dataBlob = new Blob([dataStr], { type: "application/json" })
-    const url = URL.createObjectURL(dataBlob)
-    const link = document.createElement("a")
-    link.href = url
-    link.download = `testflow-account-data-${new Date().toISOString().split("T")[0]}.json`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-  }
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -417,21 +391,6 @@ export default function ProfilePage({ onBack }: ProfilePageProps) {
                 <p className="text-sm text-muted-foreground mb-1">Email Status</p>
                 <p className="text-sm font-medium text-green-400">Verified</p>
               </div>
-            </div>
-            
-            {/* Export Data Button */}
-            <div className="pt-4 border-t border-border/50">
-              <Button
-                onClick={handleExportData}
-                variant="outline"
-                className="w-full h-12 rounded-xl bg-background border-2 border-orange-500/50 text-orange-500 hover:bg-orange-500/10 hover:border-orange-500 font-semibold transition-all"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Export Account Data
-              </Button>
-              <p className="text-xs text-muted-foreground mt-2 text-center">
-                Download your account information as a JSON file
-              </p>
             </div>
           </CardContent>
         </Card>
