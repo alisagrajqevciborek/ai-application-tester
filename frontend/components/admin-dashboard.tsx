@@ -6,6 +6,7 @@ import { Users, Shield, ToggleLeft, ToggleRight, Loader2, AlertCircle, CheckCirc
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useToast } from "@/hooks/use-toast"
 import TopNav from "@/components/top-nav"
 import ProfilePage from "@/components/profile-page"
 import { adminApi, type User } from "@/lib/api"
@@ -19,6 +20,7 @@ export default function AdminDashboard() {
   const [success, setSuccess] = useState<string | null>(null)
   const [updatingUserId, setUpdatingUserId] = useState<number | null>(null)
   const [currentView, setCurrentView] = useState<View>("admin")
+  const { toast } = useToast()
 
   useEffect(() => {
     loadUsers()
@@ -44,6 +46,7 @@ export default function AdminDashboard() {
       setSuccess(null)
       
       const newStatus = currentStatus === 'active' ? 'disabled' : 'active'
+      const user = users.find(u => u.id === userId)
       const response = await adminApi.toggleUserStatus(userId, newStatus)
       
       // Update local state
@@ -51,9 +54,22 @@ export default function AdminDashboard() {
         user.id === userId ? { ...user, status: newStatus } : user
       ))
       
+      // Show toast notification
+      toast({
+        title: newStatus === 'active' ? "User Enabled" : "User Disabled",
+        description: `${user?.email || 'User'} has been ${newStatus === 'active' ? 'enabled' : 'disabled'} successfully.`,
+        variant: "default",
+      })
+      
       setSuccess(response.message)
       setTimeout(() => setSuccess(null), 3000)
     } catch (err: any) {
+      const user = users.find(u => u.id === userId)
+      toast({
+        title: "Error",
+        description: err.message || `Failed to update status for ${user?.email || 'user'}`,
+        variant: "destructive",
+      })
       setError(err.message || "Failed to update user status")
     } finally {
       setUpdatingUserId(null)
