@@ -6,6 +6,7 @@ from django.utils import timezone
 from django.db import transaction
 import random
 import time
+from common.permissions import IsActiveUser
 from .models import Application, TestRun
 from .serializers import (
     ApplicationSerializer, ApplicationCreateSerializer,
@@ -26,6 +27,12 @@ def application_list_create(request):
     GET /api/applications - List all applications owned by the current user
     POST /api/applications - Create a new application
     """
+    # Check if user is disabled
+    if request.user.status == 'disabled':
+        return Response({
+            'error': 'Your account has been disabled. Please contact support.'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
     if request.method == 'GET':
         # Get only applications owned by the current user
         applications = Application.objects.filter(owner=request.user)
@@ -59,6 +66,12 @@ def application_detail(request, pk):
     PUT /api/applications/<id> - Update application
     DELETE /api/applications/<id> - Delete application
     """
+    # Check if user is disabled
+    if request.user.status == 'disabled':
+        return Response({
+            'error': 'Your account has been disabled. Please contact support.'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
     try:
         application = Application.objects.get(pk=pk, owner=request.user)
     except Application.DoesNotExist:
@@ -100,6 +113,12 @@ def testrun_list_create(request):
     GET /api/test-runs - List all test runs for user's applications
     POST /api/test-runs - Create and start a new test run
     """
+    # Check if user is disabled
+    if request.user.status == 'disabled':
+        return Response({
+            'error': 'Your account has been disabled. Please contact support.'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
     if request.method == 'GET':
         # Get test runs for applications owned by the user
         test_runs = TestRun.objects.filter(application__owner=request.user)
@@ -137,6 +156,12 @@ def testrun_detail(request, pk):
     GET /api/test-runs/<id> - Retrieve test run details
     DELETE /api/test-runs/<id> - Delete test run
     """
+    # Check if user is disabled
+    if request.user.status == 'disabled':
+        return Response({
+            'error': 'Your account has been disabled. Please contact support.'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
     try:
         test_run = TestRun.objects.get(pk=pk, application__owner=request.user)
     except TestRun.DoesNotExist:

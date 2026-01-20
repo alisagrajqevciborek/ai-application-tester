@@ -9,8 +9,8 @@ class UserSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ('id', 'email', 'first_name', 'last_name', 'date_joined')
-        read_only_fields = ('id', 'date_joined')
+        fields = ('id', 'email', 'first_name', 'last_name', 'date_joined', 'status', 'role')
+        read_only_fields = ('id', 'date_joined', 'status', 'role')
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -96,3 +96,43 @@ class LoginSerializer(serializers.Serializer):
     
     email = serializers.EmailField(required=True)
     password = serializers.CharField(required=True, write_only=True, style={'input_type': 'password'})
+
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating user profile."""
+    
+    class Meta:
+        model = User
+        fields = ('first_name', 'last_name', 'email')
+    
+    def validate_email(self, value):
+        """Ensure email is unique if changed."""
+        user = self.instance
+        if User.objects.filter(email=value).exclude(pk=user.pk).exists():
+            raise serializers.ValidationError("A user with this email already exists.")
+        return value
+
+
+class PasswordChangeSerializer(serializers.Serializer):
+    """Serializer for changing password."""
+    
+    old_password = serializers.CharField(required=True, write_only=True, style={'input_type': 'password'})
+    new_password = serializers.CharField(required=True, write_only=True, style={'input_type': 'password'})
+    new_password_confirm = serializers.CharField(required=True, write_only=True, style={'input_type': 'password'})
+    
+    def validate(self, attrs):
+        """Validate that new passwords match."""
+        if attrs['new_password'] != attrs['new_password_confirm']:
+            raise serializers.ValidationError({"new_password": "New passwords do not match."})
+        
+        if len(attrs['new_password']) < 8:
+            raise serializers.ValidationError({"new_password": "Password must be at least 8 characters long."})
+        
+        return attrs
+    
+    def validate_old_password(self, value):
+        """Validate that old password is correct."""
+        user = self.context['request'].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("Current password is incorrect.")
+        return value

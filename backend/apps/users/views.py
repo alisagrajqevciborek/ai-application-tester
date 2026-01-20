@@ -5,9 +5,11 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.contrib.auth import get_user_model
+from common.permissions import IsAdmin, IsActiveUser
 from .serializers import (
     LoginSerializer, UserSerializer, UserRegistrationSerializer,
-    EmailVerificationSerializer, ResendCodeSerializer
+    EmailVerificationSerializer, ResendCodeSerializer,
+    UserUpdateSerializer, PasswordChangeSerializer
 )
 from .utils import send_verification_email
 
@@ -117,6 +119,12 @@ def login_view(request):
                 'requires_verification': True
             }, status=status.HTTP_403_FORBIDDEN)
         
+        # Check if account is disabled
+        if user.status == 'disabled':
+            return Response({
+                'error': 'Your account has been disabled. Please contact support.',
+            }, status=status.HTTP_403_FORBIDDEN)
+        
         # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
         user_data = UserSerializer(user).data
@@ -153,14 +161,73 @@ def logout_view(request):
         }, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['GET'])
+@api_view(['GET', 'PUT'])
 def me_view(request):
     """
-    GET /api/auth/me
-    Return current authenticated user information.
+    GET /api/auth/me - Return current authenticated user information
+    PUT /api/auth/me - Update user profile
     """
-    serializer = UserSerializer(request.user)
-    return Response(serializer.data, status=status.HTTP_200_OK)
+    # Check if user is disabled
+    if request.user.status == 'disabled':
+        return Response({
+            'error': 'Your account has been disabled. Please contact support.'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    if request.method == 'GET':
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    elif request.method == 'PUT':
+        serializer = UserUpdateSerializer(request.user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            # Return updated user data
+            user_serializer = UserSerializer(request.user)
+            return Response({
+                'message': 'Profile updated successfully',
+                'user': user_serializer.data
+            }, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+def change_password_view(request):
+    """
+    POST /api/auth/change-password
+    Change user password.
+    """
+    serializer = PasswordChangeSerializer(data=request.data, context={'request': request})
+    if serializer.is_valid():
+        user = request.user
+        user.set_password(serializer.validated_data['new_password'])
+        user.save()
+        return Response({
+            'message': 'Password changed successfully'
+        }, status=status.HTTP_200_OK)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+def refresh_token_view(request):
+    """
+    POST /api/auth/refresh
+    Refresh access token using refresh token.
+    """
+    try:
+        refresh_token = request.data.get('refresh')
+        if not refresh_token:
+            return Response({
+                'error': 'Refresh token is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        refresh = RefreshToken(refresh_token)
+        return Response({
+            'access': str(refresh.access_token),
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({
+            'error': 'Invalid or expired refresh token'
+        }, status=status.HTTP_401_UNAUTHORIZED)
 
 
 @api_view(['GET'])

@@ -13,6 +13,9 @@ class UserManager(BaseUserManager):
         if not email:
             raise ValueError('The Email field must be set')
         email = self.normalize_email(email)
+        # Set default status and role if not provided
+        extra_fields.setdefault('status', 'active')
+        extra_fields.setdefault('role', 'user')
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
@@ -35,12 +38,26 @@ class UserManager(BaseUserManager):
 class User(AbstractBaseUser, PermissionsMixin):
     """Custom user model using email as the primary identifier."""
     
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('disabled', 'Disabled'),
+    ]
+    
+    ROLE_CHOICES = [
+        ('user', 'User'),
+        ('admin', 'Admin'),
+    ]
+    
     email = models.EmailField(unique=True, max_length=255)
     first_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)
     is_active = models.BooleanField(default=False)  # Changed to False - requires email verification
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
+    
+    # Status and role fields
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='user')
     
     # Email verification fields
     email_verified = models.BooleanField(default=False)
