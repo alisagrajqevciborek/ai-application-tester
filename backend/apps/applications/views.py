@@ -2,11 +2,6 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
-from django.utils import timezone
-from django.db import transaction
-import random
-import time
-from common.permissions import IsActiveUser
 from .models import Application, TestRun
 from .serializers import (
     ApplicationSerializer, ApplicationCreateSerializer,
@@ -35,7 +30,7 @@ def application_list_create(request):
     
     if request.method == 'GET':
         # Get only applications owned by the current user
-        applications = Application.objects.filter(owner=request.user)
+        applications = Application.objects.filter(owner=request.user)  # type: ignore[attr-defined]
         
         # Apply pagination
         paginator = ApplicationPagination()
@@ -73,8 +68,8 @@ def application_detail(request, pk):
         }, status=status.HTTP_403_FORBIDDEN)
     
     try:
-        application = Application.objects.get(pk=pk, owner=request.user)
-    except Application.DoesNotExist:
+        application = Application.objects.get(pk=pk, owner=request.user)  # type: ignore[attr-defined]
+    except Application.DoesNotExist:  # type: ignore[attr-defined]
         return Response({
             'error': 'Application not found or you do not have permission to access it'
         }, status=status.HTTP_404_NOT_FOUND)
@@ -121,7 +116,7 @@ def testrun_list_create(request):
     
     if request.method == 'GET':
         # Get test runs for applications owned by the user
-        test_runs = TestRun.objects.filter(application__owner=request.user)
+        test_runs = TestRun.objects.filter(application__owner=request.user)  # type: ignore[attr-defined]
         
         # Apply pagination
         paginator = TestRunPagination()
@@ -140,9 +135,9 @@ def testrun_list_create(request):
             # Create test run with pending status
             test_run = serializer.save(status='pending')
             
-            # Simulate test execution in background (for demo purposes)
-            # In production, this would be handled by Celery or similar
-            simulate_test_execution(test_run.id)
+            # Execute test run using Celery task
+            from .tasks import execute_test_run_task
+            execute_test_run_task.delay(test_run.id)  # type: ignore[attr-defined]
             
             # Return the test run
             response_serializer = TestRunSerializer(test_run)
@@ -163,8 +158,8 @@ def testrun_detail(request, pk):
         }, status=status.HTTP_403_FORBIDDEN)
     
     try:
-        test_run = TestRun.objects.get(pk=pk, application__owner=request.user)
-    except TestRun.DoesNotExist:
+        test_run = TestRun.objects.get(pk=pk, application__owner=request.user)  # type: ignore[attr-defined]
+    except TestRun.DoesNotExist:  # type: ignore[attr-defined]
         return Response({
             'error': 'Test run not found or you do not have permission to access it'
         }, status=status.HTTP_404_NOT_FOUND)
@@ -180,51 +175,3 @@ def testrun_detail(request, pk):
         }, status=status.HTTP_204_NO_CONTENT)
 
 
-def simulate_test_execution(test_run_id):
-    """
-    Simulate test execution (mock function for demo).
-    In production, this would trigger actual browser automation and AI testing.
-    """
-    import threading
-    
-    def run_test():
-        time.sleep(1)  # Small delay before starting
-        
-        try:
-            test_run = TestRun.objects.get(pk=test_run_id)
-            test_run.status = 'running'
-            test_run.save()
-            
-            # Simulate test execution time (3-5 seconds)
-            execution_time = random.uniform(3, 5)
-            time.sleep(execution_time)
-            
-            # Generate random results
-            pass_rate = random.randint(60, 100)
-            fail_rate = 100 - pass_rate
-            status = 'success' if pass_rate >= 70 else 'failed'
-            
-            # Update test run with results
-            with transaction.atomic():
-                test_run = TestRun.objects.select_for_update().get(pk=test_run_id)
-                test_run.status = status
-                test_run.pass_rate = pass_rate
-                test_run.fail_rate = fail_rate
-                test_run.completed_at = timezone.now()
-                test_run.save()
-        except TestRun.DoesNotExist:
-            pass
-        except Exception as e:
-            # If something goes wrong, mark as failed
-            try:
-                test_run = TestRun.objects.get(pk=test_run_id)
-                test_run.status = 'failed'
-                test_run.completed_at = timezone.now()
-                test_run.save()
-            except:
-                pass
-    
-    # Run in background thread
-    thread = threading.Thread(target=run_test)
-    thread.daemon = True
-    thread.start()
