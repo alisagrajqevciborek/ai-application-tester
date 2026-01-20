@@ -24,8 +24,7 @@ import DonutChart from "@/components/donut-chart"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import jsPDF from "jspdf"
-import * as XLSX from "xlsx"
+// Note: jspdf and xlsx are imported dynamically in functions to avoid SSR issues
 import {
   AlertDialog,
   AlertDialogAction,
@@ -195,7 +194,8 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
       ? `The test suite completed successfully with a ${test.passRate}% pass rate. All critical user flows were validated, and no blocking issues were found. ${minorCount} minor improvements are suggested for accessibility compliance.`
       : `The test suite encountered ${test.failRate}% failures. ${criticalCount} critical and ${majorCount} major issues were found that require immediate attention. Review the detailed findings below.`
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
+    const { default: jsPDF } = await import('jspdf')
     const doc = new jsPDF()
     const pageWidth = doc.internal.pageSize.getWidth()
     const margin = 20
@@ -344,7 +344,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
     })
 
     // Footer
-    const totalPages = doc.getNumberOfPages()
+    const totalPages = doc.internal.getNumberOfPages()
     for (let i = 1; i <= totalPages; i++) {
       doc.setPage(i)
       doc.setFontSize(8)
@@ -360,7 +360,11 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
     doc.save(`testflow-report-${test.appName.replace(/\s+/g, "-")}-${test.date.replace(/\//g, "-")}.pdf`)
   }
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
+    // xlsx is CommonJS in many setups; Next/TS dynamic import can return { default: ... }
+    const XLSXImport = await import("xlsx")
+    const XLSX: any = (XLSXImport as any).default ?? XLSXImport
+    
     // Prepare data for Excel
     const excelData = [
       ["TestFlow AI - Test Report"],
@@ -571,11 +575,11 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-48 bg-popover border-border" align="end">
-                <DropdownMenuItem onClick={handleExportPDF} className="cursor-pointer">
+                <DropdownMenuItem onClick={() => handleExportPDF()} className="cursor-pointer">
                   <FileText className="mr-2 h-4 w-4 text-red-400" />
                   <span>Export as PDF</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleExportExcel} className="cursor-pointer">
+                <DropdownMenuItem onClick={() => handleExportExcel()} className="cursor-pointer">
                   <FileSpreadsheet className="mr-2 h-4 w-4 text-green-400" />
                   <span>Export as Excel</span>
                 </DropdownMenuItem>
@@ -820,11 +824,11 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="bg-popover border-border" align="end">
-                    <DropdownMenuItem onClick={handleExportPDF} className="cursor-pointer">
+                    <DropdownMenuItem onClick={() => handleExportPDF()} className="cursor-pointer">
                       <FileText className="mr-2 h-4 w-4 text-red-400" />
                       <span>Export as PDF</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleExportExcel} className="cursor-pointer">
+                    <DropdownMenuItem onClick={() => handleExportExcel()} className="cursor-pointer">
                       <FileSpreadsheet className="mr-2 h-4 w-4 text-green-400" />
                       <span>Export as Excel</span>
                     </DropdownMenuItem>
