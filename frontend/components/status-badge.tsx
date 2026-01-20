@@ -35,10 +35,11 @@ export default function StatusBadge({ status, compact, large }: StatusBadgeProps
 
   if (compact) {
     return (
-      <div className={cn("w-3 h-3 rounded-full", dot)}>
+      <div className="relative w-3 h-3">
+        <div className={cn("absolute inset-0 w-3 h-3 rounded-full", dot)} />
         {status === "running" && (
           <motion.div
-            className={cn("w-3 h-3 rounded-full", dot)}
+            className={cn("absolute inset-0 w-3 h-3 rounded-full", dot)}
             animate={{ scale: [1, 1.5, 1], opacity: [1, 0.5, 1] }}
             transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5 }}
           />
@@ -56,10 +57,11 @@ export default function StatusBadge({ status, compact, large }: StatusBadgeProps
         large ? "text-sm px-4 py-1.5" : "text-xs",
       )}
     >
-      <span className={cn("w-2 h-2 rounded-full", dot)}>
+      <span className="relative inline-block w-2 h-2">
+        <span className={cn("absolute inset-0 w-2 h-2 rounded-full", dot)} />
         {status === "running" && (
           <motion.span
-            className={cn("block w-2 h-2 rounded-full", dot)}
+            className={cn("absolute inset-0 block w-2 h-2 rounded-full", dot)}
             animate={{ scale: [1, 1.5, 1], opacity: [1, 0.5, 1] }}
             transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5 }}
           />

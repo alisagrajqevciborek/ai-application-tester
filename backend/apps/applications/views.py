@@ -2,6 +2,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
+from typing import cast
 from .models import Application, TestRun
 from .serializers import (
     ApplicationSerializer, ApplicationCreateSerializer,
@@ -133,18 +134,23 @@ def testrun_list_create(request):
         serializer = TestRunCreateSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             # Create test run with pending status
-            test_run = serializer.save(status='pending')
+            test_run = cast(TestRun, serializer.save(status='pending'))
             
             # Try to execute test run using Celery task
             try:
                 from .tasks import execute_test_run_task
-                execute_test_run_task.delay(test_run.id)  # type: ignore[attr-defined]
+                # Avoid direct .id access (Django typing gap under pyright)
+                test_run_id = getattr(test_run, "id", None) or getattr(test_run, "pk", None)
+                if not isinstance(test_run_id, int):
+                    raise ValueError(f"Could not determine test run id (got {test_run_id!r})")
+                execute_test_run_task.delay(test_run_id)  # type: ignore[attr-defined]
             except Exception as e:
                 # If Celery is not available, log the error but don't fail the request
                 # The test run will remain in pending status and can be manually processed
                 import logging
                 logger = logging.getLogger(__name__)
-                logger.warning(f"Could not queue Celery task for test run {test_run.id}: {e}")
+                test_run_id = getattr(test_run, "id", None) or getattr(test_run, "pk", None)
+                logger.warning(f"Could not queue Celery task for test run {test_run_id}: {e}")
                 logger.warning("Celery may not be running. Test execution will be delayed.")
             
             # Return the test run

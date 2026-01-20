@@ -66,16 +66,13 @@ export default function Dashboard() {
       if (runningTests.length > 0) {
         const pollInterval = setInterval(async () => {
           try {
-            const updatedRuns = await Promise.all(
-              runningTests.map(tr => testRunsApi.get(tr.id))
-            )
-            const updatedHistory = updatedRuns.map(convertTestRunToHistory)
+            // Get all test runs to ensure we have the latest status
             const allRuns = await testRunsApi.list()
             const allHistory = allRuns.map(convertTestRunToHistory)
             setHistory(allHistory)
             
             // Stop polling if no running tests
-            const stillRunning = updatedRuns.filter(tr => tr.status === 'running' || tr.status === 'pending')
+            const stillRunning = allRuns.filter(tr => tr.status === 'running' || tr.status === 'pending')
             if (stillRunning.length === 0) {
               clearInterval(pollInterval)
             }
@@ -85,8 +82,11 @@ export default function Dashboard() {
           }
         }, 2000) // Poll every 2 seconds
         
-        // Cleanup after 60 seconds
-        setTimeout(() => clearInterval(pollInterval), 60000)
+        // Cleanup after 5 minutes (tests can take longer)
+        setTimeout(() => clearInterval(pollInterval), 300000)
+        
+        // Return cleanup function
+        return () => clearInterval(pollInterval)
       }
     } catch (err) {
       console.error("Failed to load test runs:", err)
