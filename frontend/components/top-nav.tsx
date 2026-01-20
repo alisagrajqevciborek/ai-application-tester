@@ -1,7 +1,7 @@
 "use client"
 
-import { LogOut } from "lucide-react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { LogOut, User, Settings } from "lucide-react"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -12,9 +12,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/contexts/AuthContext"
+import { useRouter } from "next/navigation"
 
-export default function TopNav() {
+interface TopNavProps {
+  onNavigateToProfile?: () => void
+}
+
+export default function TopNav({ onNavigateToProfile }: TopNavProps) {
   const { user, logout } = useAuth()
+  const router = useRouter()
   
   const getInitials = () => {
     if (!user) return "U"
@@ -27,6 +33,12 @@ export default function TopNav() {
     await logout()
   }
 
+  const handleProfileClick = () => {
+    if (onNavigateToProfile) {
+      onNavigateToProfile()
+    }
+  }
+
   return (
     <header className="h-16 border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-50">
       <div className="flex items-center justify-between h-full px-4 lg:px-6">
@@ -37,8 +49,7 @@ export default function TopNav() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-10 w-10 rounded-full hover:bg-orange-600/10">
               <Avatar className="h-10 w-10 border-2 border-border">
-                <AvatarImage src="/professional-avatar.png" alt="User" />
-                <AvatarFallback className="bg-secondary text-secondary-foreground">{getInitials()}</AvatarFallback>
+                <AvatarFallback className="bg-primary/20 text-primary font-semibold">{getInitials()}</AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
@@ -53,6 +64,11 @@ export default function TopNav() {
                 <p className="text-xs text-muted-foreground">{user?.email || ""}</p>
               </div>
             </DropdownMenuLabel>
+            <DropdownMenuSeparator className="bg-border" />
+            <DropdownMenuItem onClick={handleProfileClick} className="cursor-pointer">
+              <User className="mr-2 h-4 w-4" />
+              <span>Profile & Settings</span>
+            </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-border" />
             <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive cursor-pointer">
               <LogOut className="mr-2 h-4 w-4" />

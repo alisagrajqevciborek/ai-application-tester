@@ -13,9 +13,10 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface LoginPageProps {
   onLogin: () => void
+  onShowRegister?: () => void
 }
 
-export default function LoginPage({ onLogin }: LoginPageProps) {
+export default function LoginPage({ onLogin, onShowRegister }: LoginPageProps) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -135,7 +136,13 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           {/* Footer */}
           <p className="text-center text-muted-foreground text-sm mt-6">
             Don&apos;t have an account?{" "}
-            <button className="text-primary hover:text-orange-600 hover:underline font-medium">Request Access</button>
+            <button 
+              type="button"
+              onClick={onShowRegister}
+              className="text-primary hover:text-orange-600 hover:underline font-medium"
+            >
+              Sign up
+            </button>
           </p>
         </div>
       </motion.div>

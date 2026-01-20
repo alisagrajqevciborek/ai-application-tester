@@ -6,6 +6,7 @@ import TopNav from "@/components/top-nav"
 import Sidebar from "@/components/sidebar"
 import NewTestForm from "@/components/new-test-form"
 import ReportView from "@/components/report-view"
+import ProfilePage from "@/components/profile-page"
 import type { TestHistory } from "@/lib/types"
 import { applicationsApi, testRunsApi, type Application, type TestRun } from "@/lib/api"
 import { Loader2 } from "lucide-react"
@@ -23,6 +24,8 @@ const convertTestRunToHistory = (testRun: TestRun): TestHistory => {
   }
 }
 
+type View = "dashboard" | "profile"
+
 export default function Dashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [selectedTest, setSelectedTest] = useState<TestHistory | null>(null)
@@ -30,6 +33,7 @@ export default function Dashboard() {
   const [applications, setApplications] = useState<Application[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [currentView, setCurrentView] = useState<View>("dashboard")
 
   useEffect(() => {
     loadApplications()
@@ -115,66 +119,72 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <TopNav />
+      <TopNav onNavigateToProfile={() => setCurrentView("profile")} />
 
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar
-          collapsed={sidebarCollapsed}
-          onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-          history={history}
-          selectedId={selectedTest?.id || null}
-          onSelectTest={setSelectedTest}
-          onDeleteTest={handleDeleteTest}
-        />
-
+      {currentView === "profile" ? (
         <main className="flex-1 overflow-auto p-6 lg:p-8">
-          {isLoading ? (
-            <div className="flex items-center justify-center min-h-[400px]">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
-          ) : error ? (
-            <div className="max-w-2xl mx-auto">
-              <div className="glass rounded-2xl p-6 text-center">
-                <p className="text-destructive mb-4">{error}</p>
-                <button
-                  onClick={loadApplications}
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
-                >
-                  Retry
-                </button>
-              </div>
-            </div>
-          ) : (
-            <AnimatePresence mode="wait">
-              {selectedTest ? (
-                <motion.div
-                  key="report"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <ReportView 
-                    test={selectedTest} 
-                    onBack={() => setSelectedTest(null)}
-                    onDelete={handleDeleteTest}
-                  />
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="new-test"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <NewTestForm onTestComplete={handleNewTestComplete} applications={applications} />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          )}
+          <ProfilePage onBack={() => setCurrentView("dashboard")} />
         </main>
-      </div>
+      ) : (
+        <div className="flex flex-1 overflow-hidden">
+          <Sidebar
+            collapsed={sidebarCollapsed}
+            onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+            history={history}
+            selectedId={selectedTest?.id || null}
+            onSelectTest={setSelectedTest}
+            onDeleteTest={handleDeleteTest}
+          />
+
+          <main className="flex-1 overflow-auto p-6 lg:p-8">
+            {isLoading ? (
+              <div className="flex items-center justify-center min-h-[400px]">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              </div>
+            ) : error ? (
+              <div className="max-w-2xl mx-auto">
+                <div className="glass rounded-2xl p-6 text-center">
+                  <p className="text-destructive mb-4">{error}</p>
+                  <button
+                    onClick={loadApplications}
+                    className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+                  >
+                    Retry
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <AnimatePresence mode="wait">
+                {selectedTest ? (
+                  <motion.div
+                    key="report"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <ReportView 
+                      test={selectedTest} 
+                      onBack={() => setSelectedTest(null)}
+                      onDelete={handleDeleteTest}
+                    />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="new-test"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <NewTestForm onTestComplete={handleNewTestComplete} applications={applications} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            )}
+          </main>
+        </div>
+      )}
     </div>
   )
 }
