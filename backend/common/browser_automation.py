@@ -390,20 +390,45 @@ class BrowserAutomationService:
         test_type: str,
         screenshots_dir: Optional[str]
     ) -> Optional[str]:
-        """Take a screenshot and save it."""
+        """Take a screenshot and upload to Cloudinary."""
         try:
             screenshot_bytes = await page.screenshot(full_page=True)
             
-            if screenshots_dir:
-                # Save to specified directory
-                os.makedirs(screenshots_dir, exist_ok=True)
-                filename = f"{test_type}_{url.replace('https://', '').replace('http://', '').replace('/', '_')}.png"
-                filepath = os.path.join(screenshots_dir, filename)
-                with open(filepath, 'wb') as f:
-                    f.write(screenshot_bytes)
-                return filepath
-            else:
-                # Save to Django media directory
+            # Upload to Cloudinary
+            try:
+                import cloudinary
+                import cloudinary.uploader
+                from django.conf import settings as django_settings
+                
+                # Configure Cloudinary if not already configured
+                if not cloudinary.config().cloud_name:
+                    cloudinary.config(
+                        cloud_name=django_settings.CLOUDINARY_STORAGE.get('CLOUD_NAME', ''),
+                        api_key=django_settings.CLOUDINARY_STORAGE.get('API_KEY', ''),
+                        api_secret=django_settings.CLOUDINARY_STORAGE.get('API_SECRET', ''),
+                    )
+                
+                # Generate a unique filename
+                import hashlib
+                url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
+                filename = f"screenshots/{test_type}_{url_hash}"
+                
+                # Upload to Cloudinary
+                from io import BytesIO
+                result = cloudinary.uploader.upload(
+                    BytesIO(screenshot_bytes),
+                    folder='test_screenshots',
+                    public_id=filename,
+                    resource_type='image',
+                    format='png'
+                )
+                
+                # Return the Cloudinary URL
+                return result.get('secure_url') or result.get('url')
+                
+            except ImportError:
+                logger.warning("Cloudinary not installed, falling back to local storage")
+                # Fallback to local storage if Cloudinary is not available
                 media_root = getattr(settings, 'MEDIA_ROOT', None)
                 if media_root:
                     os.makedirs(media_root, exist_ok=True)
@@ -412,8 +437,20 @@ class BrowserAutomationService:
                     with open(filepath, 'wb') as f:
                         f.write(screenshot_bytes)
                     return filepath
+                return None
+            except Exception as e:
+                logger.error(f"Error uploading screenshot to Cloudinary: {e}")
+                # Fallback to local storage
+                media_root = getattr(settings, 'MEDIA_ROOT', None)
+                if media_root:
+                    os.makedirs(media_root, exist_ok=True)
+                    filename = f"screenshot_{test_type}_{hash(url)}.png"
+                    filepath = os.path.join(media_root, filename)
+                    with open(filepath, 'wb') as f:
+                        f.write(screenshot_bytes)
+                    return filepath
+                return None
             
-            return None
         except Exception as e:
             logger.error(f"Error taking screenshot: {e}")
             return None
