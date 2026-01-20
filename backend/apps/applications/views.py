@@ -135,9 +135,17 @@ def testrun_list_create(request):
             # Create test run with pending status
             test_run = serializer.save(status='pending')
             
-            # Execute test run using Celery task
-            from .tasks import execute_test_run_task
-            execute_test_run_task.delay(test_run.id)  # type: ignore[attr-defined]
+            # Try to execute test run using Celery task
+            try:
+                from .tasks import execute_test_run_task
+                execute_test_run_task.delay(test_run.id)  # type: ignore[attr-defined]
+            except Exception as e:
+                # If Celery is not available, log the error but don't fail the request
+                # The test run will remain in pending status and can be manually processed
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Could not queue Celery task for test run {test_run.id}: {e}")
+                logger.warning("Celery may not be running. Test execution will be delayed.")
             
             # Return the test run
             response_serializer = TestRunSerializer(test_run)

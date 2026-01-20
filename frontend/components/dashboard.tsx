@@ -45,9 +45,11 @@ export default function Dashboard() {
       setIsLoading(true)
       setError(null)
       const apps = await applicationsApi.list()
-      setApplications(apps)
+      setApplications(apps || [])
     } catch (err) {
+      console.error("Error loading applications:", err)
       setError(err instanceof Error ? err.message : "Failed to load applications")
+      setApplications([]) // Set empty array on error
     } finally {
       setIsLoading(false)
     }
