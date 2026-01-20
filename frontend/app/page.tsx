@@ -1,13 +1,21 @@
 "use client"
 
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { AnimatePresence, motion } from "framer-motion"
 import LoginPage from "@/components/login-page"
+import RegisterPage from "@/components/register-page"
 import Dashboard from "@/components/dashboard"
+import AdminDashboard from "@/components/admin-dashboard"
 import { useAuth } from "@/contexts/AuthContext"
 import { Loader2 } from "lucide-react"
 
+type AuthView = "login" | "register"
+
 export default function Home() {
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading, refreshUser, user } = useAuth()
+  const [authView, setAuthView] = useState<AuthView>("login")
+  const router = useRouter()
 
   if (isLoading) {
     return (
@@ -17,19 +25,38 @@ export default function Home() {
     )
   }
 
+  const handleRegisterComplete = async () => {
+    await refreshUser()
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <AnimatePresence mode="wait">
         {!isAuthenticated ? (
-          <motion.div
-            key="login"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, x: -50 }}
-            transition={{ duration: 0.3 }}
-          >
-            <LoginPage onLogin={() => {}} />
-          </motion.div>
+          authView === "login" ? (
+            <motion.div
+              key="login"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, x: -50 }}
+              transition={{ duration: 0.3 }}
+            >
+              <LoginPage onLogin={() => {}} onShowRegister={() => setAuthView("register")} />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="register"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, x: 50 }}
+              transition={{ duration: 0.3 }}
+            >
+              <RegisterPage 
+                onBack={() => setAuthView("login")} 
+                onRegisterComplete={handleRegisterComplete}
+              />
+            </motion.div>
+          )
         ) : (
           <motion.div
             key="dashboard"
@@ -38,7 +65,7 @@ export default function Home() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <Dashboard />
+            {user?.role === 'admin' ? <AdminDashboard /> : <Dashboard />}
           </motion.div>
         )}
       </AnimatePresence>
