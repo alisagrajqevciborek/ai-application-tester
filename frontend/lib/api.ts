@@ -97,6 +97,13 @@ async function apiRequest<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = getAuthToken()
+  
+  // Validate endpoint doesn't contain unsubstituted route parameters
+  if (endpoint.includes(':') && !endpoint.startsWith(':')) {
+    console.error('Invalid endpoint with unsubstituted parameter:', endpoint)
+    throw new Error(`Invalid API endpoint: ${endpoint}. Route parameters must be substituted.`)
+  }
+  
   const url = `${API_BASE_URL}${endpoint}`
 
   const headers: HeadersInit = {
@@ -279,13 +286,30 @@ export const applicationsApi = {
   },
 
   async get(id: number): Promise<Application> {
+    if (!id || isNaN(id)) {
+      throw new Error('Invalid application ID')
+    }
     return apiRequest<Application>(`/applications/${id}`)
   },
 
   async create(name: string, url: string): Promise<Application> {
+    // Validate inputs
+    if (!name || !name.trim()) {
+      throw new Error('Application name is required')
+    }
+    if (!url || !url.trim()) {
+      throw new Error('Application URL is required')
+    }
+    
+    // Ensure URL has protocol
+    let normalizedUrl = url.trim()
+    if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+      normalizedUrl = `https://${normalizedUrl}`
+    }
+    
     return apiRequest<Application>('/applications/', {
       method: 'POST',
-      body: JSON.stringify({ name, url }),
+      body: JSON.stringify({ name: name.trim(), url: normalizedUrl }),
     })
   },
 

@@ -12,7 +12,6 @@ import { Progress } from "@/components/ui/progress"
 import { applicationsApi, testRunsApi, type Application, type TestRun } from "@/lib/api"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
-import type { TestHistory } from "@/lib/types"
 
 interface NewTestFormProps {
   onTestComplete: (test: TestHistory) => void
@@ -40,11 +39,17 @@ export default function NewTestForm({ onTestComplete, applications }: NewTestFor
       throw new Error("Please fill in both application name and URL")
     }
 
+    // Validate and normalize URL
+    let normalizedUrl = appUrl.trim()
+    if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+      normalizedUrl = `https://${normalizedUrl}`
+    }
+
     setError(null)
     setTestState("creating")
 
     try {
-      const newApp = await applicationsApi.create(appName, appUrl)
+      const newApp = await applicationsApi.create(appName, normalizedUrl)
       setSelectedAppId(newApp.id.toString())
       setAppName("")
       setAppUrl("")
@@ -52,7 +57,8 @@ export default function NewTestForm({ onTestComplete, applications }: NewTestFor
       setTestState("idle")
       return newApp
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create application")
+      const errorMessage = err instanceof Error ? err.message : "Failed to create application"
+      setError(errorMessage)
       setTestState("idle")
       throw err
     }
@@ -111,12 +117,16 @@ export default function NewTestForm({ onTestComplete, applications }: NewTestFor
       const testRun = await testRunsApi.create(appToTest.id, testType as string)
       
       // Poll for test completion
+      let pollAttempts = 0
+      const maxPollAttempts = 60 // 60 seconds max
+      
       const pollInterval = setInterval(async () => {
+        pollAttempts++
         try {
           const updatedTestRun = await testRunsApi.get(testRun.id)
           
           // Update progress based on status
-          if (updatedTestRun.status === 'running') {
+          if (updatedTestRun.status === 'running' || updatedTestRun.status === 'pending') {
             setProgress((prev) => Math.min(prev + 10, 90))
           } else if (updatedTestRun.status === 'success' || updatedTestRun.status === 'failed') {
             clearInterval(pollInterval)
@@ -136,19 +146,40 @@ export default function NewTestForm({ onTestComplete, applications }: NewTestFor
             setTestState("idle")
             setProgress(0)
           }
+          
+          // Stop polling if we've exceeded max attempts
+          if (pollAttempts >= maxPollAttempts) {
+            clearInterval(pollInterval)
+            setError("Test is taking longer than expected. The test may still be running in the background.")
+            setTestState("idle")
+            setProgress(0)
+          }
         } catch (err) {
           console.error("Error polling test run:", err)
+          pollAttempts++
+          
+          // If we get multiple errors, stop polling
+          if (pollAttempts >= 10) {
+            clearInterval(pollInterval)
+            const errorMessage = err instanceof Error ? err.message : "Failed to get test status"
+            setError(`Error checking test status: ${errorMessage}. The test may still be running.`)
+            setTestState("idle")
+            setProgress(0)
+          }
         }
       }, 1000) // Poll every second
 
       // Timeout after 30 seconds
       setTimeout(() => {
         clearInterval(pollInterval)
-        if (testState === "running") {
-          setError("Test is taking longer than expected. Please check the test run status.")
-          setTestState("idle")
-          setProgress(0)
-        }
+        setTestState((currentState) => {
+          if (currentState === "running") {
+            setError("Test is taking longer than expected. Please check the test run status.")
+            setProgress(0)
+            return "idle"
+          }
+          return currentState
+        })
       }, 30000)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start test")
@@ -276,20 +307,11 @@ export default function NewTestForm({ onTestComplete, applications }: NewTestFor
 
               <Button
                 onClick={handleStartTest}
-                disabled={(!selectedApp && !appName && !appUrl) || !testType || testState === "creating"}
+                disabled={(!selectedApp && !appName && !appUrl) || !testType || testState !== "idle"}
                 className="w-full h-14 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-semibold text-lg transition-all duration-200 mt-4"
               >
-                {testState === "creating" ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Creating Application...
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-5 h-5 mr-2" />
-                    Start Test
-                  </>
-                )}
+                <Play className="w-5 h-5 mr-2" />
+                Start Test
               </Button>
             </motion.div>
           )}
