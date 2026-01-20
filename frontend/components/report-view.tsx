@@ -15,6 +15,7 @@ import {
   Lightbulb,
   Wrench,
   CheckCircle2,
+  Trash2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { TestHistory, TestIssue } from "@/lib/types"
@@ -23,10 +24,21 @@ import DonutChart from "@/components/donut-chart"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface ReportViewProps {
   test: TestHistory
   onBack: () => void
+  onDelete?: (testId: string) => void
 }
 
 const mockIssues: TestIssue[] = [
@@ -152,9 +164,22 @@ const severityConfig = {
   },
 }
 
-export default function ReportView({ test, onBack }: ReportViewProps) {
+export default function ReportView({ test, onBack, onDelete }: ReportViewProps) {
   const [expandedIssue, setExpandedIssue] = useState<string | null>(null)
   const [showFullReport, setShowFullReport] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+
+  const handleDeleteClick = () => {
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = () => {
+    if (onDelete) {
+      onDelete(test.id)
+      onBack() // Go back after deletion
+    }
+    setDeleteDialogOpen(false)
+  }
 
   // Filter issues based on test status
   const issues = test.status === "success" ? mockIssues.filter((i) => i.severity === "minor").slice(0, 2) : mockIssues
@@ -189,10 +214,23 @@ export default function ReportView({ test, onBack }: ReportViewProps) {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to New Test
           </Button>
-          <StatusBadge
-            status={test.status === "running" ? "running" : test.status === "success" ? "success" : "failed"}
-            large
-          />
+          <div className="flex items-center gap-2">
+            <StatusBadge
+              status={test.status === "running" ? "running" : test.status === "success" ? "success" : "failed"}
+              large
+            />
+            {onDelete && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleDeleteClick}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete
+              </Button>
+            )}
+          </div>
         </motion.div>
 
         {/* Title */}
@@ -545,6 +583,27 @@ export default function ReportView({ test, onBack }: ReportViewProps) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="bg-popover border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Test Run</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this test run? This action cannot be undone and will permanently remove it from the database.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

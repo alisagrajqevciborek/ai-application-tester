@@ -51,8 +51,8 @@ class TestRun(models.Model):
     )
     test_type = models.CharField(max_length=20, choices=TEST_TYPE_CHOICES, help_text="Type of test")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', help_text="Test status")
-    pass_rate = models.IntegerField(default=0, help_text="Percentage of tests that passed")
-    fail_rate = models.IntegerField(default=0, help_text="Percentage of tests that failed")
+    pass_rate = models.IntegerField(default=0, help_text="Percentage of tests that passed")  # type: ignore[arg-type]
+    fail_rate = models.IntegerField(default=0, help_text="Percentage of tests that failed")  # type: ignore[arg-type]
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     
@@ -64,3 +64,28 @@ class TestRun(models.Model):
     
     def __str__(self):
         return f"{self.application.name} - {self.test_type} ({self.status})"
+
+
+class Screenshot(models.Model):
+    """Model storing screenshots from test runs."""
+    
+    test_run = models.ForeignKey(
+        TestRun,
+        on_delete=models.CASCADE,
+        related_name='screenshots',
+        help_text="Test run this screenshot belongs to"
+    )
+    image = models.ImageField(
+        upload_to='screenshots/',
+        help_text="Screenshot image file"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'screenshots'
+        ordering = ['-created_at']
+        verbose_name = 'Screenshot'
+        verbose_name_plural = 'Screenshots'
+    
+    def __str__(self):
+        return f"Screenshot for {self.test_run} at {self.created_at}"

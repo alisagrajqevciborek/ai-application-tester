@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Application, TestRun
+from .models import Application, TestRun, Screenshot
 
 
 class ApplicationSerializer(serializers.ModelSerializer):

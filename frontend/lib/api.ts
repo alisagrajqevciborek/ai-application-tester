@@ -7,6 +7,8 @@ export interface User {
   first_name: string
   last_name: string
   date_joined: string
+  status: 'active' | 'disabled'
+  role: 'user' | 'admin'
 }
 
 export interface Application {
@@ -116,10 +118,41 @@ async function apiRequest<T>(
     return {} as T
   }
 
-  const data = await response.json()
+  // Check if response is JSON
+  const contentType = response.headers.get('content-type')
+  if (!contentType || !contentType.includes('application/json')) {
+    // If not JSON, it's likely an HTML error page
+    const text = await response.text()
+    throw new Error(
+      response.status === 404
+        ? 'API endpoint not found. Please check if the backend server is running.'
+        : response.status >= 500
+        ? 'Server error. Please try again later.'
+        : `Unexpected response format. Status: ${response.status}`
+    )
+  }
+
+  let data
+  try {
+    data = await response.json()
+  } catch (error) {
+    throw new Error('Failed to parse response as JSON. The server may be returning an error page.')
+  }
 
   if (!response.ok) {
-    throw new Error(data.error || data.message || 'An error occurred')
+    // Handle validation errors
+    if (data.email || data.password || data.code) {
+      const errorMessages = Object.entries(data)
+        .map(([key, value]) => {
+          if (Array.isArray(value)) {
+            return `${key}: ${value.join(', ')}`
+          }
+          return `${key}: ${value}`
+        })
+        .join('\n')
+      throw new Error(errorMessages)
+    }
+    throw new Error(data.error || data.message || data.detail || 'An error occurred')
   }
 
   return data
@@ -127,6 +160,34 @@ async function apiRequest<T>(
 
 // Auth API
 export const authApi = {
+  async register(email: string, password: string, passwordConfirm: string, firstName: string, lastName: string): Promise<{ message: string; email: string }> {
+    return apiRequest<{ message: string; email: string }>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ 
+        email, 
+        password, 
+        password_confirm: passwordConfirm,
+        first_name: firstName,
+        last_name: lastName
+      }),
+    })
+  },
+
+  async verifyEmail(email: string, code: string): Promise<LoginResponse> {
+    const response = await apiRequest<LoginResponse>('/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ email, code }),
+    })
+    return response
+  },
+
+  async resendCode(email: string): Promise<{ message: string }> {
+    return apiRequest<{ message: string }>('/auth/resend-code', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    })
+  },
+
   async login(email: string, password: string): Promise<LoginResponse> {
     const response = await apiRequest<LoginResponse>('/auth/login', {
       method: 'POST',
@@ -153,6 +214,49 @@ export const authApi = {
 
   async getMe(): Promise<User> {
     return apiRequest<User>('/auth/me')
+  },
+
+  async updateProfile(firstName: string, lastName: string, email: string): Promise<{ message: string; user: User }> {
+    return apiRequest<{ message: string; user: User }>('/auth/me', {
+      method: 'PUT',
+      body: JSON.stringify({
+        first_name: firstName,
+        last_name: lastName,
+        email: email,
+      }),
+    })
+  },
+
+  async changePassword(oldPassword: string, newPassword: string, newPasswordConfirm: string): Promise<{ message: string }> {
+    return apiRequest<{ message: string }>('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        old_password: oldPassword,
+        new_password: newPassword,
+        new_password_confirm: newPasswordConfirm,
+      }),
+    })
+  },
+
+  async refreshToken(refresh: string): Promise<{ access: string }> {
+    return apiRequest<{ access: string }>('/auth/refresh', {
+      method: 'POST',
+      body: JSON.stringify({ refresh }),
+    })
+  },
+}
+
+// Admin API
+export const adminApi = {
+  async listUsers(): Promise<{ users: User[]; count: number }> {
+    return apiRequest<{ users: User[]; count: number }>('/admin/users')
+  },
+
+  async toggleUserStatus(userId: number, status: 'active' | 'disabled'): Promise<{ message: string; user: User }> {
+    return apiRequest<{ message: string; user: User }>(`/admin/users/${userId}/toggle-status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    })
   },
 }
 
@@ -228,6 +332,12 @@ export const testRunsApi = {
         application: applicationId,
         test_type: testType 
       }),
+    })
+  },
+
+  async delete(id: number): Promise<void> {
+    return apiRequest<void>(`/applications/test-runs/${id}`, {
+      method: 'DELETE',
     })
   },
 }

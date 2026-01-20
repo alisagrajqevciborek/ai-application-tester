@@ -2,12 +2,22 @@
 
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { ChevronLeft, ChevronRight, History, Clock, Search, Filter, X } from "lucide-react"
+import { ChevronLeft, ChevronRight, History, Clock, Search, Filter, X, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import type { TestHistory } from "@/lib/types"
 import StatusBadge from "@/components/status-badge"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface SidebarProps {
   collapsed: boolean
@@ -15,6 +25,7 @@ interface SidebarProps {
   history: TestHistory[]
   selectedId: string | null
   onSelectTest: (test: TestHistory) => void
+  onDeleteTest?: (testId: string) => void
 }
 
 const statusOptions = [
@@ -32,11 +43,13 @@ const typeOptions = [
   { value: "accessibility", label: "Accessibility" },
 ]
 
-export default function Sidebar({ collapsed, onToggle, history, selectedId, onSelectTest }: SidebarProps) {
+export default function Sidebar({ collapsed, onToggle, history, selectedId, onSelectTest, onDeleteTest }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [typeFilter, setTypeFilter] = useState("all")
   const [showFilters, setShowFilters] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [testToDelete, setTestToDelete] = useState<string | null>(null)
 
   const filteredHistory = history.filter((item) => {
     const matchesSearch = item.appName.toLowerCase().includes(searchQuery.toLowerCase())
@@ -51,6 +64,20 @@ export default function Sidebar({ collapsed, onToggle, history, selectedId, onSe
     setSearchQuery("")
     setStatusFilter("all")
     setTypeFilter("all")
+  }
+
+  const handleDeleteClick = (e: React.MouseEvent, testId: string) => {
+    e.stopPropagation()
+    setTestToDelete(testId)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = () => {
+    if (testToDelete && onDeleteTest) {
+      onDeleteTest(testToDelete)
+    }
+    setDeleteDialogOpen(false)
+    setTestToDelete(null)
   }
 
   return (
@@ -181,13 +208,10 @@ export default function Sidebar({ collapsed, onToggle, history, selectedId, onSe
               <div className="px-4 py-8 text-center text-muted-foreground text-sm">No tests match your filters</div>
             )
           : filteredHistory.map((item) => (
-              <motion.button
+              <div
                 key={item.id}
-                onClick={() => onSelectTest(item)}
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.99 }}
                 className={cn(
-                  "w-full text-left px-3 py-2 mx-2 rounded-lg transition-colors",
+                  "w-full px-3 py-2 mx-2 rounded-lg transition-colors group",
                   "hover:bg-orange-600/10",
                   selectedId === item.id && "bg-orange-600/20",
                 )}
@@ -198,27 +222,65 @@ export default function Sidebar({ collapsed, onToggle, history, selectedId, onSe
                     <StatusBadge status={item.status} compact />
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-sm text-sidebar-foreground truncate max-w-[140px]">
-                        {item.appName}
-                      </span>
-                      <StatusBadge status={item.status} />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Clock className="h-3 w-3" />
-                        <span>{item.date}</span>
+                  <div className="flex items-start gap-2">
+                    <motion.button
+                      onClick={() => onSelectTest(item)}
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
+                      className="flex-1 text-left flex flex-col gap-1"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-sm text-sidebar-foreground truncate max-w-[140px]">
+                          {item.appName}
+                        </span>
+                        <StatusBadge status={item.status} />
                       </div>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-muted-foreground capitalize">
-                        {item.testType}
-                      </span>
-                    </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                          <span>{item.date}</span>
+                        </div>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-muted-foreground capitalize">
+                          {item.testType}
+                        </span>
+                      </div>
+                    </motion.button>
+                    {onDeleteTest && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => handleDeleteClick(e, item.id)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 )}
-              </motion.button>
+              </div>
             ))}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="bg-popover border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Test Run</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this test run? This action cannot be undone and will permanently remove it from the database.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.aside>
   )
 }

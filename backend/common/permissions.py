@@ -16,3 +16,28 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
         
         # Write permissions are only allowed to the owner
         return obj.owner == request.user
+
+
+class IsAdmin(permissions.BasePermission):
+    """
+    Permission to only allow admin users.
+    """
+    
+    def has_permission(self, request, view):
+        return (
+            request.user and
+            request.user.is_authenticated and
+            request.user.role == 'admin' and
+            request.user.status == 'active'
+        )
+
+
+class IsActiveUser(permissions.BasePermission):
+    """
+    Permission to check if user is active (not disabled).
+    """
+    
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return request.user.status == 'active'
