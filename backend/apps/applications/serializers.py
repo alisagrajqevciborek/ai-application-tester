@@ -37,15 +37,25 @@ class TestRunSerializer(serializers.ModelSerializer):
     
     application_name = serializers.CharField(source='application.name', read_only=True)
     application_url = serializers.URLField(source='application.url', read_only=True)
+    version = serializers.SerializerMethodField()
+    version_name = serializers.SerializerMethodField()
     
     class Meta:
         model = TestRun
         fields = (
             'id', 'application', 'application_name', 'application_url',
             'test_type', 'status', 'pass_rate', 'fail_rate',
-            'started_at', 'completed_at'
+            'started_at', 'completed_at', 'version', 'version_name'
         )
-        read_only_fields = ('id', 'status', 'pass_rate', 'fail_rate', 'started_at', 'completed_at')
+        read_only_fields = ('id', 'status', 'pass_rate', 'fail_rate', 'started_at', 'completed_at', 'version', 'version_name')
+    
+    def get_version(self, obj) -> int:
+        """Get version number for this test run."""
+        return obj.get_version_number()
+    
+    def get_version_name(self, obj) -> str:
+        """Get versioned name like 'app-v1', 'app-v2', etc."""
+        return obj.get_version_name()
     
     def validate_application(self, value):
         """Ensure user owns the application."""

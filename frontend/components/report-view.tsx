@@ -269,6 +269,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
     doc.setFont("helvetica", "normal")
     const testInfo = [
       ["Application Name", test.appName],
+      ["Version", test.versionName],
       ["Test Type", test.testType.charAt(0).toUpperCase() + test.testType.slice(1)],
       ["Test Date", test.date],
       ["Status", test.status.charAt(0).toUpperCase() + test.status.slice(1)],
@@ -408,7 +409,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
       )
     }
 
-    doc.save(`testflow-report-${test.appName.replace(/\s+/g, "-")}-${test.date.replace(/\//g, "-")}.pdf`)
+    doc.save(`testflow-report-${test.versionName.replace(/\s+/g, "-")}-${test.date.replace(/\//g, "-")}.pdf`)
   }
 
   const handleExportExcel = async () => {
@@ -424,6 +425,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
       ["Test Information"],
       ["Field", "Value"],
       ["Application Name", test.appName],
+      ["Version", test.versionName],
       ["Test Type", test.testType.charAt(0).toUpperCase() + test.testType.slice(1)],
       ["Test Date", test.date],
       ["Status", test.status.charAt(0).toUpperCase() + test.status.slice(1)],
@@ -505,7 +507,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
     XLSX.utils.book_append_sheet(wb, ws, "Test Report")
 
     // Save file
-    XLSX.writeFile(wb, `testflow-report-${test.appName.replace(/\s+/g, "-")}-${test.date.replace(/\//g, "-")}.xlsx`)
+    XLSX.writeFile(wb, `testflow-report-${test.versionName.replace(/\s+/g, "-")}-${test.date.replace(/\//g, "-")}.xlsx`)
   }
 
   return (
@@ -542,7 +544,10 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
 
         {/* Title */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">{test.appName}</h1>
+          <div className="mb-2">
+            <h1 className="text-3xl font-bold text-foreground mb-1">{test.versionName}</h1>
+            <p className="text-sm text-muted-foreground">Base App: {test.appName}</p>
+          </div>
           <div className="flex items-center gap-3">
             <p className="text-muted-foreground">Test completed on {test.date}</p>
             <span className="text-xs px-2 py-1 rounded bg-secondary text-muted-foreground capitalize">
@@ -759,7 +764,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
                 <div>
                   <h2 className="text-xl font-bold text-foreground">Full Test Report</h2>
                   <p className="text-sm text-muted-foreground mt-1">
-                    {test.appName} - {test.date}
+                    {test.versionName} - {test.date}
                   </p>
                 </div>
                 <Button

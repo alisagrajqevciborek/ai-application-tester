@@ -62,6 +62,21 @@ class TestRun(models.Model):
         verbose_name = 'Test Run'
         verbose_name_plural = 'Test Runs'
     
+    def get_version_number(self) -> int:
+        """Calculate version number based on test runs for the same application, ordered by creation date."""
+        # Count how many test runs exist for this application that were created before or at the same time
+        # This gives us the version number (1-indexed)
+        version = TestRun.objects.filter(  # type: ignore[attr-defined]
+            application=self.application,
+            started_at__lte=self.started_at
+        ).count()
+        return version
+    
+    def get_version_name(self) -> str:
+        """Get versioned name like 'app-v1', 'app-v2', etc."""
+        version = self.get_version_number()
+        return f"{self.application.name}-v{version}"
+    
     def __str__(self):
         return f"{self.application.name} - {self.test_type} ({self.status})"
 
