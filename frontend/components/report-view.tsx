@@ -21,8 +21,10 @@ import { Button } from "@/components/ui/button"
 import type { TestHistory, TestIssue } from "@/lib/types"
 import StatusBadge from "@/components/status-badge"
 import DonutChart from "@/components/donut-chart"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
+import { reportsApi, type Report } from "@/lib/api"
+import { Loader2 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 // Note: jspdf and xlsx are imported dynamically in functions to avoid SSR issues
 import {
@@ -169,6 +171,27 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
   const [expandedIssue, setExpandedIssue] = useState<string | null>(null)
   const [showFullReport, setShowFullReport] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [report, setReport] = useState<Report | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    loadReport()
+  }, [test.id])
+
+  const loadReport = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      const reportData = await reportsApi.get(parseInt(test.id))
+      setReport(reportData)
+    } catch (err) {
+      console.error("Error loading report:", err)
+      setError(err instanceof Error ? err.message : "Failed to load report")
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleDeleteClick = () => {
     setDeleteDialogOpen(true)
@@ -182,17 +205,45 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
     setDeleteDialogOpen(false)
   }
 
-  // Filter issues based on test status
-  const issues = test.status === "success" ? mockIssues.filter((i) => i.severity === "minor").slice(0, 2) : mockIssues
+  // Use real issues from report instead of mockIssues
+  const issues: TestIssue[] = report?.issues_json?.map((issue, idx) => ({
+    id: idx.toString(),
+    title: issue.title,
+    severity: issue.severity,
+    description: issue.description,
+    screenshot: "", // Screenshots are handled separately via Screenshot model
+    location: issue.location,
+  })) || []
 
   const criticalCount = issues.filter((i) => i.severity === "critical").length
   const majorCount = issues.filter((i) => i.severity === "major").length
   const minorCount = issues.filter((i) => i.severity === "minor").length
 
-  const summaryText =
+  // Use report summary if available, otherwise fallback to generated text
+  const summaryText = report?.summary || (
     test.status === "success"
       ? `The test suite completed successfully with a ${test.passRate}% pass rate. All critical user flows were validated, and no blocking issues were found. ${minorCount} minor improvements are suggested for accessibility compliance.`
       : `The test suite encountered ${test.failRate}% failures. ${criticalCount} critical and ${majorCount} major issues were found that require immediate attention. Review the detailed findings below.`
+  )
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4">
+        <p className="text-destructive">{error}</p>
+        <Button onClick={onBack}>Go Back</Button>
+      </div>
+    )
+  }
 
   const handleExportPDF = async () => {
     const { default: jsPDF } = await import('jspdf')
@@ -594,7 +645,15 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
           transition={{ delay: 0.25 }}
           className="mb-8"
         >
-          <h3 className="text-lg font-semibold text-foreground mb-4">Detailed Findings</h3>
+                <h3 className="text-lg font-semibold text-foreground mb-4">Detailed Report</h3>
+                {report?.detailed_report && (
+                  <div className="mb-6 p-4 bg-muted/50 rounded-lg">
+                    <pre className="whitespace-pre-wrap text-sm font-mono text-foreground">
+                      {report.detailed_report}
+                    </pre>
+                  </div>
+                )}
+                <h3 className="text-lg font-semibold text-foreground mb-4">Detailed Findings</h3>
           <div className="space-y-4">
             {issues.map((issue, index) => {
               const config = severityConfig[issue.severity]
