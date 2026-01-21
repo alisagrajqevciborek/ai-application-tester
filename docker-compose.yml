@@ -1,0 +1,106 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ai_app_tester_frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ai_app_tester_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - backend_media:/app/media
+      - backend_static:/app/staticfiles
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-vr4g-p&0a$%!0kk032q$-o6%16h_=-zggep3+o=09gpn2yu=!j}
+      - ALLOWED_HOSTS=localhost,127.0.0.1,backend
+      - DB_NAME=${DB_NAME:-ai_app_tester}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-}
+      - DB_HOST=host.docker.internal
+      - DB_PORT=${DB_PORT:-5432}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - EMAIL_BACKEND=${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
+      - EMAIL_HOST=${EMAIL_HOST:-}
+      - EMAIL_PORT=${EMAIL_PORT:-587}
+      - EMAIL_USE_TLS=${EMAIL_USE_TLS:-True}
+      - EMAIL_HOST_USER=${EMAIL_HOST_USER:-}
+      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD:-}
+      - EMAIL_FROM=${EMAIL_FROM:-}
+    command: python manage.py runserver 0.0.0.0:8000
+    depends_on:
+      - redis
+    networks:
+      - app-network
+
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ai_app_tester_celery
+    volumes:
+      - ./backend:/app
+      - backend_media:/app/media
+      - backend_static:/app/staticfiles
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-vr4g-p&0a$%!0kk032q$-o6%16h_=-zggep3+o=09gpn2yu=!j}
+      - ALLOWED_HOSTS=localhost,127.0.0.1
+      - DB_NAME=${DB_NAME:-ai_app_tester}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-}
+      - DB_HOST=host.docker.internal
+      - DB_PORT=${DB_PORT:-5432}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - EMAIL_BACKEND=${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
+      - EMAIL_HOST=${EMAIL_HOST:-}
+      - EMAIL_PORT=${EMAIL_PORT:-587}
+      - EMAIL_USE_TLS=${EMAIL_USE_TLS:-True}
+      - EMAIL_HOST_USER=${EMAIL_HOST_USER:-}
+      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD:-}
+      - EMAIL_FROM=${EMAIL_FROM:-}
+    command: celery -A core worker --loglevel=info
+    depends_on:
+      - redis
+      - backend
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: ai_app_tester_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+
+volumes:
+  backend_media:
+  backend_static:
+  redis_data:
+
+networks:
+  app-network:
+    driver: bridge
