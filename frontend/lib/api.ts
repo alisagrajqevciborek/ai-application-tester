@@ -32,6 +32,8 @@ export interface TestRun {
   fail_rate: number
   started_at: string
   completed_at: string | null
+  version: number
+  version_name: string
 }
 
 export interface Report {
