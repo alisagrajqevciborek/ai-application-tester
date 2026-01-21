@@ -32,6 +32,30 @@ export interface TestRun {
   fail_rate: number
   started_at: string
   completed_at: string | null
+  version: number
+  version_name: string
+}
+
+export interface Report {
+  id: number
+  test_run_id: number
+  application_name: string
+  application_url: string
+  test_type: string
+  status: string
+  pass_rate: number
+  fail_rate: number
+  started_at: string
+  completed_at: string | null
+  summary: string
+  detailed_report: string
+  issues_json: Array<{
+    severity: 'critical' | 'major' | 'minor'
+    title: string
+    description: string
+    location: string
+  }>
+  created_at: string
 }
 
 export interface LoginResponse {
@@ -363,6 +387,13 @@ export const testRunsApi = {
     return apiRequest<void>(`/applications/test-runs/${id}`, {
       method: 'DELETE',
     })
+  },
+}
+
+// Reports API
+export const reportsApi = {
+  async get(testRunId: number): Promise<Report> {
+    return apiRequest<Report>(`/reports/${testRunId}/`)
   },
 }
 

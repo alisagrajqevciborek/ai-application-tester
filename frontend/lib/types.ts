@@ -1,6 +1,8 @@
 export interface TestHistory {
   id: string
   appName: string
+  versionName: string
+  version: number
   status: "success" | "failed" | "running"
   testType: "functional" | "regression" | "performance" | "accessibility"
   date: string

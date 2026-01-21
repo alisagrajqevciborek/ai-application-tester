@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     # Local apps
     'apps.users',
     'apps.applications',
+    'apps.reports',
 ]
 
 # Optional apps - only add if installed

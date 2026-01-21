@@ -21,8 +21,10 @@ import { Button } from "@/components/ui/button"
 import type { TestHistory, TestIssue } from "@/lib/types"
 import StatusBadge from "@/components/status-badge"
 import DonutChart from "@/components/donut-chart"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
+import { reportsApi, type Report } from "@/lib/api"
+import { Loader2 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 // Note: jspdf and xlsx are imported dynamically in functions to avoid SSR issues
 import {
@@ -169,6 +171,27 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
   const [expandedIssue, setExpandedIssue] = useState<string | null>(null)
   const [showFullReport, setShowFullReport] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [report, setReport] = useState<Report | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    loadReport()
+  }, [test.id])
+
+  const loadReport = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      const reportData = await reportsApi.get(parseInt(test.id))
+      setReport(reportData)
+    } catch (err) {
+      console.error("Error loading report:", err)
+      setError(err instanceof Error ? err.message : "Failed to load report")
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleDeleteClick = () => {
     setDeleteDialogOpen(true)
@@ -182,17 +205,45 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
     setDeleteDialogOpen(false)
   }
 
-  // Filter issues based on test status
-  const issues = test.status === "success" ? mockIssues.filter((i) => i.severity === "minor").slice(0, 2) : mockIssues
+  // Use real issues from report instead of mockIssues
+  const issues: TestIssue[] = report?.issues_json?.map((issue, idx) => ({
+    id: idx.toString(),
+    title: issue.title,
+    severity: issue.severity,
+    description: issue.description,
+    screenshot: "", // Screenshots are handled separately via Screenshot model
+    location: issue.location,
+  })) || []
 
   const criticalCount = issues.filter((i) => i.severity === "critical").length
   const majorCount = issues.filter((i) => i.severity === "major").length
   const minorCount = issues.filter((i) => i.severity === "minor").length
 
-  const summaryText =
+  // Use report summary if available, otherwise fallback to generated text
+  const summaryText = report?.summary || (
     test.status === "success"
       ? `The test suite completed successfully with a ${test.passRate}% pass rate. All critical user flows were validated, and no blocking issues were found. ${minorCount} minor improvements are suggested for accessibility compliance.`
       : `The test suite encountered ${test.failRate}% failures. ${criticalCount} critical and ${majorCount} major issues were found that require immediate attention. Review the detailed findings below.`
+  )
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4">
+        <p className="text-destructive">{error}</p>
+        <Button onClick={onBack}>Go Back</Button>
+      </div>
+    )
+  }
 
   const handleExportPDF = async () => {
     const { default: jsPDF } = await import('jspdf')
@@ -218,6 +269,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
     doc.setFont("helvetica", "normal")
     const testInfo = [
       ["Application Name", test.appName],
+      ["Version", test.versionName],
       ["Test Type", test.testType.charAt(0).toUpperCase() + test.testType.slice(1)],
       ["Test Date", test.date],
       ["Status", test.status.charAt(0).toUpperCase() + test.status.slice(1)],
@@ -357,7 +409,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
       )
     }
 
-    doc.save(`testflow-report-${test.appName.replace(/\s+/g, "-")}-${test.date.replace(/\//g, "-")}.pdf`)
+    doc.save(`testflow-report-${test.versionName.replace(/\s+/g, "-")}-${test.date.replace(/\//g, "-")}.pdf`)
   }
 
   const handleExportExcel = async () => {
@@ -373,6 +425,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
       ["Test Information"],
       ["Field", "Value"],
       ["Application Name", test.appName],
+      ["Version", test.versionName],
       ["Test Type", test.testType.charAt(0).toUpperCase() + test.testType.slice(1)],
       ["Test Date", test.date],
       ["Status", test.status.charAt(0).toUpperCase() + test.status.slice(1)],
@@ -454,7 +507,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
     XLSX.utils.book_append_sheet(wb, ws, "Test Report")
 
     // Save file
-    XLSX.writeFile(wb, `testflow-report-${test.appName.replace(/\s+/g, "-")}-${test.date.replace(/\//g, "-")}.xlsx`)
+    XLSX.writeFile(wb, `testflow-report-${test.versionName.replace(/\s+/g, "-")}-${test.date.replace(/\//g, "-")}.xlsx`)
   }
 
   return (
@@ -491,7 +544,10 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
 
         {/* Title */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">{test.appName}</h1>
+          <div className="mb-2">
+            <h1 className="text-3xl font-bold text-foreground mb-1">{test.versionName}</h1>
+            <p className="text-sm text-muted-foreground">Base App: {test.appName}</p>
+          </div>
           <div className="flex items-center gap-3">
             <p className="text-muted-foreground">Test completed on {test.date}</p>
             <span className="text-xs px-2 py-1 rounded bg-secondary text-muted-foreground capitalize">
@@ -594,7 +650,15 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
           transition={{ delay: 0.25 }}
           className="mb-8"
         >
-          <h3 className="text-lg font-semibold text-foreground mb-4">Detailed Findings</h3>
+                <h3 className="text-lg font-semibold text-foreground mb-4">Detailed Report</h3>
+                {report?.detailed_report && (
+                  <div className="mb-6 p-4 bg-muted/50 rounded-lg">
+                    <pre className="whitespace-pre-wrap text-sm font-mono text-foreground">
+                      {report.detailed_report}
+                    </pre>
+                  </div>
+                )}
+                <h3 className="text-lg font-semibold text-foreground mb-4">Detailed Findings</h3>
           <div className="space-y-4">
             {issues.map((issue, index) => {
               const config = severityConfig[issue.severity]
@@ -700,7 +764,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
                 <div>
                   <h2 className="text-xl font-bold text-foreground">Full Test Report</h2>
                   <p className="text-sm text-muted-foreground mt-1">
-                    {test.appName} - {test.date}
+                    {test.versionName} - {test.date}
                   </p>
                 </div>
                 <Button

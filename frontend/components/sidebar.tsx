@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { motion } from "framer-motion"
-import { ChevronLeft, ChevronRight, History, Clock, Search, Filter, X, Trash2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, History, Clock, Search, Filter, X, Trash2, Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -24,8 +24,11 @@ interface SidebarProps {
   onToggle: () => void
   history: TestHistory[]
   selectedId: string | null
+  selectedTestId: string | null
+  onSelectApp: (appName: string) => void
   onSelectTest: (test: TestHistory) => void
   onDeleteTest?: (testId: string) => void
+  onBackToApps?: () => void
 }
 
 const statusOptions = [
@@ -43,7 +46,7 @@ const typeOptions = [
   { value: "accessibility", label: "Accessibility" },
 ]
 
-export default function Sidebar({ collapsed, onToggle, history, selectedId, onSelectTest, onDeleteTest }: SidebarProps) {
+export default function Sidebar({ collapsed, onToggle, history, selectedId, selectedTestId, onSelectApp, onSelectTest, onDeleteTest, onBackToApps }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [typeFilter, setTypeFilter] = useState("all")
@@ -51,14 +54,41 @@ export default function Sidebar({ collapsed, onToggle, history, selectedId, onSe
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [testToDelete, setTestToDelete] = useState<string | null>(null)
 
+  const hasActiveFilters = statusFilter !== "all" || typeFilter !== "all" || searchQuery !== ""
+
+  // Group tests by app name
+  const appsWithVersions = useMemo(() => {
+    const groups: Record<string, TestHistory[]> = {}
+    history.forEach((test) => {
+      const appName = test.appName
+      if (!groups[appName]) {
+        groups[appName] = []
+      }
+      groups[appName].push(test)
+    })
+    return groups
+  }, [history])
+
+  const appNames = Object.keys(appsWithVersions).sort()
+
+  // When filters are active, show versioned entries; otherwise show apps
   const filteredHistory = history.filter((item) => {
-    const matchesSearch = item.appName.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesSearch = item.versionName.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         item.appName.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesStatus = statusFilter === "all" || item.status === statusFilter
     const matchesType = typeFilter === "all" || item.testType === typeFilter
     return matchesSearch && matchesStatus && matchesType
   })
 
-  const hasActiveFilters = statusFilter !== "all" || typeFilter !== "all" || searchQuery !== ""
+  // Filter apps based on search (when no other filters)
+  const filteredApps = useMemo(() => {
+    if (!hasActiveFilters) {
+      return appNames.filter((appName) => 
+        appName.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    }
+    return []
+  }, [appNames, searchQuery, hasActiveFilters])
 
   const clearFilters = () => {
     setSearchQuery("")
@@ -195,25 +225,31 @@ export default function Sidebar({ collapsed, onToggle, history, selectedId, onSe
       )}
 
       {/* Results count */}
-      {!collapsed && hasActiveFilters && (
+      {!collapsed && (
         <div className="px-4 py-2 text-xs text-muted-foreground">
-          {filteredHistory.length} result{filteredHistory.length !== 1 ? "s" : ""} found
+          {hasActiveFilters 
+            ? `${filteredHistory.length} test${filteredHistory.length !== 1 ? "s" : ""} found`
+            : `${filteredApps.length} app${filteredApps.length !== 1 ? "s" : ""} found`
+          }
         </div>
       )}
 
       {/* History List */}
       <div className="flex-1 overflow-y-auto py-2">
-        {filteredHistory.length === 0
-          ? !collapsed && (
+        {hasActiveFilters ? (
+          // Show versioned entries when filters are active
+          filteredHistory.length === 0 ? (
+            !collapsed && (
               <div className="px-4 py-8 text-center text-muted-foreground text-sm">No tests match your filters</div>
             )
-          : filteredHistory.map((item) => (
+          ) : (
+            filteredHistory.map((item) => (
               <div
                 key={item.id}
                 className={cn(
                   "w-full px-3 py-2 mx-2 rounded-lg transition-colors group",
                   "hover:bg-orange-600/10",
-                  selectedId === item.id && "bg-orange-600/20",
+                  selectedTestId === item.id && "bg-orange-600/20",
                 )}
                 style={{ width: "calc(100% - 16px)" }}
               >
@@ -231,7 +267,7 @@ export default function Sidebar({ collapsed, onToggle, history, selectedId, onSe
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-sm text-sidebar-foreground truncate max-w-[140px]">
-                          {item.appName}
+                          {item.versionName}
                         </span>
                         <StatusBadge status={item.status} />
                       </div>
@@ -258,7 +294,55 @@ export default function Sidebar({ collapsed, onToggle, history, selectedId, onSe
                   </div>
                 )}
               </div>
-            ))}
+            ))
+          )
+        ) : (
+          // Show apps when no filters are active
+          filteredApps.length === 0 ? (
+            !collapsed && (
+              <div className="px-4 py-8 text-center text-muted-foreground text-sm">No apps found</div>
+            )
+          ) : (
+            filteredApps.map((appName) => {
+              const versions = appsWithVersions[appName]
+              const versionCount = versions.length
+              return (
+                <div
+                  key={appName}
+                  className={cn(
+                    "w-full px-3 py-2 mx-2 rounded-lg transition-colors group",
+                    "hover:bg-orange-600/10 cursor-pointer",
+                    selectedId === appName && "bg-orange-600/20 border-2 border-orange-600",
+                  )}
+                  style={{ width: "calc(100% - 16px)" }}
+                  onClick={() => onSelectApp(appName)}
+                >
+                  {collapsed ? (
+                    <div className="flex justify-center">
+                      <Package className="h-5 w-5 text-orange-600" />
+                    </div>
+                  ) : (
+                    <motion.div
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
+                      className="flex items-center gap-2"
+                    >
+                      <Package className="h-4 w-4 text-orange-600 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm text-sidebar-foreground truncate">
+                          {appName}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {versionCount} version{versionCount !== 1 ? 's' : ''}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              )
+            })
+          )
+        )}
       </div>
 
       {/* Delete Confirmation Dialog */}

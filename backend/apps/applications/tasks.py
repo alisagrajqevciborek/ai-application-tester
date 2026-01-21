@@ -58,6 +58,52 @@ def execute_test_run_task(self, test_run_id):
             test_run.completed_at = timezone.now()
             test_run.save()
             
+            # Generate report from test results
+            try:
+                from apps.reports.models import Report
+                issues = results.get('issues', [])
+                
+                # Create summary
+                pass_rate = results.get('pass_rate', 0)
+                fail_rate = results.get('fail_rate', 100)
+                status_result = results.get('status', 'failed')
+                
+                if status_result == 'success':
+                    summary = f"Test suite completed successfully with {pass_rate}% pass rate. All critical user flows were validated."
+                else:
+                    critical_count = sum(1 for issue in issues if issue.get('severity') == 'critical')
+                    major_count = sum(1 for issue in issues if issue.get('severity') == 'major')
+                    summary = f"Test suite encountered {fail_rate}% failures. {critical_count} critical and {major_count} major issues found."
+                
+                # Create detailed report
+                detailed_report = f"Test execution completed for {test_run.application.name} ({test_run.application.url}).\n\n"
+                detailed_report += f"Test Type: {test_run.test_type}\n"
+                detailed_report += f"Status: {status_result}\n"
+                detailed_report += f"Pass Rate: {pass_rate}%\n"
+                detailed_report += f"Fail Rate: {fail_rate}%\n\n"
+                
+                if issues:
+                    detailed_report += "Issues Found:\n"
+                    for idx, issue in enumerate(issues, 1):
+                        detailed_report += f"\n{idx}. [{issue.get('severity', 'unknown').upper()}] {issue.get('title', 'Unknown issue')}\n"
+                        detailed_report += f"   Description: {issue.get('description', 'No description')}\n"
+                        detailed_report += f"   Location: {issue.get('location', 'Unknown')}\n"
+                else:
+                    detailed_report += "No issues found during testing.\n"
+                
+                # Create or update report
+                Report.objects.update_or_create(
+                    test_run=test_run,
+                    defaults={
+                        'summary': summary,
+                        'detailed_report': detailed_report,
+                        'issues_json': issues
+                    }
+                )
+                logger.info(f"Report generated for test run {test_run_id}")
+            except Exception as e:
+                logger.error(f"Error generating report for test run {test_run_id}: {e}")
+            
             # Save screenshots if any
             from .models import Screenshot
             import requests  # noqa: F401

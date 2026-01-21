@@ -68,6 +68,8 @@ export default function NewTestForm({ onTestComplete, applications }: NewTestFor
     return {
       id: testRun.id.toString(),
       appName: testRun.application_name,
+      versionName: testRun.version_name,
+      version: testRun.version,
       status: testRun.status === 'success' ? 'success' : testRun.status === 'failed' ? 'failed' : 'running',
       testType: testRun.test_type,
       date: new Date(testRun.started_at).toISOString().split("T")[0],
