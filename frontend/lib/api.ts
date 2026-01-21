@@ -58,6 +58,16 @@ export interface Report {
   created_at: string
 }
 
+export interface TestRunStats {
+  total: number
+  success: number
+  failed: number
+  running: number
+  pending: number
+  average_pass_rate: number
+  average_fail_rate: number
+}
+
 export interface LoginResponse {
   user: User
   access: string
@@ -387,6 +397,10 @@ export const testRunsApi = {
     return apiRequest<void>(`/applications/test-runs/${id}`, {
       method: 'DELETE',
     })
+  },
+
+  async stats(): Promise<TestRunStats> {
+    return apiRequest<TestRunStats>('/applications/test-runs/stats/')
   },
 }
 

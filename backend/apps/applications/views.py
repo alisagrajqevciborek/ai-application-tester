@@ -3,6 +3,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from typing import cast
+from django.db.models import Avg
 from .models import Application, TestRun
 from .serializers import (
     ApplicationSerializer, ApplicationCreateSerializer,
@@ -188,4 +189,43 @@ def testrun_detail(request, pk):
             'message': 'Test run deleted successfully'
         }, status=status.HTTP_204_NO_CONTENT)
 
+
+@api_view(['GET'])
+def testrun_stats(request):
+    """
+    GET /api/applications/test-runs/stats/
+    Returns aggregated statistics for test runs owned by the user.
+    """
+    if request.user.status == 'disabled':
+        return Response({
+            'error': 'Your account has been disabled. Please contact support.'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    test_runs = TestRun.objects.filter(application__owner=request.user)  # type: ignore[attr-defined]
+    
+    total = test_runs.count()
+    success = test_runs.filter(status='success').count()
+    failed = test_runs.filter(status='failed').count()
+    running = test_runs.filter(status='running').count()
+    pending = test_runs.filter(status='pending').count()
+    
+    completed_tests = test_runs.filter(status__in=['success', 'failed'])
+    if completed_tests.exists():
+        avg_pass_rate = int(completed_tests.aggregate(avg=Avg('pass_rate'))['avg'] or 0)
+        avg_fail_rate = int(completed_tests.aggregate(avg=Avg('fail_rate'))['avg'] or 0)
+    else:
+        avg_pass_rate = 0
+        avg_fail_rate = 0
+    
+    stats = {
+        'total': total,
+        'success': success,
+        'failed': failed,
+        'running': running,
+        'pending': pending,
+        'average_pass_rate': avg_pass_rate,
+        'average_fail_rate': avg_fail_rate,
+    }
+    
+    return Response(stats, status=status.HTTP_200_OK)
 
