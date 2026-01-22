@@ -10,8 +10,9 @@ import ProfilePage from "@/components/profile-page"
 import VersionCard from "@/components/version-card"
 import type { TestHistory } from "@/lib/types"
 import { applicationsApi, testRunsApi, type Application, type TestRun, type TestRunStats } from "@/lib/api"
-import { Loader2, Package, ArrowLeft } from "lucide-react"
-import DonutChart from "@/components/donut-chart"
+import { Loader2, Package, ArrowLeft, BarChart3 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import StatisticsModal from "@/components/statistics-modal"
 
 // Helper to convert TestRun to TestHistory
 const convertTestRunToHistory = (testRun: TestRun): TestHistory => {
@@ -40,6 +41,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [currentView, setCurrentView] = useState<View>("dashboard")
   const [stats, setStats] = useState<TestRunStats | null>(null)
+  const [statsModalOpen, setStatsModalOpen] = useState(false)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const pollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -304,77 +306,16 @@ export default function Dashboard() {
                     transition={{ duration: 0.2 }}
                     className="space-y-8"
                   >
-                    {/* Statistics Section */}
-                    {stats && stats.total > 0 && (
-                      <div className="space-y-6">
-                        {/* Statistics Cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                          <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="glass rounded-xl p-6"
-                          >
-                            <h3 className="text-sm font-medium text-muted-foreground mb-2">Total Tests</h3>
-                            <p className="text-3xl font-bold text-foreground">{stats.total}</p>
-                          </motion.div>
-                          <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.1 }}
-                            className="glass rounded-xl p-6"
-                          >
-                            <h3 className="text-sm font-medium text-muted-foreground mb-2">Successful</h3>
-                            <p className="text-3xl font-bold text-green-500">{stats.success}</p>
-                          </motion.div>
-                          <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.2 }}
-                            className="glass rounded-xl p-6"
-                          >
-                            <h3 className="text-sm font-medium text-muted-foreground mb-2">Failed</h3>
-                            <p className="text-3xl font-bold text-red-500">{stats.failed}</p>
-                          </motion.div>
-                          <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.3 }}
-                            className="glass rounded-xl p-6"
-                          >
-                            <h3 className="text-sm font-medium text-muted-foreground mb-2">Running</h3>
-                            <p className="text-3xl font-bold text-orange-500">{stats.running + stats.pending}</p>
-                          </motion.div>
-                        </div>
-
-                        {/* Donut Charts */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: 0.4 }}
-                            className="glass rounded-xl p-6"
-                          >
-                            <DonutChart 
-                              percentage={stats.average_pass_rate} 
-                              color="oklch(0.65 0.18 145)" 
-                              label="Average Pass Rate" 
-                            />
-                          </motion.div>
-                          <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: 0.5 }}
-                            className="glass rounded-xl p-6"
-                          >
-                            <DonutChart 
-                              percentage={stats.average_fail_rate} 
-                              color="oklch(0.55 0.2 25)" 
-                              label="Average Fail Rate" 
-                            />
-                          </motion.div>
-                        </div>
-                      </div>
-                    )}
+                    {/* Statistics Button */}
+                    <div className="flex justify-end">
+                      <Button
+                        onClick={() => setStatsModalOpen(true)}
+                        className="flex items-center gap-2"
+                      >
+                        <BarChart3 className="h-5 w-5" />
+                        <span>View Statistics</span>
+                      </Button>
+                    </div>
 
                     {/* New Test Form */}
                     <NewTestForm onTestComplete={handleNewTestComplete} applications={applications} />
@@ -385,6 +326,13 @@ export default function Dashboard() {
           </main>
         </div>
       )}
+
+      {/* Statistics Modal */}
+      <StatisticsModal 
+        open={statsModalOpen} 
+        onOpenChange={setStatsModalOpen} 
+        stats={stats} 
+      />
     </div>
   )
 }

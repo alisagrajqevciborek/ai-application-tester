@@ -36,7 +36,7 @@ services:
       - ALLOWED_HOSTS=localhost,127.0.0.1,backend
       - DB_NAME=${DB_NAME:-ai_app_tester}
       - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-}
+      # - DB_PASSWORD=${DB_PASSWORD:-}
       - DB_HOST=host.docker.internal
       - DB_PORT=${DB_PORT:-5432}
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -71,7 +71,7 @@ services:
       - ALLOWED_HOSTS=localhost,127.0.0.1
       - DB_NAME=${DB_NAME:-ai_app_tester}
       - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-}
+      # - DB_PASSWORD=${DB_PASSWORD:-}
       - DB_HOST=host.docker.internal
       - DB_PORT=${DB_PORT:-5432}
       - CELERY_BROKER_URL=redis://redis:6379/0
