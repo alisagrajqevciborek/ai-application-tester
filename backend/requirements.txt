@@ -19,3 +19,6 @@ playwright==1.40.0
 
 # HTTP requests
 requests==2.31.0
+
+# OpenAI for AI-powered features
+openai==1.12.0

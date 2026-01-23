@@ -237,3 +237,7 @@ CLOUDINARY_STORAGE = {
     'API_KEY': os.getenv('CLOUDINARY_API_KEY', ''),
     'API_SECRET': os.getenv('CLOUDINARY_API_SECRET', ''),
 }
+
+# OpenAI Configuration
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
+OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-4o')  # Default to GPT-4o for vision capabilities

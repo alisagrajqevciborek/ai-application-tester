@@ -65,48 +65,83 @@ def execute_test_run_task(self, test_run_id):
             # Generate report from test results
             try:
                 from apps.reports.models import Report
+                from common.ai_helpers import generate_ai_report, enhance_issue_description
+                
                 issues = results.get('issues', [])
+                screenshot_urls = results.get('screenshots', [])
                 
-                # Create summary
-                pass_rate = results.get('pass_rate', 0)
-                fail_rate = results.get('fail_rate', 100)
-                status_result = results.get('status', 'failed')
+                # Enhance issues with AI if screenshots are available
+                enhanced_issues = []
+                for issue in issues:
+                    # Try to enhance issue with AI, using first screenshot if available
+                    screenshot_url = screenshot_urls[0] if screenshot_urls else None
+                    try:
+                        enhanced_issue = enhance_issue_description(
+                            issue,
+                            screenshot_url=screenshot_url,
+                            test_type=test_type
+                        )
+                        enhanced_issues.append(enhanced_issue)
+                    except Exception as e:
+                        logger.warning(f"Failed to enhance issue with AI: {e}. Using original issue.")
+                        enhanced_issues.append(issue)
                 
-                if status_result == 'success':
-                    summary = f"Test suite completed successfully with {pass_rate}% pass rate. All critical user flows were validated."
-                else:
-                    critical_count = sum(1 for issue in issues if issue.get('severity') == 'critical')
-                    major_count = sum(1 for issue in issues if issue.get('severity') == 'major')
-                    summary = f"Test suite encountered {fail_rate}% failures. {critical_count} critical and {major_count} major issues found."
+                # Use enhanced issues if available, otherwise use original
+                final_issues = enhanced_issues if enhanced_issues else issues
                 
-                # Create detailed report
-                detailed_report = f"Test execution completed for {test_run.application.name} ({test_run.application.url}).\n\n"
-                detailed_report += f"Test Type: {test_run.test_type}\n"
-                detailed_report += f"Status: {status_result}\n"
-                detailed_report += f"Pass Rate: {pass_rate}%\n"
-                detailed_report += f"Fail Rate: {fail_rate}%\n\n"
+                # Generate AI-powered report
+                try:
+                    report_data = generate_ai_report(
+                        test_results=results,
+                        application_name=test_run.application.name,
+                        application_url=test_run.application.url,
+                        test_type=test_type,
+                        screenshot_urls=screenshot_urls
+                    )
+                    summary = report_data.get('summary', '')
+                    detailed_report = report_data.get('detailed_report', '')
+                    logger.info(f"AI-enhanced report generated for test run {test_run_id}")
+                except Exception as e:
+                    logger.warning(f"AI report generation failed, using fallback: {e}")
+                    # Fallback to basic report generation
+                    pass_rate = results.get('pass_rate', 0)
+                    fail_rate = results.get('fail_rate', 100)
+                    status_result = results.get('status', 'failed')
+                    
+                    if status_result == 'success':
+                        summary = f"Test suite completed successfully with {pass_rate}% pass rate. All critical user flows were validated."
+                    else:
+                        critical_count = sum(1 for issue in final_issues if issue.get('severity') == 'critical')
+                        major_count = sum(1 for issue in final_issues if issue.get('severity') == 'major')
+                        summary = f"Test suite encountered {fail_rate}% failures. {critical_count} critical and {major_count} major issues found."
+                    
+                    detailed_report = f"Test execution completed for {test_run.application.name} ({test_run.application.url}).\n\n"
+                    detailed_report += f"Test Type: {test_type}\n"
+                    detailed_report += f"Status: {status_result}\n"
+                    detailed_report += f"Pass Rate: {pass_rate}%\n"
+                    detailed_report += f"Fail Rate: {fail_rate}%\n\n"
+                    
+                    if final_issues:
+                        detailed_report += "Issues Found:\n"
+                        for idx, issue in enumerate(final_issues, 1):
+                            detailed_report += f"\n{idx}. [{issue.get('severity', 'unknown').upper()}] {issue.get('title', 'Unknown issue')}\n"
+                            detailed_report += f"   Description: {issue.get('description', 'No description')}\n"
+                            detailed_report += f"   Location: {issue.get('location', 'Unknown')}\n"
+                    else:
+                        detailed_report += "No issues found during testing.\n"
                 
-                if issues:
-                    detailed_report += "Issues Found:\n"
-                    for idx, issue in enumerate(issues, 1):
-                        detailed_report += f"\n{idx}. [{issue.get('severity', 'unknown').upper()}] {issue.get('title', 'Unknown issue')}\n"
-                        detailed_report += f"   Description: {issue.get('description', 'No description')}\n"
-                        detailed_report += f"   Location: {issue.get('location', 'Unknown')}\n"
-                else:
-                    detailed_report += "No issues found during testing.\n"
-                
-                # Create or update report
+                # Create or update report with enhanced issues
                 Report.objects.update_or_create(
                     test_run=test_run,
                     defaults={
                         'summary': summary,
                         'detailed_report': detailed_report,
-                        'issues_json': issues
+                        'issues_json': final_issues
                     }
                 )
                 logger.info(f"Report generated for test run {test_run_id}")
             except Exception as e:
-                logger.error(f"Error generating report for test run {test_run_id}: {e}")
+                logger.error(f"Error generating report for test run {test_run_id}: {e}", exc_info=True)
             
             # Save screenshots if any
             from .models import Screenshot
