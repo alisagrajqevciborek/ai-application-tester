@@ -16,7 +16,7 @@ services:
       - backend
     networks:
       - app-network
-
+ 
   backend:
     build:
       context: ./backend
@@ -52,7 +52,7 @@ services:
       - redis
     networks:
       - app-network
-
+ 
   celery_worker:
     build:
       context: ./backend
@@ -88,7 +88,7 @@ services:
       - backend
     networks:
       - app-network
-
+ 
   redis:
     image: redis:7-alpine
     container_name: ai_app_tester_redis
@@ -98,12 +98,12 @@ services:
       - redis_data:/data
     networks:
       - app-network
-
+ 
 volumes:
   backend_media:
   backend_static:
   redis_data:
-
+ 
 networks:
   app-network:
     driver: bridge
