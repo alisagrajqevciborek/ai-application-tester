@@ -1,16 +1,18 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import TopNav from "@/components/top-nav"
-import Sidebar from "@/components/sidebar"
-import NewTestForm from "@/components/new-test-form"
-import ReportView from "@/components/report-view"
-import ProfilePage from "@/components/profile-page"
-import VersionCard from "@/components/version-card"
+import TopNav from "@/components/dashboard/top-nav"
+import Sidebar from "@/components/dashboard/sidebar"
+import NewTestForm from "@/components/dashboard/new-test-form"
+import ReportView from "@/components/reports/report-view"
+import ProfilePage from "@/components/profile/profile-page"
+import VersionCard from "@/components/reports/version-card"
 import type { TestHistory } from "@/lib/types"
-import { applicationsApi, testRunsApi, type Application, type TestRun } from "@/lib/api"
-import { Loader2, Package, ArrowLeft } from "lucide-react"
+import { applicationsApi, testRunsApi, type Application, type TestRun, type TestRunStats } from "@/lib/api"
+import { Loader2, Package, ArrowLeft, BarChart3 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import StatisticsModal from "@/components/charts/statistics-modal"
 
 // Helper to convert TestRun to TestHistory
 const convertTestRunToHistory = (testRun: TestRun): TestHistory => {
@@ -38,13 +40,21 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentView, setCurrentView] = useState<View>("dashboard")
+  const [stats, setStats] = useState<TestRunStats | null>(null)
+  const [statsModalOpen, setStatsModalOpen] = useState(false)
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const pollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  useEffect(() => {
-    loadApplications()
-    loadTestRuns()
+  const loadStats = useCallback(async () => {
+    try {
+      const statsData = await testRunsApi.stats()
+      setStats(statsData)
+    } catch (err) {
+      console.error("Error loading stats:", err)
+    }
   }, [])
 
-  const loadApplications = async () => {
+  const loadApplications = useCallback(async () => {
     try {
       setIsLoading(true)
       setError(null)
@@ -57,9 +67,9 @@ export default function Dashboard() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [])
 
-  const loadTestRuns = async () => {
+  const loadTestRuns = useCallback(async () => {
     try {
       const testRuns = await testRunsApi.list()
       const testHistory = testRuns.map(convertTestRunToHistory)
@@ -68,7 +78,15 @@ export default function Dashboard() {
       // Poll for running tests
       const runningTests = testRuns.filter(tr => tr.status === 'running' || tr.status === 'pending')
       if (runningTests.length > 0) {
-        const pollInterval = setInterval(async () => {
+        // Clear any existing polling
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current)
+        }
+        if (pollTimeoutRef.current) {
+          clearTimeout(pollTimeoutRef.current)
+        }
+        
+        pollIntervalRef.current = setInterval(async () => {
           try {
             // Get all test runs to ensure we have the latest status
             const allRuns = await testRunsApi.list()
@@ -78,24 +96,59 @@ export default function Dashboard() {
             // Stop polling if no running tests
             const stillRunning = allRuns.filter(tr => tr.status === 'running' || tr.status === 'pending')
             if (stillRunning.length === 0) {
-              clearInterval(pollInterval)
+              if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current)
+                pollIntervalRef.current = null
+              }
+              if (pollTimeoutRef.current) {
+                clearTimeout(pollTimeoutRef.current)
+                pollTimeoutRef.current = null
+              }
             }
           } catch (err) {
             console.error("Error polling test runs:", err)
-            clearInterval(pollInterval)
+            if (pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current)
+              pollIntervalRef.current = null
+            }
+            if (pollTimeoutRef.current) {
+              clearTimeout(pollTimeoutRef.current)
+              pollTimeoutRef.current = null
+            }
           }
         }, 2000) // Poll every 2 seconds
         
         // Cleanup after 5 minutes (tests can take longer)
-        setTimeout(() => clearInterval(pollInterval), 300000)
-        
-        // Return cleanup function
-        return () => clearInterval(pollInterval)
+        pollTimeoutRef.current = setTimeout(() => {
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current)
+            pollIntervalRef.current = null
+          }
+          pollTimeoutRef.current = null
+        }, 300000)
       }
     } catch (err) {
       console.error("Failed to load test runs:", err)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    loadApplications()
+    loadTestRuns()
+    loadStats()
+    
+    // Cleanup function
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
+      if (pollTimeoutRef.current) {
+        clearTimeout(pollTimeoutRef.current)
+        pollTimeoutRef.current = null
+      }
+    }
+  }, [loadApplications, loadTestRuns, loadStats])
 
   const handleNewTestComplete = (newTest: TestHistory) => {
     setHistory([newTest, ...history])
@@ -104,6 +157,8 @@ export default function Dashboard() {
     loadTestRuns()
     // Reload applications after creating a new one
     loadApplications()
+    // Reload stats to update dashboard
+    loadStats()
   }
 
   const handleDeleteTest = async (testId: string) => {
@@ -127,6 +182,8 @@ export default function Dashboard() {
       }
       // Reload to ensure sync
       loadTestRuns()
+      // Reload stats after deletion
+      loadStats()
     } catch (err) {
       console.error("Failed to delete test run:", err)
       setError(err instanceof Error ? err.message : "Failed to delete test run")
@@ -235,19 +292,32 @@ export default function Dashboard() {
                     <AppVersionsView 
                       appName={selectedApp}
                       history={history}
-                      selectedTestId={selectedTest?.id || null}
+                      selectedTestId={(selectedTest as TestHistory | null)?.id ?? null}
                       onSelectTest={handleSelectTest}
                       onDeleteTest={handleDeleteTest}
                     />
                   </motion.div>
                 ) : (
                   <motion.div
-                    key="new-test"
+                    key="dashboard-content"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
                     transition={{ duration: 0.2 }}
+                    className="space-y-8"
                   >
+                    {/* Statistics Button */}
+                    <div className="flex justify-end">
+                      <Button
+                        onClick={() => setStatsModalOpen(true)}
+                        className="flex items-center gap-2"
+                      >
+                        <BarChart3 className="h-5 w-5" />
+                        <span>View Statistics</span>
+                      </Button>
+                    </div>
+
+                    {/* New Test Form */}
                     <NewTestForm onTestComplete={handleNewTestComplete} applications={applications} />
                   </motion.div>
                 )}
@@ -256,6 +326,13 @@ export default function Dashboard() {
           </main>
         </div>
       )}
+
+      {/* Statistics Modal */}
+      <StatisticsModal 
+        open={statsModalOpen} 
+        onOpenChange={setStatsModalOpen} 
+        stats={stats} 
+      />
     </div>
   )
 }

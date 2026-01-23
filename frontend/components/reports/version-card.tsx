@@ -5,7 +5,7 @@ import { Clock, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { TestHistory } from "@/lib/types"
-import StatusBadge from "@/components/status-badge"
+import StatusBadge from "@/components/common/status-badge"
 import {
   AlertDialog,
   AlertDialogAction,

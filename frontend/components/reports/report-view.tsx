@@ -19,8 +19,8 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { TestHistory, TestIssue } from "@/lib/types"
-import StatusBadge from "@/components/status-badge"
-import DonutChart from "@/components/donut-chart"
+import StatusBadge from "@/components/common/status-badge"
+import DonutChart from "@/components/charts/donut-chart"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { reportsApi, type Report } from "@/lib/api"
@@ -174,6 +174,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
   const [report, setReport] = useState<Report | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeScreenshotUrl, setActiveScreenshotUrl] = useState<string | null>(null)
 
   useEffect(() => {
     loadReport()
@@ -185,6 +186,12 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
       setError(null)
       const reportData = await reportsApi.get(parseInt(test.id))
       setReport(reportData)
+      // Debug: Log screenshots received
+      if (reportData.screenshots && reportData.screenshots.length > 0) {
+        console.log("Screenshots received:", reportData.screenshots)
+      } else {
+        console.log("No screenshots in report data")
+      }
     } catch (err) {
       console.error("Error loading report:", err)
       setError(err instanceof Error ? err.message : "Failed to load report")
@@ -218,6 +225,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
   const criticalCount = issues.filter((i) => i.severity === "critical").length
   const majorCount = issues.filter((i) => i.severity === "major").length
   const minorCount = issues.filter((i) => i.severity === "minor").length
+  const screenshots = report?.screenshots ?? []
 
   // Use report summary if available, otherwise fallback to generated text
   const summaryText = report?.summary || (
@@ -658,6 +666,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
                     </pre>
                   </div>
                 )}
+
                 <h3 className="text-lg font-semibold text-foreground mb-4">Detailed Findings</h3>
           <div className="space-y-4">
             {issues.map((issue, index) => {
@@ -716,23 +725,60 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
                       <div className="border-t border-border/50 pt-4">
                         <p className="text-muted-foreground text-sm mb-4">{issue.description}</p>
 
-                        {/* Individual Screenshot */}
-                        <div className="relative group rounded-xl overflow-hidden bg-secondary/50 aspect-video">
-                          <img
-                            src={`/.jpg?height=300&width=500&query=${issue.screenshot}`}
-                            alt={`Screenshot: ${issue.title}`}
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <Button size="sm" variant="secondary" className="gap-2 hover:bg-orange-600 hover:text-white">
-                              <ZoomIn className="w-4 h-4" />
-                              View Full Screenshot
-                            </Button>
+                        {/* Screenshot for this issue */}
+                        {screenshots.length > 0 ? (
+                          <div className="mt-4">
+                            <p className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide">
+                              Screenshot Evidence
+                            </p>
+                            <div className="relative group rounded-lg overflow-hidden border border-border bg-secondary/20">
+                              <button
+                                type="button"
+                                onClick={() => setActiveScreenshotUrl(screenshots[0])}
+                                className="w-full aspect-video relative"
+                                title="Click to view full size"
+                              >
+                                <img 
+                                  src={screenshots[0]} 
+                                  alt={`Screenshot for ${issue.title}`} 
+                                  className="w-full h-full object-contain bg-secondary/50"
+                                  onError={(e) => {
+                                    // Show error message if image fails to load
+                                    const target = e.target as HTMLImageElement
+                                    const parent = target.parentElement
+                                    if (parent) {
+                                      parent.innerHTML = `
+                                        <div class="w-full h-full flex items-center justify-center p-4">
+                                          <p class="text-sm text-muted-foreground text-center">
+                                            Failed to load screenshot.<br/>
+                                            <a href="${screenshots[0]}" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline mt-2 inline-block">
+                                              Open in new tab
+                                            </a>
+                                          </p>
+                                        </div>
+                                      `
+                                    }
+                                  }}
+                                />
+                                <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <div className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-secondary text-secondary-foreground text-sm">
+                                    <ZoomIn className="w-4 h-4" />
+                                    View Full Size
+                                  </div>
+                                </div>
+                              </button>
+                            </div>
+                            {screenshots.length > 1 && (
+                              <p className="text-xs text-muted-foreground mt-2">
+                                + {screenshots.length - 1} more screenshot(s)
+                              </p>
+                            )}
                           </div>
-                          <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-background/90 to-transparent">
-                            <p className="text-xs text-muted-foreground">Screenshot captured during test execution</p>
-                          </div>
-                        </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground mt-4 italic">
+                            No screenshots were captured for this test run.
+                          </p>
+                        )}
                       </div>
                     </div>
                   </motion.div>
@@ -830,18 +876,14 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
                           </div>
                         </div>
 
-                        {/* Screenshot */}
+                        {/* Screenshots note */}
                         <div className="p-4 border-b border-border/50 bg-secondary/20">
-                          <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
-                            Screenshot Evidence
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                            Screenshots
                           </p>
-                          <div className="rounded-lg overflow-hidden bg-secondary/50 aspect-video max-w-md">
-                            <img
-                              src={`/.jpg?height=200&width=350&query=${issue.screenshot}`}
-                              alt={`Screenshot: ${issue.title}`}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
+                          <p className="mt-2 text-sm text-muted-foreground">
+                            See the “Screenshots” section in the main report view.
+                          </p>
                         </div>
 
                         {/* AI Review */}
@@ -924,6 +966,56 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Screenshot Modal */}
+      <AnimatePresence>
+        {activeScreenshotUrl && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
+            onClick={() => setActiveScreenshotUrl(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-5xl max-h-[85vh] rounded-2xl bg-card border border-border shadow-2xl flex flex-col overflow-hidden"
+            >
+              <div className="flex items-center justify-between p-4 border-b border-border">
+                <div className="text-sm text-muted-foreground truncate">Screenshot</div>
+                <div className="flex items-center gap-3">
+                  <a
+                    href={activeScreenshotUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Open in new tab
+                  </a>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setActiveScreenshotUrl(null)}
+                    className="text-muted-foreground hover:text-orange-600 hover:bg-orange-600/10"
+                  >
+                    <X className="w-5 h-5" />
+                  </Button>
+                </div>
+              </div>
+              <div className="p-4 overflow-auto">
+                <img
+                  src={activeScreenshotUrl}
+                  alt="Screenshot"
+                  className="w-full h-auto rounded-lg border border-border"
+                />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   )
 }

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import type { TestHistory } from "@/lib/types"
-import StatusBadge from "@/components/status-badge"
+import StatusBadge from "@/components/common/status-badge"
 import {
   AlertDialog,
   AlertDialogAction,
