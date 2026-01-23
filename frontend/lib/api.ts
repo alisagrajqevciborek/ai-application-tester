@@ -55,6 +55,7 @@ export interface Report {
     description: string
     location: string
   }>
+  screenshots: string[]
   created_at: string
 }
 

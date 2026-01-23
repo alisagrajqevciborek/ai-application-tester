@@ -32,6 +32,9 @@ RUN apt-get update && apt-get install -y \
     libxrandr2 \
     libgbm1 \
     libasound2 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libgdk-pixbuf-2.0-0 \
     fonts-liberation \
     fonts-unifont \
     && rm -rf /var/lib/apt/lists/*

@@ -20,8 +20,8 @@ def execute_test_run_task(self, test_run_id):
         test_run_id: The ID of the TestRun to execute
     """
     try:
-        # Get the test run
-        test_run = TestRun.objects.select_for_update().get(pk=test_run_id)  # type: ignore[attr-defined]
+        # Get the test run (without select_for_update since we're not in a transaction yet)
+        test_run = TestRun.objects.get(pk=test_run_id)  # type: ignore[attr-defined]
         
         # Update status to running
         test_run.status = 'running'
@@ -48,6 +48,10 @@ def execute_test_run_task(self, test_run_id):
             )
         finally:
             loop.close()
+        
+        # DEBUG: Log what we got from browser automation
+        logger.info(f"Test results received: status={results.get('status')}, screenshots={results.get('screenshots', [])}")
+        logger.info(f"Full results keys: {list(results.keys())}")
         
         # Update test run with results
         with transaction.atomic():  # type: ignore[call-overload]
@@ -106,31 +110,32 @@ def execute_test_run_task(self, test_run_id):
             
             # Save screenshots if any
             from .models import Screenshot
-            import requests  # noqa: F401
-            from django.core.files.base import ContentFile
-            screenshot_paths = results.get('screenshots', [])
-            for screenshot_url in screenshot_paths:
-                if screenshot_url:
+            
+            screenshot_urls = results.get('screenshots', [])
+            
+            logger.info(f"Screenshots in results: {screenshot_urls}")
+            logger.info(f"Number of screenshots: {len(screenshot_urls)}")
+            
+            if not screenshot_urls:
+                logger.warning(f"No screenshots found in results for test run {test_run_id}")
+            else:
+                logger.info(f"Processing {len(screenshot_urls)} screenshot(s)")
+                
+                for idx, screenshot_url in enumerate(screenshot_urls, 1):
+                    if not screenshot_url:
+                        logger.warning(f"Screenshot {idx} is empty/None, skipping")
+                        continue
+                        
                     try:
-                        # Download the image from Cloudinary URL and save it
-                        # Cloudinary storage will handle the upload automatically
-                        response = requests.get(screenshot_url, timeout=10)
-                        if response.status_code == 200:
-                            # Extract filename from URL
-                            filename = screenshot_url.split('/')[-1].split('?')[0]
-                            if not filename.endswith('.png'):
-                                filename = f"screenshot_{test_run_id}_{len(screenshot_paths)}.png"
-                            
-                            # Create Screenshot with the downloaded image
-                            screenshot = Screenshot(test_run=test_run)
-                            screenshot.image.save(  # type: ignore[attr-defined]
-                                filename,
-                                ContentFile(response.content),
-                                save=True
-                            )
-                            logger.info(f"Saved screenshot: {screenshot_url}")
+                        logger.info(f"Saving screenshot {idx} Cloudinary URL to database: {screenshot_url}")
+                        # Store the Cloudinary URL directly (already uploaded in browser_automation.py)
+                        screenshot = Screenshot.objects.create(  # type: ignore[attr-defined]
+                            test_run=test_run,
+                            cloudinary_url=screenshot_url
+                        )
+                        logger.info(f"✓ Successfully saved screenshot {idx} to database. Cloudinary URL: {screenshot.cloudinary_url}")
                     except Exception as e:
-                        logger.error(f"Error saving screenshot from {screenshot_url}: {e}")
+                        logger.error(f"Error saving screenshot {idx} with URL {screenshot_url}: {e}", exc_info=True)
         
         logger.info(f"Test run {test_run_id} completed with status: {test_run.status}")
         

@@ -18,7 +18,7 @@ class BrowserAutomationService:
     """Service for running automated browser tests using Playwright."""
     
     def __init__(self):
-        self.timeout = 30000  # 30 seconds default timeout
+        self.timeout = 60000  # 60 seconds default timeout
         self.viewport_width = 1920
         self.viewport_height = 1080
         
@@ -55,7 +55,14 @@ class BrowserAutomationService:
             try:
                 # Navigate to the URL
                 logger.info(f"Navigating to {url}")
-                await page.goto(url, wait_until='networkidle', timeout=self.timeout)
+                # Use 'domcontentloaded' for fastest loading, with longer timeout
+                # This waits for HTML to be parsed, not all resources
+                try:
+                    await page.goto(url, wait_until='domcontentloaded', timeout=self.timeout)
+                except PlaywrightTimeoutError:
+                    # If domcontentloaded times out, try with just navigation
+                    logger.warning(f"domcontentloaded timed out for {url}, trying with 'commit'")
+                    await page.goto(url, wait_until='commit', timeout=self.timeout)
                 
                 # Wait a bit for page to fully load
                 await page.wait_for_timeout(2000)
@@ -242,7 +249,11 @@ class BrowserAutomationService:
         tests_failed = 0
         
         # Measure page load time
-        await page.wait_for_load_state('networkidle')
+        # Use 'load' instead of 'networkidle' to avoid long waits
+        try:
+            await page.wait_for_load_state('load', timeout=30000)
+        except PlaywrightTimeoutError:
+            logger.warning("Page load state 'load' timed out, using current state")
         load_time = await page.evaluate('() => performance.timing.loadEventEnd - performance.timing.navigationStart')
         
         # Convert to seconds
@@ -400,31 +411,52 @@ class BrowserAutomationService:
                 import cloudinary.uploader
                 from django.conf import settings as django_settings
                 
+                # Get Cloudinary credentials
+                cloud_name = django_settings.CLOUDINARY_STORAGE.get('CLOUD_NAME', '')
+                api_key = django_settings.CLOUDINARY_STORAGE.get('API_KEY', '')
+                api_secret = django_settings.CLOUDINARY_STORAGE.get('API_SECRET', '')
+                
+                logger.info(f"Uploading screenshot to Cloudinary. Cloud name: {cloud_name}, API key: {api_key[:10] if api_key else 'None'}...")
+                
                 # Configure Cloudinary if not already configured
                 if not cloudinary.config().cloud_name:
                     cloudinary.config(
-                        cloud_name=django_settings.CLOUDINARY_STORAGE.get('CLOUD_NAME', ''),
-                        api_key=django_settings.CLOUDINARY_STORAGE.get('API_KEY', ''),
-                        api_secret=django_settings.CLOUDINARY_STORAGE.get('API_SECRET', ''),
+                        cloud_name=cloud_name,
+                        api_key=api_key,
+                        api_secret=api_secret,
                     )
                 
-                # Generate a unique filename
+                # Generate a unique filename with timestamp for uniqueness
                 import hashlib
+                import time
                 url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
-                filename = f"screenshots/{test_type}_{url_hash}"
+                timestamp = int(time.time())
+                # Use a simple public_id without nested paths - Cloudinary will handle the folder
+                public_id = f"test_screenshots/{test_type}_{url_hash}_{timestamp}"
+                
+                logger.info(f"Uploading screenshot with public_id: {public_id}")
                 
                 # Upload to Cloudinary
                 from io import BytesIO
                 result = cloudinary.uploader.upload(
                     BytesIO(screenshot_bytes),
-                    folder='test_screenshots',
-                    public_id=filename,
+                    public_id=public_id,
                     resource_type='image',
-                    format='png'
+                    format='png',
+                    overwrite=False,  # Don't overwrite existing images
+                    tags=['ai-application-tester', 'test_screenshot', test_type],
+                    context={
+                        'test_type': test_type,
+                        'tested_url': url,
+                    },
                 )
                 
+                cloudinary_url = result.get('secure_url') or result.get('url')
+                logger.info(f"✓ Successfully uploaded screenshot to Cloudinary. URL: {cloudinary_url}")
+                logger.info(f"Upload result keys: {list(result.keys())}")
+                
                 # Return the Cloudinary URL
-                return result.get('secure_url') or result.get('url')
+                return cloudinary_url
                 
             except ImportError:
                 logger.warning("Cloudinary not installed, falling back to local storage")

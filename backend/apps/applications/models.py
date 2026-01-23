@@ -92,7 +92,15 @@ class Screenshot(models.Model):
     )
     image = models.ImageField(
         upload_to='screenshots/',
-        help_text="Screenshot image file"
+        help_text="Screenshot image file",
+        null=True,
+        blank=True
+    )
+    cloudinary_url = models.URLField(
+        max_length=500,
+        help_text="Cloudinary URL of the screenshot",
+        null=True,
+        blank=True
     )
     created_at = models.DateTimeField(auto_now_add=True)
     

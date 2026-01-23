@@ -6,7 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import DonutChart from "@/components/donut-chart"
+import DonutChart from "@/components/charts/donut-chart"
 import type { TestRunStats } from "@/lib/api"
 
 interface StatisticsModalProps {

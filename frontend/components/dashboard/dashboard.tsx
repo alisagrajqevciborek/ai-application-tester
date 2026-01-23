@@ -2,17 +2,17 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import TopNav from "@/components/top-nav"
-import Sidebar from "@/components/sidebar"
-import NewTestForm from "@/components/new-test-form"
-import ReportView from "@/components/report-view"
-import ProfilePage from "@/components/profile-page"
-import VersionCard from "@/components/version-card"
+import TopNav from "@/components/dashboard/top-nav"
+import Sidebar from "@/components/dashboard/sidebar"
+import NewTestForm from "@/components/dashboard/new-test-form"
+import ReportView from "@/components/reports/report-view"
+import ProfilePage from "@/components/profile/profile-page"
+import VersionCard from "@/components/reports/version-card"
 import type { TestHistory } from "@/lib/types"
 import { applicationsApi, testRunsApi, type Application, type TestRun, type TestRunStats } from "@/lib/api"
 import { Loader2, Package, ArrowLeft, BarChart3 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import StatisticsModal from "@/components/statistics-modal"
+import StatisticsModal from "@/components/charts/statistics-modal"
 
 // Helper to convert TestRun to TestHistory
 const convertTestRunToHistory = (testRun: TestRun): TestHistory => {

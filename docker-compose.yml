@@ -34,11 +34,10 @@ services:
       - DEBUG=True
       - SECRET_KEY=${SECRET_KEY:-django-insecure-vr4g-p&0a$%!0kk032q$-o6%16h_=-zggep3+o=09gpn2yu=!j}
       - ALLOWED_HOSTS=localhost,127.0.0.1,backend
-      - DB_NAME=${DB_NAME:-ai_app_tester}
-      - DB_USER=${DB_USER:-postgres}
-      # - DB_PASSWORD=${DB_PASSWORD:-}
-      - DB_HOST=host.docker.internal
-      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=postgres
+      - DB_USER=postgres.mhrzpyfziiwxmfutlnwk
+      - DB_HOST=aws-1-eu-west-3.pooler.supabase.com
+      - DB_PORT=5432
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - EMAIL_BACKEND=${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
@@ -70,10 +69,10 @@ services:
       - SECRET_KEY=${SECRET_KEY:-django-insecure-vr4g-p&0a$%!0kk032q$-o6%16h_=-zggep3+o=09gpn2yu=!j}
       - ALLOWED_HOSTS=localhost,127.0.0.1
       - DB_NAME=${DB_NAME:-ai_app_tester}
-      - DB_USER=${DB_USER:-postgres}
-      # - DB_PASSWORD=${DB_PASSWORD:-}
-      - DB_HOST=host.docker.internal
-      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=postgres
+      - DB_USER=postgres.mhrzpyfziiwxmfutlnwk
+      - DB_HOST=aws-1-eu-west-3.pooler.supabase.com
+      - DB_PORT=5432
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - EMAIL_BACKEND=${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
