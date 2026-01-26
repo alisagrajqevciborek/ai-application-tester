@@ -22,8 +22,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const storedUser = getUser()
     if (storedUser) {
+      // Optimistically set user and stop loading immediately
       setUser(storedUser)
-      // Verify token is still valid by fetching current user
+      setIsLoading(false)
+
+      // Verify token is still valid in the background (non-blocking)
       authApi
         .getMe()
         .then((currentUser) => {
@@ -35,7 +38,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           clearTokens()
           setUser(null)
         })
-        .finally(() => setIsLoading(false))
     } else {
       setIsLoading(false)
     }

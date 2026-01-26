@@ -132,13 +132,13 @@ async function apiRequest<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = getAuthToken()
-  
+
   // Validate endpoint doesn't contain unsubstituted route parameters
   if (endpoint.includes(':') && !endpoint.startsWith(':')) {
     console.error('Invalid endpoint with unsubstituted parameter:', endpoint)
     throw new Error(`Invalid API endpoint: ${endpoint}. Route parameters must be substituted.`)
   }
-  
+
   const url = `${API_BASE_URL}${endpoint}`
 
   const headers: Record<string, string> = {
@@ -150,54 +150,69 @@ async function apiRequest<T>(
     headers['Authorization'] = `Bearer ${token}`
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  })
+  // Add timeout to prevent hanging requests
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
 
-  // Handle 204 No Content
-  if (response.status === 204) {
-    return {} as T
-  }
-
-  // Check if response is JSON
-  const contentType = response.headers.get('content-type')
-  if (!contentType || !contentType.includes('application/json')) {
-    // If not JSON, it's likely an HTML error page
-    const text = await response.text()
-    throw new Error(
-      response.status === 404
-        ? 'API endpoint not found. Please check if the backend server is running.'
-        : response.status >= 500
-        ? 'Server error. Please try again later.'
-        : `Unexpected response format. Status: ${response.status}`
-    )
-  }
-
-  let data
   try {
-    data = await response.json()
-  } catch (error) {
-    throw new Error('Failed to parse response as JSON. The server may be returning an error page.')
-  }
+    const response = await fetch(url, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    })
 
-  if (!response.ok) {
-    // Handle validation errors
-    if (data.email || data.password || data.code) {
-      const errorMessages = Object.entries(data)
-        .map(([key, value]) => {
-          if (Array.isArray(value)) {
-            return `${key}: ${value.join(', ')}`
-          }
-          return `${key}: ${value}`
-        })
-        .join('\n')
-      throw new Error(errorMessages)
+    clearTimeout(timeoutId)
+
+    // Handle 204 No Content
+    if (response.status === 204) {
+      return {} as T
     }
-    throw new Error(data.error || data.message || data.detail || 'An error occurred')
-  }
 
-  return data
+    // Check if response is JSON
+    const contentType = response.headers.get('content-type')
+    if (!contentType || !contentType.includes('application/json')) {
+      // If not JSON, it's likely an HTML error page
+      const text = await response.text()
+      throw new Error(
+        response.status === 404
+          ? 'API endpoint not found. Please check if the backend server is running.'
+          : response.status >= 500
+            ? 'Server error. Please try again later.'
+            : `Unexpected response format. Status: ${response.status}`
+      )
+    }
+
+    let data
+    try {
+      data = await response.json()
+    } catch (error) {
+      throw new Error('Failed to parse response as JSON. The server may be returning an error page.')
+    }
+
+    if (!response.ok) {
+      // Handle validation errors
+      if (data.email || data.password || data.code) {
+        const errorMessages = Object.entries(data)
+          .map(([key, value]) => {
+            if (Array.isArray(value)) {
+              return `${key}: ${value.join(', ')}`
+            }
+            return `${key}: ${value}`
+          })
+          .join('\n')
+        throw new Error(errorMessages)
+      }
+      throw new Error(data.error || data.message || data.detail || 'An error occurred')
+    }
+
+    return data
+  } catch (error) {
+    clearTimeout(timeoutId)
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Request timeout. Please check your internet connection.')
+    }
+    throw error
+  }
 }
 
 // Auth API
@@ -205,9 +220,9 @@ export const authApi = {
   async register(email: string, password: string, passwordConfirm: string, firstName: string, lastName: string): Promise<{ message: string; email: string }> {
     return apiRequest<{ message: string; email: string }>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ 
-        email, 
-        password, 
+      body: JSON.stringify({
+        email,
+        password,
         password_confirm: passwordConfirm,
         first_name: firstName,
         last_name: lastName
@@ -311,7 +326,7 @@ export const applicationsApi = {
       next?: string | null
       previous?: string | null
     }>('/applications/')
-    
+
     // Handle paginated response
     if (response.results) {
       return response.results
@@ -335,13 +350,13 @@ export const applicationsApi = {
     if (!url || !url.trim()) {
       throw new Error('Application URL is required')
     }
-    
+
     // Ensure URL has protocol
     let normalizedUrl = url.trim()
     if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
       normalizedUrl = `https://${normalizedUrl}`
     }
-    
+
     return apiRequest<Application>('/applications/', {
       method: 'POST',
       body: JSON.stringify({ name: name.trim(), url: normalizedUrl }),
@@ -371,7 +386,7 @@ export const testRunsApi = {
       next?: string | null
       previous?: string | null
     }>('/applications/test-runs/')
-    
+
     // Handle paginated response
     if (response.results) {
       return response.results
@@ -387,9 +402,9 @@ export const testRunsApi = {
   async create(applicationId: number, testType: string): Promise<TestRun> {
     return apiRequest<TestRun>('/applications/test-runs/', {
       method: 'POST',
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         application: applicationId,
-        test_type: testType 
+        test_type: testType
       }),
     })
   },
