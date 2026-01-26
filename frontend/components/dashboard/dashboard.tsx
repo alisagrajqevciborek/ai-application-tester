@@ -5,14 +5,25 @@ import { motion, AnimatePresence } from "framer-motion"
 import TopNav from "@/components/dashboard/top-nav"
 import Sidebar from "@/components/dashboard/sidebar"
 import NewTestForm from "@/components/dashboard/new-test-form"
-import ReportView from "@/components/reports/report-view"
-import ProfilePage from "@/components/profile/profile-page"
 import VersionCard from "@/components/reports/version-card"
 import type { TestHistory } from "@/lib/types"
 import { applicationsApi, testRunsApi, type Application, type TestRun, type TestRunStats } from "@/lib/api"
 import { Loader2, Package, ArrowLeft, BarChart3 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import StatisticsModal from "@/components/charts/statistics-modal"
+import dynamic from "next/dynamic"
+
+// Lazy load heavy components that are conditionally rendered
+const ReportView = dynamic(() => import("@/components/reports/report-view"), {
+  loading: () => <div className="flex items-center justify-center min-h-[400px]"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+})
+
+const ProfilePage = dynamic(() => import("@/components/profile/profile-page"), {
+  loading: () => <div className="flex items-center justify-center min-h-[400px]"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+})
+
+const StatisticsModal = dynamic(() => import("@/components/charts/statistics-modal"), {
+  ssr: false,
+})
 
 // Helper to convert TestRun to TestHistory
 const convertTestRunToHistory = (testRun: TestRun): TestHistory => {
@@ -74,7 +85,7 @@ export default function Dashboard() {
       const testRuns = await testRunsApi.list()
       const testHistory = testRuns.map(convertTestRunToHistory)
       setHistory(testHistory)
-      
+
       // Poll for running tests
       const runningTests = testRuns.filter(tr => tr.status === 'running' || tr.status === 'pending')
       if (runningTests.length > 0) {
@@ -85,14 +96,14 @@ export default function Dashboard() {
         if (pollTimeoutRef.current) {
           clearTimeout(pollTimeoutRef.current)
         }
-        
+
         pollIntervalRef.current = setInterval(async () => {
           try {
             // Get all test runs to ensure we have the latest status
             const allRuns = await testRunsApi.list()
             const allHistory = allRuns.map(convertTestRunToHistory)
             setHistory(allHistory)
-            
+
             // Stop polling if no running tests
             const stillRunning = allRuns.filter(tr => tr.status === 'running' || tr.status === 'pending')
             if (stillRunning.length === 0) {
@@ -117,7 +128,7 @@ export default function Dashboard() {
             }
           }
         }, 2000) // Poll every 2 seconds
-        
+
         // Cleanup after 5 minutes (tests can take longer)
         pollTimeoutRef.current = setTimeout(() => {
           if (pollIntervalRef.current) {
@@ -136,7 +147,7 @@ export default function Dashboard() {
     loadApplications()
     loadTestRuns()
     loadStats()
-    
+
     // Cleanup function
     return () => {
       if (pollIntervalRef.current) {
@@ -168,7 +179,7 @@ export default function Dashboard() {
       // Remove from local state
       const updatedHistory = history.filter(test => test.id !== testId)
       setHistory(updatedHistory)
-      
+
       // If deleted test was selected, clear selection
       if (selectedTest?.id === testId) {
         setSelectedTest(null)
@@ -253,8 +264,8 @@ export default function Dashboard() {
                     exit={{ opacity: 0, y: -20 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <ReportView 
-                      test={selectedTest} 
+                    <ReportView
+                      test={selectedTest}
                       onBack={() => {
                         setSelectedTest(null)
                         // Stay on the app view if we have a selected app
@@ -289,7 +300,7 @@ export default function Dashboard() {
                     </div>
 
                     {/* Version Cards for Selected App */}
-                    <AppVersionsView 
+                    <AppVersionsView
                       appName={selectedApp}
                       history={history}
                       selectedTestId={(selectedTest as TestHistory | null)?.id ?? null}
@@ -328,10 +339,10 @@ export default function Dashboard() {
       )}
 
       {/* Statistics Modal */}
-      <StatisticsModal 
-        open={statsModalOpen} 
-        onOpenChange={setStatsModalOpen} 
-        stats={stats} 
+      <StatisticsModal
+        open={statsModalOpen}
+        onOpenChange={setStatsModalOpen}
+        stats={stats}
       />
     </div>
   )

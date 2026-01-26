@@ -157,15 +157,16 @@ async function apiRequest<T>(
     headers['Authorization'] = `Bearer ${token}`
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  })
+  // Add timeout to prevent hanging requests
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
 
-  // Handle 204 No Content
-  if (response.status === 204) {
-    return {} as T
-  }
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    })
 
   // Check if response is JSON
   const contentType = response.headers.get('content-type')
@@ -180,31 +181,58 @@ async function apiRequest<T>(
           : `Unexpected response format. Status: ${response.status}`
     )
   }
+    clearTimeout(timeoutId)
 
-  let data
-  try {
-    data = await response.json()
-  } catch (error) {
-    throw new Error('Failed to parse response as JSON. The server may be returning an error page.')
-  }
-
-  if (!response.ok) {
-    // Handle validation errors
-    if (data.email || data.password || data.code) {
-      const errorMessages = Object.entries(data)
-        .map(([key, value]) => {
-          if (Array.isArray(value)) {
-            return `${key}: ${value.join(', ')}`
-          }
-          return `${key}: ${value}`
-        })
-        .join('\n')
-      throw new Error(errorMessages)
+    // Handle 204 No Content
+    if (response.status === 204) {
+      return {} as T
     }
-    throw new Error(data.error || data.message || data.detail || 'An error occurred')
-  }
 
-  return data
+    // Check if response is JSON
+    const contentType = response.headers.get('content-type')
+    if (!contentType || !contentType.includes('application/json')) {
+      // If not JSON, it's likely an HTML error page
+      const text = await response.text()
+      throw new Error(
+        response.status === 404
+          ? 'API endpoint not found. Please check if the backend server is running.'
+          : response.status >= 500
+            ? 'Server error. Please try again later.'
+            : `Unexpected response format. Status: ${response.status}`
+      )
+    }
+
+    let data
+    try {
+      data = await response.json()
+    } catch (error) {
+      throw new Error('Failed to parse response as JSON. The server may be returning an error page.')
+    }
+
+    if (!response.ok) {
+      // Handle validation errors
+      if (data.email || data.password || data.code) {
+        const errorMessages = Object.entries(data)
+          .map(([key, value]) => {
+            if (Array.isArray(value)) {
+              return `${key}: ${value.join(', ')}`
+            }
+            return `${key}: ${value}`
+          })
+          .join('\n')
+        throw new Error(errorMessages)
+      }
+      throw new Error(data.error || data.message || data.detail || 'An error occurred')
+    }
+
+    return data
+  } catch (error) {
+    clearTimeout(timeoutId)
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Request timeout. Please check your internet connection.')
+    }
+    throw error
+  }
 }
 
 // Auth API
