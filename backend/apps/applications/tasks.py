@@ -136,7 +136,8 @@ def execute_test_run_task(self, test_run_id):
                     defaults={
                         'summary': summary,
                         'detailed_report': detailed_report,
-                        'issues_json': final_issues
+                        'issues_json': final_issues,
+                        'console_logs_json': results.get('console_logs', [])
                     }
                 )
                 logger.info(f"Report generated for test run {test_run_id}")

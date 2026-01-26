@@ -17,4 +17,6 @@ export interface TestIssue {
   description: string
   screenshot: string
   location: string
+  selector?: string
+  element_screenshot?: string
 }

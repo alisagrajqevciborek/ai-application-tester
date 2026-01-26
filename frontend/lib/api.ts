@@ -54,6 +54,13 @@ export interface Report {
     title: string
     description: string
     location: string
+    selector?: string
+    element_screenshot?: string
+  }>
+  console_logs_json?: Array<{
+    type: string
+    text: string
+    location?: string
   }>
   screenshots: string[]
   created_at: string
@@ -161,6 +168,19 @@ async function apiRequest<T>(
       signal: controller.signal,
     })
 
+  // Check if response is JSON
+  const contentType = response.headers.get('content-type')
+  if (!contentType || !contentType.includes('application/json')) {
+    // If not JSON, it's likely an HTML error page
+    const text = await response.text()
+    throw new Error(
+      response.status === 404
+        ? 'API endpoint not found. Please check if the backend server is running.'
+        : response.status >= 500
+          ? 'Server error. Please try again later.'
+          : `Unexpected response format. Status: ${response.status}`
+    )
+  }
     clearTimeout(timeoutId)
 
     // Handle 204 No Content
