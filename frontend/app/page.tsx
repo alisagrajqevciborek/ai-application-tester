@@ -5,10 +5,18 @@ import { useRouter } from "next/navigation"
 import { AnimatePresence, motion } from "framer-motion"
 import LoginPage from "@/components/auth/login-page"
 import RegisterPage from "@/components/auth/register-page"
-import Dashboard from "@/components/dashboard/dashboard"
-import AdminDashboard from "@/components/admin/admin-dashboard"
-import { useAuth } from "@/contexts/AuthContext"
+// Dynamic imports for heavy dashboard components
+import dynamic from 'next/dynamic'
 import { Loader2 } from "lucide-react"
+import { useAuth } from "@/contexts/AuthContext"
+
+const Dashboard = dynamic(() => import("@/components/dashboard/dashboard"), {
+  loading: () => <div className="flex items-center justify-center h-screen"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+})
+
+const AdminDashboard = dynamic(() => import("@/components/admin/admin-dashboard"), {
+  loading: () => <div className="flex items-center justify-center h-screen"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+})
 
 type AuthView = "login" | "register"
 
