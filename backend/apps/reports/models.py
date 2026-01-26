@@ -22,6 +22,11 @@ class Report(models.Model):
         blank=True,
         help_text="JSON array of issues found during testing"
     )
+    console_logs_json = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="JSON array of full console log history"
+    )
     created_at = models.DateTimeField(
         auto_now_add=True,
         help_text="Timestamp when the report was created"

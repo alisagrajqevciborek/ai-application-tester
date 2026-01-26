@@ -54,6 +54,13 @@ export interface Report {
     title: string
     description: string
     location: string
+    selector?: string
+    element_screenshot?: string
+  }>
+  console_logs_json?: Array<{
+    type: string
+    text: string
+    location?: string
   }>
   screenshots: string[]
   created_at: string
@@ -132,13 +139,13 @@ async function apiRequest<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = getAuthToken()
-  
+
   // Validate endpoint doesn't contain unsubstituted route parameters
   if (endpoint.includes(':') && !endpoint.startsWith(':')) {
     console.error('Invalid endpoint with unsubstituted parameter:', endpoint)
     throw new Error(`Invalid API endpoint: ${endpoint}. Route parameters must be substituted.`)
   }
-  
+
   const url = `${API_BASE_URL}${endpoint}`
 
   const headers: Record<string, string> = {
@@ -169,8 +176,8 @@ async function apiRequest<T>(
       response.status === 404
         ? 'API endpoint not found. Please check if the backend server is running.'
         : response.status >= 500
-        ? 'Server error. Please try again later.'
-        : `Unexpected response format. Status: ${response.status}`
+          ? 'Server error. Please try again later.'
+          : `Unexpected response format. Status: ${response.status}`
     )
   }
 
@@ -205,9 +212,9 @@ export const authApi = {
   async register(email: string, password: string, passwordConfirm: string, firstName: string, lastName: string): Promise<{ message: string; email: string }> {
     return apiRequest<{ message: string; email: string }>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ 
-        email, 
-        password, 
+      body: JSON.stringify({
+        email,
+        password,
         password_confirm: passwordConfirm,
         first_name: firstName,
         last_name: lastName
@@ -311,7 +318,7 @@ export const applicationsApi = {
       next?: string | null
       previous?: string | null
     }>('/applications/')
-    
+
     // Handle paginated response
     if (response.results) {
       return response.results
@@ -335,13 +342,13 @@ export const applicationsApi = {
     if (!url || !url.trim()) {
       throw new Error('Application URL is required')
     }
-    
+
     // Ensure URL has protocol
     let normalizedUrl = url.trim()
     if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
       normalizedUrl = `https://${normalizedUrl}`
     }
-    
+
     return apiRequest<Application>('/applications/', {
       method: 'POST',
       body: JSON.stringify({ name: name.trim(), url: normalizedUrl }),
@@ -371,7 +378,7 @@ export const testRunsApi = {
       next?: string | null
       previous?: string | null
     }>('/applications/test-runs/')
-    
+
     // Handle paginated response
     if (response.results) {
       return response.results
@@ -387,9 +394,9 @@ export const testRunsApi = {
   async create(applicationId: number, testType: string): Promise<TestRun> {
     return apiRequest<TestRun>('/applications/test-runs/', {
       method: 'POST',
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         application: applicationId,
-        test_type: testType 
+        test_type: testType
       }),
     })
   },

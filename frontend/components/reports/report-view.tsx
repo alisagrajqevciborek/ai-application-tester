@@ -16,6 +16,10 @@ import {
   Wrench,
   CheckCircle2,
   Trash2,
+  Terminal,
+  Code,
+  Layout,
+  Maximize2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { TestHistory, TestIssue } from "@/lib/types"
@@ -175,6 +179,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeScreenshotUrl, setActiveScreenshotUrl] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<"findings" | "logs">("findings")
 
   useEffect(() => {
     loadReport()
@@ -218,8 +223,10 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
     title: issue.title,
     severity: issue.severity,
     description: issue.description,
-    screenshot: "", // Screenshots are handled separately via Screenshot model
+    screenshot: issue.element_screenshot || "",
     location: issue.location,
+    selector: issue.selector,
+    element_screenshot: issue.element_screenshot,
   })) || []
 
   const criticalCount = issues.filter((i) => i.severity === "critical").length
@@ -404,7 +411,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
     })
 
     // Footer
-    const totalPages = doc.internal.getNumberOfPages()
+    const totalPages = (doc as any).internal.getNumberOfPages()
     for (let i = 1; i <= totalPages; i++) {
       doc.setPage(i)
       doc.setFontSize(8)
@@ -424,7 +431,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
     // xlsx is CommonJS in many setups; Next/TS dynamic import can return { default: ... }
     const XLSXImport = await import("xlsx")
     const XLSX: any = (XLSXImport as any).default ?? XLSXImport
-    
+
     // Prepare data for Excel
     const excelData = [
       ["TestFlow AI - Test Report"],
@@ -620,173 +627,267 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
           </div>
 
           {/* Actions - Updated with dropdown for export */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Button
-              onClick={() => setShowFullReport(true)}
-              className="flex-1 h-12 rounded-xl bg-primary text-primary-foreground hover:bg-orange-600"
-            >
-              <ExternalLink className="w-4 h-4 mr-2" />
-              View Full Report
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="flex-1 h-12 rounded-xl border-border hover:bg-orange-600/10 hover:text-orange-600 hover:border-orange-600 bg-transparent"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Export Report
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-48 bg-popover border-border" align="end">
-                <DropdownMenuItem onClick={() => handleExportPDF()} className="cursor-pointer">
-                  <FileText className="mr-2 h-4 w-4 text-red-400" />
-                  <span>Export as PDF</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExportExcel()} className="cursor-pointer">
-                  <FileSpreadsheet className="mr-2 h-4 w-4 text-green-400" />
-                  <span>Export as Excel</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-          className="mb-8"
-        >
-                <h3 className="text-lg font-semibold text-foreground mb-4">Detailed Report</h3>
-                {report?.detailed_report && (
-                  <div className="mb-6 p-4 bg-muted/50 rounded-lg">
-                    <pre className="whitespace-pre-wrap text-sm font-mono text-foreground">
-                      {report.detailed_report}
-                    </pre>
-                  </div>
-                )}
+        {/* Tabs */}
+        <div className="flex border-b border-border/50 mb-6 px-1">
+          <Button
+            variant="ghost"
+            onClick={() => setActiveTab("findings")}
+            className={cn(
+              "relative px-6 py-4 rounded-none h-auto transition-colors",
+              activeTab === "findings" ? "text-primary border-b-2 border-primary" : "text-muted-foreground"
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              <span>Detailed Findings</span>
+              <span className="ml-1 text-xs opacity-60">({issues.length})</span>
+            </div>
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => setActiveTab("logs")}
+            className={cn(
+              "relative px-6 py-4 rounded-none h-auto transition-colors",
+              activeTab === "logs" ? "text-primary border-b-2 border-primary" : "text-muted-foreground"
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <Terminal className="w-4 h-4" />
+              <span>Console Logs</span>
+              {report?.console_logs_json && (
+                <span className="ml-1 text-xs opacity-60">({report.console_logs_json.length})</span>
+              )}
+            </div>
+          </Button>
+        </div>
 
-                <h3 className="text-lg font-semibold text-foreground mb-4">Detailed Findings</h3>
-          <div className="space-y-4">
-            {issues.map((issue, index) => {
-              const config = severityConfig[issue.severity]
-              const Icon = config.icon
-              const isExpanded = expandedIssue === issue.id
+        {activeTab === "findings" ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+            className="mb-8"
+          >
+            <h3 className="text-lg font-semibold text-foreground mb-4">Detailed Report</h3>
+            {report?.detailed_report && (
+              <div className="mb-6 p-4 bg-muted/50 rounded-lg">
+                <pre className="whitespace-pre-wrap text-sm font-mono text-foreground">
+                  {report.detailed_report}
+                </pre>
+              </div>
+            )}
 
-              return (
-                <motion.div
-                  key={issue.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 + index * 0.05 }}
-                  className={cn("glass rounded-xl overflow-hidden border", config.border)}
-                >
-                  {/* Issue Header */}
-                  <button
-                    onClick={() => setExpandedIssue(isExpanded ? null : issue.id)}
-                    className="w-full p-4 flex items-start gap-4 text-left hover:bg-orange-600/10 transition-colors"
-                  >
-                    <div className={cn("p-2 rounded-lg", config.bg)}>
-                      <Icon className={cn("w-5 h-5", config.color)} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={cn("text-xs font-medium px-2 py-0.5 rounded", config.bg, config.color)}>
-                          {config.label}
-                        </span>
-                        <span className="text-xs text-muted-foreground">{issue.location}</span>
-                      </div>
-                      <h4 className="font-medium text-foreground">{issue.title}</h4>
-                    </div>
-                    <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} className="text-muted-foreground">
-                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                        <path
-                          d="M5 7.5L10 12.5L15 7.5"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </motion.div>
-                  </button>
+            <h3 className="text-lg font-semibold text-foreground mb-4">Detailed Findings</h3>
+            <div className="space-y-4">
+              {issues.map((issue, index) => {
+                const config = severityConfig[issue.severity]
+                const Icon = config.icon
+                const isExpanded = expandedIssue === issue.id
 
-                  {/* Expanded Content */}
+                return (
                   <motion.div
-                    initial={false}
-                    animate={{
-                      height: isExpanded ? "auto" : 0,
-                      opacity: isExpanded ? 1 : 0,
-                    }}
-                    className="overflow-hidden"
+                    key={issue.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 + index * 0.05 }}
+                    className={cn("glass rounded-xl overflow-hidden border", config.border)}
                   >
-                    <div className="px-4 pb-4 pt-0">
-                      <div className="border-t border-border/50 pt-4">
-                        <p className="text-muted-foreground text-sm mb-4">{issue.description}</p>
+                    {/* Issue Header */}
+                    <button
+                      onClick={() => setExpandedIssue(isExpanded ? null : issue.id)}
+                      className="w-full p-4 flex items-start gap-4 text-left hover:bg-orange-600/10 transition-colors"
+                    >
+                      <div className={cn("p-2 rounded-lg", config.bg)}>
+                        <Icon className={cn("w-5 h-5", config.color)} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={cn("text-xs font-medium px-2 py-0.5 rounded", config.bg, config.color)}>
+                            {config.label}
+                          </span>
+                          <span className="text-xs text-muted-foreground">{issue.location}</span>
+                        </div>
+                        <h4 className="font-medium text-foreground">{issue.title}</h4>
+                      </div>
+                      <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} className="text-muted-foreground">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                          <path
+                            d="M5 7.5L10 12.5L15 7.5"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </motion.div>
+                    </button>
 
-                        {/* Screenshot for this issue */}
-                        {screenshots.length > 0 ? (
-                          <div className="mt-4">
-                            <p className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide">
-                              Screenshot Evidence
-                            </p>
-                            <div className="relative group rounded-lg overflow-hidden border border-border bg-secondary/20">
-                              <button
-                                type="button"
-                                onClick={() => setActiveScreenshotUrl(screenshots[0])}
-                                className="w-full aspect-video relative"
-                                title="Click to view full size"
-                              >
-                                <img 
-                                  src={screenshots[0]} 
-                                  alt={`Screenshot for ${issue.title}`} 
-                                  className="w-full h-full object-contain bg-secondary/50"
-                                  onError={(e) => {
-                                    // Show error message if image fails to load
-                                    const target = e.target as HTMLImageElement
-                                    const parent = target.parentElement
-                                    if (parent) {
-                                      parent.innerHTML = `
-                                        <div class="w-full h-full flex items-center justify-center p-4">
-                                          <p class="text-sm text-muted-foreground text-center">
-                                            Failed to load screenshot.<br/>
-                                            <a href="${screenshots[0]}" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline mt-2 inline-block">
-                                              Open in new tab
-                                            </a>
-                                          </p>
-                                        </div>
-                                      `
-                                    }
-                                  }}
-                                />
-                                <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                  <div className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-secondary text-secondary-foreground text-sm">
-                                    <ZoomIn className="w-4 h-4" />
-                                    View Full Size
-                                  </div>
-                                </div>
-                              </button>
+                    {/* Expanded Content */}
+                    <motion.div
+                      initial={false}
+                      animate={{
+                        height: isExpanded ? "auto" : 0,
+                        opacity: isExpanded ? 1 : 0,
+                      }}
+                      className="overflow-hidden"
+                    >
+                      <div className="px-4 pb-4 pt-0">
+                        <div className="border-t border-border/50 pt-4">
+                          <p className="text-muted-foreground text-sm mb-4">{issue.description}</p>
+
+                          {/* CSS Selector Highlight */}
+                          {issue.selector && issue.selector !== "unknown" && (
+                            <div className="mb-4 p-3 rounded-lg bg-muted/40 border border-border/50">
+                              <div className="flex items-center gap-2 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                <Code className="w-3 h-3" />
+                                CSS Selector Path
+                              </div>
+                              <code className="text-[12px] font-mono whitespace-pre-wrap break-all text-primary/90">
+                                {issue.selector}
+                              </code>
                             </div>
-                            {screenshots.length > 1 && (
-                              <p className="text-xs text-muted-foreground mt-2">
-                                + {screenshots.length - 1} more screenshot(s)
+                          )}
+
+                          {/* Screenshot for this issue */}
+                          {issue.element_screenshot ? (
+                            <div className="mt-4">
+                              <p className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide flex items-center gap-2">
+                                <Layout className="w-3 h-3" />
+                                Annotated Screenshot (Element Highlight)
                               </p>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-muted-foreground mt-4 italic">
-                            No screenshots were captured for this test run.
-                          </p>
+                              <div className="relative group rounded-lg overflow-hidden border border-border bg-black/20">
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveScreenshotUrl(issue.element_screenshot || null)}
+                                  className="w-full relative"
+                                  title="Click to view full size"
+                                >
+                                  <img
+                                    src={issue.element_screenshot}
+                                    alt={`Highlight for ${issue.title}`}
+                                    className="w-full h-auto object-contain max-h-[400px]"
+                                  />
+                                  <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <div className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-secondary text-secondary-foreground text-sm">
+                                      <Maximize2 className="w-4 h-4" />
+                                      View Full Size
+                                    </div>
+                                  </div>
+                                </button>
+                              </div>
+                            </div>
+                          ) : screenshots.length > 0 ? (
+                            <div className="mt-4">
+                              <p className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide">
+                                Reference Screenshot
+                              </p>
+                              <div className="relative group rounded-lg overflow-hidden border border-border bg-secondary/20">
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveScreenshotUrl(screenshots[0])}
+                                  className="w-full aspect-video relative"
+                                  title="Click to view full size"
+                                >
+                                  <img
+                                    src={screenshots[0]}
+                                    alt={`Screenshot for ${issue.title}`}
+                                    className="w-full h-full object-contain bg-secondary/50"
+                                  />
+                                  <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <div className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-secondary text-secondary-foreground text-sm">
+                                      <ZoomIn className="w-4 h-4" />
+                                      View Full Size
+                                    </div>
+                                  </div>
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-muted-foreground mt-4 italic">
+                              No screenshots were captured for this test run.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )
+              })}
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="glass rounded-2xl p-6 mb-8"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">Console History</h3>
+                <p className="text-sm text-muted-foreground">Captured during test execution</p>
+              </div>
+              <div className="flex gap-4 text-xs font-mono">
+                <div className="flex items-center gap-1.5 text-red-400">
+                  <div className="w-2 h-2 rounded-full bg-red-500" />
+                  <span>{report?.console_logs_json?.filter(l => l.type === 'error').length} Errors</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-amber-400">
+                  <div className="w-2 h-2 rounded-full bg-amber-500" />
+                  <span>{report?.console_logs_json?.filter(l => l.type === 'warning').length} Warnings</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-[#0f1115] rounded-xl overflow-hidden border border-border/50">
+              <div className="flex items-center gap-2 px-4 py-2 border-b border-border/50 bg-[#1a1d23]">
+                <div className="flex gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-red-500/80" />
+                  <div className="w-3 h-3 rounded-full bg-amber-500/80" />
+                  <div className="w-3 h-3 rounded-full bg-green-500/80" />
+                </div>
+                <span className="text-xs font-mono text-muted-foreground ml-2">terminal — {test.appName}</span>
+              </div>
+              <div className="p-4 font-mono text-xs overflow-y-auto max-h-[600px] space-y-2 custom-scrollbar">
+                {report?.console_logs_json && report.console_logs_json.length > 0 ? (
+                  report.console_logs_json.map((log, i) => (
+                    <div key={i} className="flex gap-3 group">
+                      <span className="text-muted-foreground/40 select-none min-w-[20px]">{i + 1}</span>
+                      <div className="flex flex-col min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={cn(
+                            "px-1.5 rounded-[2px] text-[10px] font-bold uppercase",
+                            log.type === 'error' ? "bg-red-500/20 text-red-400" :
+                              log.type === 'warning' ? "bg-amber-500/20 text-amber-400" :
+                                "bg-blue-500/20 text-blue-400"
+                          )}>
+                            {log.type}
+                          </span>
+                          <span className="text-[#e1e4e8] break-all leading-relaxed">{log.text}</span>
+                        </div>
+                        {log.location && (
+                          <span className="text-[#6a737d] text-[10px] mt-0.5 group-hover:text-primary transition-colors cursor-pointer truncate">
+                            at {log.location}
+                          </span>
                         )}
                       </div>
                     </div>
-                  </motion.div>
-                </motion.div>
-              )
-            })}
-          </div>
-        </motion.div>
+                  ))
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground italic">
+                    <Terminal className="w-8 h-8 mb-3 opacity-20" />
+                    <p>No console messages captured.</p>
+                  </div>
+                )}
+                <div className="pt-2 animate-pulse flex gap-2">
+                  <span className="text-primary font-bold">❯</span>
+                  <div className="w-2 h-4 bg-primary/40 rounded-sm" />
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
       </div>
 
       <AnimatePresence>

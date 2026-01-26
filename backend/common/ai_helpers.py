@@ -137,7 +137,7 @@ def enhance_issue_description(
     
     try:
         # Build prompt for enhancing the issue description with concrete fix guidance
-        prompt = f"""You are a senior QA engineer writing an actionable bug report based ONLY on the provided evidence.
+        prompt = f"""You are a senior QA engineer writing a DETAILED, ACTIONABLE bug report.
 
 Context:
 - Test type: {test_type}
@@ -149,44 +149,75 @@ Evidence (automated finding):
 - Description: {issue.get('description', 'No description')}
 
 Task:
-Rewrite the issue into a stronger, more detailed, developer-friendly bug report with FIX suggestions.
+Transform this into a comprehensive, developer-friendly bug report with SPECIFIC fixes.
 
-Rules:
-- Do NOT speculate beyond the evidence. If something is uncertain, say "Evidence insufficient".
-- Be specific and practical. Prefer concrete steps and checks.
+Requirements:
+1. **Be SPECIFIC** - Include exact code snippets, not pseudocode
+2. **Provide CONTEXT** - Explain why this matters
+3. **Show CODE** - Include before/after examples
+4. **Be ACTIONABLE** - Developers should know exactly what to do
+5. **Include VERIFICATION** - How to test the fix works
 
-Output format (markdown, exactly these headings):
-**What happened (evidence):**
-- ...
+Output format (markdown, use these exact headings):
 
-**Why it matters (impact):**
-- ...
+## 🔍 What Happened (Evidence)
+- [Specific description of what was found]
+- [Any observable symptoms]
 
-**Likely cause (hypothesis, if supported):**
-- ...
+## 💥 Why It Matters (Impact)
+- **User Impact**: [How this affects users]
+- **Business Impact**: [SEO, conversion, accessibility, etc.]
+- **Technical Debt**: [Long-term consequences if not fixed]
 
-**How to fix (concrete steps):**
-- Step 1 ...
-- Step 2 ...
-- Step 3 ...
+## 🔎 Root Cause (Analysis)
+- **Likely Cause**: [Technical explanation]
+- **Code Location**: [Where the problem likely exists]
+- **Related Systems**: [What else might be affected]
 
-**How to verify the fix:**
-- ...
-"""
+## 🛠️ How to Fix (Concrete Steps with Code)
+
+### Step 1: [Action description]
+```[language]
+// Before (current problematic code)
+[show what's wrong]
+
+// After (corrected code)
+[show the fix]
+```
+**Why this works**: [Brief explanation]
+
+### Step 2: [Next action]
+```[language]
+[code example]
+```
+
+### Step 3: [Final action]
+[Configuration change, testing step, etc.]
+
+## ✅ Verification Checklist
+- [ ] [Specific test 1]
+- [ ] [Specific test 2]
+- [ ] [Expected outcome]
+
+## 📚 Additional Resources
+- [Link to relevant documentation if applicable]
+- [Best practice reference]
+
+CRITICAL: Include ACTUAL code snippets, not placeholders. Be as specific as possible."""
 
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a professional QA engineer who writes clear, actionable bug reports."
+                    "content": "You are a professional QA engineer who writes clear, actionable bug reports with specific code examples."
                 },
                 {
                     "role": "user",
                     "content": prompt
                 }
             ],
-            max_tokens=700,
+            max_tokens=1500,  # Increased for detailed bug reports
             temperature=0.2
         )
         
@@ -317,190 +348,307 @@ EVIDENCE PROVIDED
         
         prompt += """
 ────────────────────────
-STEP 1 — CONTEXT UNDERSTANDING
+YOUR TASK: COMPREHENSIVE TECHNICAL ANALYSIS
 ────────────────────────
-Based on the screenshots, console logs, network requests, and automated findings, determine:
-1. What type of application this is (e.g., e-commerce, SaaS dashboard, blog, portfolio, etc.)
-2. The primary user goals (what are users trying to accomplish?)
-3. The technology stack hints (React/Vue/Angular, CMS, etc.) based on console logs and network requests
-
-Explain your reasoning in 2–3 sentences, citing specific evidence.
-
-────────────────────────
-STEP 2 — CRITICAL ISSUES ANALYSIS
-────────────────────────
-Identify and analyze CRITICAL issues first - these block core functionality or create security risks.
-
-For each critical issue:
-1. **What's broken?** - Clear description
-2. **Evidence** - Specific console error, network failure, or automated finding
-3. **User impact** - How does this affect real users? (e.g., "Users cannot submit forms", "Page fails to load on mobile")
-4. **Root cause** - What's likely causing this? (e.g., "Missing error handling", "CORS issue", "JavaScript error")
-5. **Fix steps** - Concrete, actionable steps:
-   - Code-level changes (e.g., "Add try-catch around fetch()", "Set image dimensions")
-   - Configuration changes (e.g., "Add CORS headers", "Enable HTTPS")
-   - Testing steps (e.g., "Test in Chrome DevTools", "Verify in mobile viewport")
-6. **Verification** - How to confirm the fix works
+You are conducting a DEEP technical analysis of this web application. Your report must be:
+1. **HIGHLY SPECIFIC** - Include exact code snippets, file types, and technical details
+2. **ACTIONABLE** - Every issue must have concrete fix steps with code examples
+3. **EVIDENCE-BASED** - Reference specific console errors, network failures, or test findings
+4. **PRIORITIZED** - Focus on high-impact issues first
+5. **CORRELATED** - Connect related issues to identify root causes
 
 ────────────────────────
-STEP 3 — PERFORMANCE & CORE WEB VITALS
+ANALYSIS FRAMEWORK
 ────────────────────────
-Analyze performance issues, especially Core Web Vitals (LCP, CLS, FID).
 
-For performance issues:
-1. **Metric** - What metric is poor? (e.g., "LCP is 4.2s", "CLS is 0.25")
-2. **Impact** - Why this matters (SEO, user experience, conversion)
-3. **Root cause** - What's causing it? (e.g., "Large unoptimized images", "Render-blocking CSS", "Too many network requests")
-4. **Fix steps** - Specific optimizations:
-   - Image optimization (e.g., "Convert to WebP", "Add width/height attributes", "Use srcset")
-   - Code splitting (e.g., "Lazy load non-critical JS", "Split vendor bundles")
-   - Resource hints (e.g., "Add preload for critical fonts", "Use rel=preconnect for external domains")
-5. **Expected improvement** - What should the metric be after fix?
+## STEP 1: Application Context & Technology Detection
+Analyze the evidence to determine:
+- **Application Type**: (e.g., SaaS dashboard, e-commerce, blog, marketing site)
+- **Primary User Goals**: What are users trying to accomplish?
+- **Technology Stack**: Based on console logs, network requests, and code patterns:
+  * Frontend Framework: (React, Vue, Angular, vanilla JS, etc.)
+  * Build Tool: (Webpack, Vite, Next.js, etc.)
+  * CSS Framework: (Tailwind, Bootstrap, custom, etc.)
+  * Backend Hints: (API patterns, server headers)
+- **Evidence**: Cite specific console messages, network requests, or code patterns
+
+## STEP 2: Critical Issues (Blockers & High-Impact)
+For EACH critical issue, provide:
+
+### Issue: [Clear, specific title]
+**Severity**: CRITICAL
+**Category**: [Performance | Functionality | Security | Accessibility]
+
+**What's Broken**:
+- [Specific description of the problem]
+
+**Evidence**:
+```
+[Exact console error, network failure, or test finding]
+```
+
+**User Impact**:
+- [How this affects real users - be specific]
+- [Business impact if applicable]
+
+**Root Cause Analysis**:
+- [Technical explanation of why this is happening]
+- [Likely code location or component]
+
+**Fix Steps** (with code):
+1. **[Action 1]**
+   ```[language]
+   // Before (problematic code)
+   [show current code if known]
+   
+   // After (fixed code)
+   [show corrected code]
+   ```
+   
+2. **[Action 2]**
+   ```[language]
+   [specific code change]
+   ```
+
+3. **[Action 3]** - [Configuration or testing step]
+
+**Verification**:
+- [ ] [Specific test to confirm fix works]
+- [ ] [Expected outcome after fix]
+
+**Related Issues**: [List any related issues that might be caused by the same root problem]
+
+---
+
+## STEP 3: Performance Analysis (Core Web Vitals + Optimization)
+
+### Performance Metrics Summary
+| Metric | Current | Target | Status |
+|--------|---------|--------|--------|
+| LCP | [X.X]s | <2.5s | ❌/✅ |
+| CLS | [X.XX] | <0.1 | ❌/✅ |
+| FID/TBT | [X]ms | <100ms | ❌/✅ |
+| Page Load | [X.X]s | <3s | ❌/✅ |
+
+### Performance Issue: [Specific metric problem]
+
+**Current Performance**:
+- [Metric]: [Current value] (Target: [Target value])
+
+**Impact**:
+- SEO: [How this affects search rankings]
+- UX: [How this affects user experience]
+- Conversion: [Potential impact on business metrics]
+
+**Root Cause**:
+- [What's causing the poor performance]
+- [Specific resources or code patterns]
+
+**Optimization Steps**:
+
+1. **[Optimization technique]**
+   ```html
+   <!-- Example: Add preload for critical resources -->
+   <link rel="preload" href="/critical-font.woff2" as="font" type="font/woff2" crossorigin>
+   ```
+
+2. **[Code-level optimization]**
+   ```javascript
+   // Before: Render-blocking script
+   <script src="analytics.js"></script>
+   
+   // After: Async loading
+   <script async src="analytics.js"></script>
+   ```
+
+3. **[Build/Config optimization]**
+   ```javascript
+   // webpack.config.js or vite.config.js
+   optimization: {
+     splitChunks: {
+       chunks: 'all',
+       maxSize: 244000, // 244KB chunks
+     }
+   }
+   ```
+
+**Expected Improvement**: [Metric] should improve from [X] to [Y]
+
+**Resource Analysis**:
+- Large Images: [List specific large images with sizes]
+- JavaScript Bundles: [List bundles > 200KB]
+- Render-Blocking Resources: [List specific files]
+
+---
+
+## STEP 4: Functional & UX Issues
+
+[Same detailed format as Critical Issues, but for functional problems]
+
+Include:
+- Form validation issues with code fixes
+- Navigation problems with specific solutions
+- Interactive element failures with debugging steps
+- Error handling gaps with try-catch examples
+
+---
+
+## STEP 5: Accessibility (WCAG Compliance)
+
+### Accessibility Issue: [Specific problem]
+**WCAG Violation**: [e.g., "WCAG 2.1 Level A - 1.1.1 Non-text Content"]
+**Severity**: [Critical | Major | Minor]
+
+**What's Inaccessible**:
+- [Specific element or pattern that's inaccessible]
+
+**Affected Users**:
+- Screen reader users: [How they're affected]
+- Keyboard-only users: [How they're affected]
+- Users with [specific disability]: [Impact]
+
+**Fix Steps**:
+
+1. **Add ARIA attributes**
+   ```html
+   <!-- Before -->
+   <button>×</button>
+   
+   <!-- After -->
+   <button aria-label="Close dialog" aria-describedby="dialog-title">×</button>
+   ```
+
+2. **Use semantic HTML**
+   ```html
+   <!-- Before -->
+   <div class="nav">...</div>
+   
+   <!-- After -->
+   <nav aria-label="Main navigation">...</nav>
+   ```
+
+3. **Ensure keyboard navigation**
+   ```javascript
+   // Add keyboard event handlers
+   element.addEventListener('keydown', (e) => {
+     if (e.key === 'Enter' || e.key === ' ') {
+       handleClick();
+     }
+   });
+   ```
+
+**Testing**:
+- Test with NVDA/JAWS screen reader
+- Test keyboard-only navigation (Tab, Enter, Escape)
+- Use axe DevTools to verify fix
+
+---
+
+## STEP 6: Security & Best Practices
+
+### Security Issue: [Specific vulnerability]
+
+**Risk Level**: [Critical | High | Medium | Low]
+
+**Vulnerability**:
+- [What security risk exists]
+
+**Potential Impact**:
+- [What could happen if exploited]
+
+**Fix Steps**:
+
+1. **Add security headers**
+   ```nginx
+   # nginx configuration
+   add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'";
+   add_header X-Frame-Options "DENY";
+   add_header X-Content-Type-Options "nosniff";
+   ```
+
+2. **Implement input sanitization**
+   ```javascript
+   // Sanitize user input
+   function sanitizeInput(input) {
+     return input.replace(/[<>]/g, '');
+   }
+   ```
+
+---
+
+## STEP 7: SEO Optimization
+
+[List SEO issues with specific meta tag fixes, structured data examples, etc.]
+
+---
+
+## STEP 8: Issue Correlation & Root Cause Patterns
+
+**Pattern 1: [Common root cause]**
+- Related Issues: [List 3-5 issues caused by this]
+- Root Cause: [Technical explanation]
+- Consolidated Fix: [Single fix that addresses multiple issues]
+
+**Pattern 2: [Another pattern]**
+- [Same format]
+
+**Dependency Graph**:
+```
+Fix A (missing CSS) → Fixes Issues 1, 3, 7
+  ↓
+Fix B (optimize images) → Fixes Issues 2, 4
+  ↓
+Fix C (add ARIA) → Fixes Issues 5, 6
+```
+
+**Recommended Fix Order**:
+1. [Fix A] - Blocks [X] other fixes
+2. [Fix B] - High impact, easy to implement
+3. [Fix C] - Requires Fix A to be completed first
+
+---
+
+## STEP 9: Overall Assessment & Recommendations
+
+### Quality Score: [X]/10
+**Reasoning**: [2-3 sentences explaining the score]
+
+### Strengths:
+- ✅ [What's working well]
+- ✅ [Another strength]
+
+### Critical Risks (Fix Immediately):
+1. 🔴 [Critical issue] - [Why it's urgent]
+2. 🔴 [Another critical issue]
+
+### Quick Wins (High Impact, Low Effort):
+1. 🎯 [Easy fix with big impact] - Estimated time: [X minutes]
+2. 🎯 [Another quick win]
+
+### Long-term Priorities:
+1. 📋 [Strategic improvement]
+2. 📋 [Another long-term goal]
+
+### Estimated Fix Time:
+- Critical issues: [X hours]
+- Major issues: [X hours]
+- Minor issues: [X hours]
+- **Total**: [X hours]
 
 ────────────────────────
-STEP 4 — FUNCTIONAL & USER EXPERIENCE ISSUES
+OUTPUT FORMAT REQUIREMENTS
 ────────────────────────
-Analyze issues that affect functionality and user experience.
+- Use markdown formatting with headers, code blocks, tables
+- Include actual code snippets for EVERY fix (not pseudocode)
+- Reference specific line numbers when possible
+- Use emojis for visual scanning (🔴 critical, ⚠️ warning, ✅ good, 🎯 quick win)
+- Include "Before/After" code examples
+- Cite evidence with ```code blocks```
+- Create tables for metrics and comparisons
+- Use checklists for verification steps
 
-For each issue:
-1. **What's wrong?** - Clear description
-2. **Evidence** - Screenshot observation, console log, or automated finding
-3. **User impact** - How does this frustrate or confuse users?
-4. **Fix steps** - Specific changes:
-   - HTML/CSS changes (e.g., "Add aria-label", "Increase touch target size to 44x44px")
-   - JavaScript fixes (e.g., "Add error handling", "Fix event listener")
-   - UX improvements (e.g., "Add loading states", "Improve error messages")
-5. **Verification** - How to test the fix
-
-────────────────────────
-STEP 5 — ACCESSIBILITY & INCLUSIVENESS
-────────────────────────
-Analyze accessibility issues that affect users with disabilities.
-
-For each accessibility issue:
-1. **What's inaccessible?** - Clear description
-2. **WCAG violation** - Which guideline is violated? (e.g., "WCAG 2.1 Level A: Missing alt text")
-3. **User impact** - How does this affect screen reader users, keyboard users, etc.?
-4. **Fix steps** - Specific accessibility improvements:
-   - ARIA attributes (e.g., "Add aria-label='Close dialog'", "Use aria-describedby for error messages")
-   - Semantic HTML (e.g., "Use <nav> for navigation", "Add <main> landmark")
-   - Keyboard navigation (e.g., "Ensure focus order is logical", "Add visible focus indicators")
-5. **Testing** - How to test with screen readers or keyboard-only navigation
-
-────────────────────────
-STEP 6 — SECURITY & BEST PRACTICES
-────────────────────────
-Analyze security issues and best practice violations.
-
-For each security/best practice issue:
-1. **What's the risk?** - Clear description
-2. **Evidence** - Missing header, insecure connection, etc.
-3. **Impact** - What could happen? (e.g., "XSS vulnerability", "Clickjacking risk")
-4. **Fix steps** - Specific security improvements:
-   - Headers (e.g., "Add Content-Security-Policy", "Set X-Frame-Options: DENY")
-   - HTTPS (e.g., "Migrate to HTTPS", "Enable HSTS")
-   - Code practices (e.g., "Sanitize user input", "Use parameterized queries")
-
-────────────────────────
-STEP 7 — SEO & DISCOVERABILITY
-────────────────────────
-Analyze SEO issues that affect search engine visibility.
-
-For each SEO issue:
-1. **What's missing?** - Clear description
-2. **Impact** - How does this affect search rankings?
-3. **Fix steps** - Specific SEO improvements:
-   - Meta tags (e.g., "Add og:image", "Set canonical URL")
-   - Structured data (e.g., "Add JSON-LD schema", "Implement breadcrumb markup")
-   - Technical SEO (e.g., "Fix broken links", "Optimize page speed")
-
-────────────────────────
-STEP 8 — CORRELATION & PATTERNS
-────────────────────────
-Look for patterns and correlations in the evidence:
-- Do console errors correlate with network failures?
-- Are performance issues caused by specific resources?
-- Are multiple issues pointing to the same root cause?
-
-Identify these patterns and provide consolidated recommendations.
-
-────────────────────────
-STEP 9 — OVERALL ASSESSMENT
-────────────────────────
-Provide a comprehensive summary:
-1. **Overall Quality Score** - Rate 1-10 with reasoning
-2. **Main Strengths** - What's working well?
-3. **Critical Risks** - What must be fixed immediately?
-4. **Quick Wins** - What can be fixed easily for big impact?
-5. **Long-term Improvements** - What should be prioritized next?
-
-────────────────────────
-OUTPUT FORMAT
-────────────────────────
-Return your response in this EXACT structure (use markdown formatting):
-
-# Application Analysis Report
-
-## Application Context
-[2-3 sentences describing the app type and user goals, with evidence]
-
-## Critical Issues (Must Fix Immediately)
-### [Issue Title] - [Severity]
-- **Evidence:** [Specific console error, network failure, or finding]
-- **User Impact:** [How this affects users]
-- **Root Cause:** [What's causing this]
-- **Fix Steps:**
-  1. [Specific step 1]
-  2. [Specific step 2]
-  3. [Specific step 3]
-- **Code Hint:** [If applicable, specific code change]
-- **Verification:** [How to test the fix]
-
-[Repeat for each critical issue]
-
-## Performance Issues
-### [Performance Issue Title]
-- **Metric:** [Specific metric and value]
-- **Impact:** [Why this matters]
-- **Root Cause:** [What's causing poor performance]
-- **Optimization Steps:**
-  1. [Specific optimization]
-  2. [Specific optimization]
-- **Expected Improvement:** [Target metric after fix]
-
-[Repeat for each performance issue]
-
-## Functional & UX Issues
-[Same format as Critical Issues]
-
-## Accessibility Issues
-[Same format, include WCAG guideline]
-
-## Security & Best Practices
-[Same format]
-
-## SEO Issues
-[Same format]
-
-## Patterns & Correlations
-[Describe any patterns found in the evidence]
-
-## Overall Assessment
-- **Quality Score:** [1-10] - [Reasoning]
-- **Main Strengths:** [What's working well]
-- **Critical Risks:** [What must be fixed]
-- **Quick Wins:** [Easy fixes with big impact]
-- **Long-term Priorities:** [What to focus on next]
-
-────────────────────────
-IMPORTANT REMINDERS
-────────────────────────
-- Be SPECIFIC - "Add aria-label" not "improve accessibility"
-- Reference EVIDENCE - cite console errors, network failures, screenshots
-- Provide ACTIONABLE steps - developers should know exactly what to do
-- Prioritize USER IMPACT - focus on what affects real users
-- Include CODE HINTS when possible - specific HTML/CSS/JS changes
-- DO NOT speculate - only report what evidence supports"""
+CRITICAL: Be SPECIFIC. "Optimize images" is too vague. Instead: "Convert hero.jpg (2.4MB) to WebP format and add width/height attributes: <img src='hero.webp' width='1200' height='800' alt='...'>"
+"""
 
         # If screenshots are available, include them in the vision analysis
         messages_content = []
@@ -540,7 +688,7 @@ IMPORTANT REMINDERS
                     "content": messages_content
                 }
             ],
-            max_tokens=3500,  # More room for concrete fix suggestions
+            max_tokens=10000,  # Increased for comprehensive reports with code examples
             temperature=0.2  # More focused, less fluffy
         )
         
