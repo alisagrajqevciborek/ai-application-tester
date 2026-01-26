@@ -247,11 +247,21 @@ def generate_ai_report(
         status = test_results.get('status', 'failed')
         
         # Build comprehensive prompt using structured QA/UX analysis format
-        prompt = f"""You are a senior QA engineer and UX analyst.
+        prompt = f"""You are a senior QA engineer, UX analyst, and web performance expert with 10+ years of experience.
 
-You are analyzing a web application that was tested automatically using browser automation.
+You are analyzing a web application that was tested automatically using browser automation (Playwright).
 You do NOT have direct access to the live application.
-You must rely ONLY on the provided evidence.
+You must rely ONLY on the provided evidence (screenshots, console logs, network data, automated findings).
+
+CRITICAL INSTRUCTIONS:
+1. Be SPECIFIC and ACTIONABLE - every recommendation must include concrete steps
+2. Reference EVIDENCE - cite specific console errors, network failures, or automated findings
+3. Prioritize by USER IMPACT - focus on issues that affect real users
+4. Provide CODE-LEVEL HINTS when possible - suggest specific fixes (e.g., "Add aria-label to button", "Set width/height on images")
+5. Be TECHNICAL but ACCESSIBLE - explain why issues matter and how to fix them
+6. CORRELATE findings - connect console errors with network failures, performance issues with resource sizes
+7. DO NOT speculate - only report what the evidence supports
+8. If screenshots are provided, ANALYZE THEM CAREFULLY - describe what you see, identify visual issues
 
 ────────────────────────
 TEST CONTEXT
@@ -274,6 +284,30 @@ EVIDENCE PROVIDED
             for idx, screenshot_url in enumerate(screenshot_urls, 1):
                 prompt += f"  Screenshot {idx}: {screenshot_url}\n"
         
+        # Add console logs
+        console_logs = test_results.get('console_logs', [])
+        if console_logs:
+            console_errors = [log for log in console_logs if log.get('type') == 'error']
+            console_warnings = [log for log in console_logs if log.get('type') == 'warning']
+            if console_errors or console_warnings:
+                prompt += f"\nConsole Messages:\n"
+                if console_errors:
+                    prompt += f"  Errors ({len(console_errors)}):\n"
+                    for error in console_errors[:10]:  # First 10 errors
+                        prompt += f"    - {error.get('text', 'Unknown error')}\n"
+                if console_warnings:
+                    prompt += f"  Warnings ({len(console_warnings)}):\n"
+                    for warning in console_warnings[:10]:  # First 10 warnings
+                        prompt += f"    - {warning.get('text', 'Unknown warning')}\n"
+        
+        # Add network failures
+        network_failures = test_results.get('network_failures', [])
+        if network_failures:
+            prompt += f"\nNetwork Failures ({len(network_failures)}):\n"
+            for failure in network_failures[:10]:  # First 10 failures
+                prompt += f"  - {failure.get('url', 'Unknown URL')} (Status: {failure.get('status', 'Unknown')} {failure.get('status_text', '')})\n"
+                prompt += f"    Resource Type: {failure.get('resource_type', 'unknown')}\n"
+        
         if issues:
             prompt += "\nAutomated Test Findings:\n"
             for idx, issue in enumerate(issues, 1):
@@ -285,99 +319,188 @@ EVIDENCE PROVIDED
 ────────────────────────
 STEP 1 — CONTEXT UNDERSTANDING
 ────────────────────────
-Based on the content, UI elements, terminology, navigation flow, and interactions visible in the evidence,
-briefly determine what type of application this appears to be.
+Based on the screenshots, console logs, network requests, and automated findings, determine:
+1. What type of application this is (e.g., e-commerce, SaaS dashboard, blog, portfolio, etc.)
+2. The primary user goals (what are users trying to accomplish?)
+3. The technology stack hints (React/Vue/Angular, CMS, etc.) based on console logs and network requests
 
-Explain your reasoning in 2–3 sentences.
-Do not assume a domain unless the evidence supports it.
-
-────────────────────────
-STEP 2 — QUALITY PRIORITIES
-────────────────────────
-Based on the identified application context, determine which quality aspects are most important
-for users of this system.
-
-Consider (but do not limit yourself to):
-- Usability and clarity
-- Functional correctness
-- Error handling and feedback
-- Trust, safety, and reliability
-- Accessibility and inclusiveness
-
-Briefly explain which aspects you are prioritizing and why.
+Explain your reasoning in 2–3 sentences, citing specific evidence.
 
 ────────────────────────
-STEP 3 — EVIDENCE-BASED ANALYSIS
+STEP 2 — CRITICAL ISSUES ANALYSIS
 ────────────────────────
-Analyze the application strictly using the provided evidence.
+Identify and analyze CRITICAL issues first - these block core functionality or create security risks.
 
-Evidence may include:
-- Screenshots
-- Console errors
-- Network errors
-- Navigation steps
-- Visible UI states
-
-Identify issues that could negatively impact a real user.
-Only report issues that are directly supported by the evidence.
-Do NOT speculate.
-
-────────────────────────
-STEP 4 — ISSUE CLASSIFICATION
-────────────────────────
-For each identified issue:
-- Describe the issue clearly
-- Reference the supporting evidence
-- Classify its severity as one of:
-  • Critical — blocks or seriously harms core usage
-  • Moderate — degrades experience but does not block usage
-  • Minor — cosmetic or low-impact issue
-- Explain the potential user impact
-- Provide a recommendation for improvement that includes concrete fix steps (and, if relevant, a brief code-level hint or the likely area to change)
-- Include a short "How to verify the fix" checklist
+For each critical issue:
+1. **What's broken?** - Clear description
+2. **Evidence** - Specific console error, network failure, or automated finding
+3. **User impact** - How does this affect real users? (e.g., "Users cannot submit forms", "Page fails to load on mobile")
+4. **Root cause** - What's likely causing this? (e.g., "Missing error handling", "CORS issue", "JavaScript error")
+5. **Fix steps** - Concrete, actionable steps:
+   - Code-level changes (e.g., "Add try-catch around fetch()", "Set image dimensions")
+   - Configuration changes (e.g., "Add CORS headers", "Enable HTTPS")
+   - Testing steps (e.g., "Test in Chrome DevTools", "Verify in mobile viewport")
+6. **Verification** - How to confirm the fix works
 
 ────────────────────────
-STEP 5 — ACCESSIBILITY & TRUST CHECK
+STEP 3 — PERFORMANCE & CORE WEB VITALS
 ────────────────────────
-If applicable based on the context, assess:
-- Visual clarity and readability
-- Feedback and error messaging
-- Consistency and predictability
-- Signals of trust and professionalism
+Analyze performance issues, especially Core Web Vitals (LCP, CLS, FID).
 
-Only include points relevant to the identified application type.
+For performance issues:
+1. **Metric** - What metric is poor? (e.g., "LCP is 4.2s", "CLS is 0.25")
+2. **Impact** - Why this matters (SEO, user experience, conversion)
+3. **Root cause** - What's causing it? (e.g., "Large unoptimized images", "Render-blocking CSS", "Too many network requests")
+4. **Fix steps** - Specific optimizations:
+   - Image optimization (e.g., "Convert to WebP", "Add width/height attributes", "Use srcset")
+   - Code splitting (e.g., "Lazy load non-critical JS", "Split vendor bundles")
+   - Resource hints (e.g., "Add preload for critical fonts", "Use rel=preconnect for external domains")
+5. **Expected improvement** - What should the metric be after fix?
 
 ────────────────────────
-STEP 6 — FINAL SUMMARY
+STEP 4 — FUNCTIONAL & USER EXPERIENCE ISSUES
 ────────────────────────
-Provide:
-- A brief overall quality assessment
-- The main strengths
-- The most important risks or weaknesses
+Analyze issues that affect functionality and user experience.
+
+For each issue:
+1. **What's wrong?** - Clear description
+2. **Evidence** - Screenshot observation, console log, or automated finding
+3. **User impact** - How does this frustrate or confuse users?
+4. **Fix steps** - Specific changes:
+   - HTML/CSS changes (e.g., "Add aria-label", "Increase touch target size to 44x44px")
+   - JavaScript fixes (e.g., "Add error handling", "Fix event listener")
+   - UX improvements (e.g., "Add loading states", "Improve error messages")
+5. **Verification** - How to test the fix
+
+────────────────────────
+STEP 5 — ACCESSIBILITY & INCLUSIVENESS
+────────────────────────
+Analyze accessibility issues that affect users with disabilities.
+
+For each accessibility issue:
+1. **What's inaccessible?** - Clear description
+2. **WCAG violation** - Which guideline is violated? (e.g., "WCAG 2.1 Level A: Missing alt text")
+3. **User impact** - How does this affect screen reader users, keyboard users, etc.?
+4. **Fix steps** - Specific accessibility improvements:
+   - ARIA attributes (e.g., "Add aria-label='Close dialog'", "Use aria-describedby for error messages")
+   - Semantic HTML (e.g., "Use <nav> for navigation", "Add <main> landmark")
+   - Keyboard navigation (e.g., "Ensure focus order is logical", "Add visible focus indicators")
+5. **Testing** - How to test with screen readers or keyboard-only navigation
+
+────────────────────────
+STEP 6 — SECURITY & BEST PRACTICES
+────────────────────────
+Analyze security issues and best practice violations.
+
+For each security/best practice issue:
+1. **What's the risk?** - Clear description
+2. **Evidence** - Missing header, insecure connection, etc.
+3. **Impact** - What could happen? (e.g., "XSS vulnerability", "Clickjacking risk")
+4. **Fix steps** - Specific security improvements:
+   - Headers (e.g., "Add Content-Security-Policy", "Set X-Frame-Options: DENY")
+   - HTTPS (e.g., "Migrate to HTTPS", "Enable HSTS")
+   - Code practices (e.g., "Sanitize user input", "Use parameterized queries")
+
+────────────────────────
+STEP 7 — SEO & DISCOVERABILITY
+────────────────────────
+Analyze SEO issues that affect search engine visibility.
+
+For each SEO issue:
+1. **What's missing?** - Clear description
+2. **Impact** - How does this affect search rankings?
+3. **Fix steps** - Specific SEO improvements:
+   - Meta tags (e.g., "Add og:image", "Set canonical URL")
+   - Structured data (e.g., "Add JSON-LD schema", "Implement breadcrumb markup")
+   - Technical SEO (e.g., "Fix broken links", "Optimize page speed")
+
+────────────────────────
+STEP 8 — CORRELATION & PATTERNS
+────────────────────────
+Look for patterns and correlations in the evidence:
+- Do console errors correlate with network failures?
+- Are performance issues caused by specific resources?
+- Are multiple issues pointing to the same root cause?
+
+Identify these patterns and provide consolidated recommendations.
+
+────────────────────────
+STEP 9 — OVERALL ASSESSMENT
+────────────────────────
+Provide a comprehensive summary:
+1. **Overall Quality Score** - Rate 1-10 with reasoning
+2. **Main Strengths** - What's working well?
+3. **Critical Risks** - What must be fixed immediately?
+4. **Quick Wins** - What can be fixed easily for big impact?
+5. **Long-term Improvements** - What should be prioritized next?
 
 ────────────────────────
 OUTPUT FORMAT
 ────────────────────────
-Return your response in the following structure:
+Return your response in this EXACT structure (use markdown formatting):
 
-Application Context:
-- Identified type and reasoning
+# Application Analysis Report
 
-Quality Priorities:
-- Key focus areas
+## Application Context
+[2-3 sentences describing the app type and user goals, with evidence]
 
-Issues:
-- [Severity] Issue title
-  - Evidence:
-  - Impact:
-  - Recommendation (how to fix):
-  - How to verify:
+## Critical Issues (Must Fix Immediately)
+### [Issue Title] - [Severity]
+- **Evidence:** [Specific console error, network failure, or finding]
+- **User Impact:** [How this affects users]
+- **Root Cause:** [What's causing this]
+- **Fix Steps:**
+  1. [Specific step 1]
+  2. [Specific step 2]
+  3. [Specific step 3]
+- **Code Hint:** [If applicable, specific code change]
+- **Verification:** [How to test the fix]
 
-Accessibility & Trust:
-- Observations (if applicable)
+[Repeat for each critical issue]
 
-Overall Assessment:
-- Summary"""
+## Performance Issues
+### [Performance Issue Title]
+- **Metric:** [Specific metric and value]
+- **Impact:** [Why this matters]
+- **Root Cause:** [What's causing poor performance]
+- **Optimization Steps:**
+  1. [Specific optimization]
+  2. [Specific optimization]
+- **Expected Improvement:** [Target metric after fix]
+
+[Repeat for each performance issue]
+
+## Functional & UX Issues
+[Same format as Critical Issues]
+
+## Accessibility Issues
+[Same format, include WCAG guideline]
+
+## Security & Best Practices
+[Same format]
+
+## SEO Issues
+[Same format]
+
+## Patterns & Correlations
+[Describe any patterns found in the evidence]
+
+## Overall Assessment
+- **Quality Score:** [1-10] - [Reasoning]
+- **Main Strengths:** [What's working well]
+- **Critical Risks:** [What must be fixed]
+- **Quick Wins:** [Easy fixes with big impact]
+- **Long-term Priorities:** [What to focus on next]
+
+────────────────────────
+IMPORTANT REMINDERS
+────────────────────────
+- Be SPECIFIC - "Add aria-label" not "improve accessibility"
+- Reference EVIDENCE - cite console errors, network failures, screenshots
+- Provide ACTIONABLE steps - developers should know exactly what to do
+- Prioritize USER IMPACT - focus on what affects real users
+- Include CODE HINTS when possible - specific HTML/CSS/JS changes
+- DO NOT speculate - only report what evidence supports"""
 
         # If screenshots are available, include them in the vision analysis
         messages_content = []
