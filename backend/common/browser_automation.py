@@ -61,13 +61,69 @@ class BrowserAutomationService:
             network_requests = []
             network_failures = []
             
-            # Collect console logs
-            def handle_console(msg):
-                console_logs.append({
+            # Collect console logs and capture screenshots immediately
+            async def handle_console(msg):
+                log_entry = {
                     'type': msg.type,
                     'text': msg.text,
                     'location': str(msg.location) if msg.location else None
-                })
+                }
+                console_logs.append(log_entry)
+                
+                # Capture screenshot immediately for errors/warnings
+                if msg.type in ['error', 'warning']:
+                    try:
+                        # Take screenshot at the moment the error occurs
+                        screenshot_bytes = await page.screenshot(full_page=False)
+                        
+                        # Try to find related element in the page
+                        element = None
+                        
+                        # Look for visible error/alert elements
+                        error_selectors = [
+                            '[role="alert"]',
+                            '.error:visible',
+                            '.alert:visible',
+                            '[class*="error"]:visible',
+                            '[class*="warning"]:visible'
+                        ]
+                        
+                        for selector in error_selectors:
+                            try:
+                                found = await page.query_selector(selector)
+                                if found and await found.is_visible():
+                                    element = found
+                                    break
+                            except:
+                                continue
+                        
+                        # If element found, annotate and crop
+                        if element:
+                            box = await self._get_element_box(element)
+                            if box:
+                                annotated_bytes = self.annotator.annotate_screenshot(
+                                    screenshot_bytes,
+                                    element_box=box,
+                                    label=f"Console {msg.type}",
+                                    crop_to_element=True
+                                )
+                                screenshot_url = await self._upload_screenshot_to_cloudinary(
+                                    annotated_bytes, url, "automated", f"console_{msg.type}_{len(console_logs)-1}", screenshots_dir
+                                )
+                            else:
+                                screenshot_url = await self._upload_screenshot_to_cloudinary(
+                                    screenshot_bytes, url, "automated", f"console_{msg.type}_{len(console_logs)-1}", screenshots_dir
+                                )
+                        else:
+                            # No element found, use viewport screenshot
+                            screenshot_url = await self._upload_screenshot_to_cloudinary(
+                                screenshot_bytes, url, "automated", f"console_{msg.type}_{len(console_logs)-1}", screenshots_dir
+                            )
+                        
+                        if screenshot_url:
+                            log_entry['screenshot'] = screenshot_url
+                    except Exception as e:
+                        logger.warning(f"Failed to capture screenshot for console {msg.type}: {e}")
             
             page.on('console', handle_console)
             
@@ -161,7 +217,7 @@ class BrowserAutomationService:
                 
                 # Run tests based on type
                 if test_type == 'functional':
-                    results = await self._run_functional_tests(page, url, screenshots_dir, console_logs, network_failures, main_document_headers)
+                    results = await self._run_functional_tests(page, url, screenshots_dir, console_logs, network_failures, main_document_headers or {})
                 elif test_type == 'regression':
                     results = await self._run_regression_tests(page, url, screenshots_dir, console_logs, network_failures)
                 elif test_type == 'performance':
@@ -170,7 +226,7 @@ class BrowserAutomationService:
                     results = await self._run_accessibility_tests(page, url, screenshots_dir, console_logs)
                 else:
                     # Default: run all tests
-                    results = await self._run_all_tests(page, url, screenshots_dir, console_logs, network_failures, network_requests, main_document_headers)
+                    results = await self._run_all_tests(page, url, screenshots_dir, console_logs, network_failures, network_requests, main_document_headers or {})
                 
                 # Add collected data to results
                 results['console_logs'] = console_logs
@@ -201,7 +257,7 @@ class BrowserAutomationService:
                     'screenshots': []
                 }
     
-    async def _run_functional_tests(self, page: Page, url: str, screenshots_dir: Optional[str], console_logs: list, network_failures: list, main_document_headers: dict = None) -> Dict:
+    async def _run_functional_tests(self, page: Page, url: str, screenshots_dir: Optional[str], console_logs: list, network_failures: list, main_document_headers: Optional[dict] = None) -> Dict:
         """Run functional tests - check basic page functionality."""
         issues = []
         tests_passed = 0
@@ -370,18 +426,26 @@ class BrowserAutomationService:
         if console_errors:
             tests_failed += 1
             for error in console_errors[:5]:  # Report first 5
+                # Find the index in console_logs
+                log_idx = next((i for i, log in enumerate(console_logs) if log == error), None)
                 await self._add_issue(
                     issues, 'major', 'Console error detected',
                     f"JavaScript console error: {error.get('text', 'Unknown error')}",
-                    error.get('location', url), page
+                    error.get('location', url), page,
+                    console_log_index=log_idx,
+                    console_logs=console_logs
                 )
         
         if console_warnings:
             for warning in console_warnings[:3]:  # Report first 3
+                # Find the index in console_logs
+                log_idx = next((i for i, log in enumerate(console_logs) if log == warning), None)
                 await self._add_issue(
                     issues, 'minor', 'Console warning detected',
                     f"JavaScript console warning: {warning.get('text', 'Unknown warning')}",
-                    warning.get('location', url), page
+                    warning.get('location', url), page,
+                    console_log_index=log_idx,
+                    console_logs=console_logs
                 )
         
         # Test 7: Check network failures
@@ -647,10 +711,14 @@ class BrowserAutomationService:
         if console_errors:
             tests_failed += 1
             for error in console_errors[:5]:
+                # Find the index in console_logs
+                log_idx = next((i for i, log in enumerate(console_logs) if log == error), None)
                 await self._add_issue(
                     issues, 'major', 'Console error in regression test',
                     f"Console error: {error.get('text', 'Unknown')}",
-                    error.get('location', url), page
+                    error.get('location', url), page,
+                    console_log_index=log_idx,
+                    console_logs=console_logs
                 )
         
         # Test 5: Check for missing resources (CSS, JS, fonts)
@@ -1200,7 +1268,7 @@ class BrowserAutomationService:
             'screenshots': screenshot_paths
         }
     
-    async def _run_all_tests(self, page: Page, url: str, screenshots_dir: Optional[str], console_logs: list, network_failures: list, network_requests: list, main_document_headers: dict = None) -> Dict:
+    async def _run_all_tests(self, page: Page, url: str, screenshots_dir: Optional[str], console_logs: list, network_failures: list, network_requests: list, main_document_headers: Optional[dict] = None) -> Dict:
         """Run all test types."""
         functional_results = await self._run_functional_tests(page, url, screenshots_dir, console_logs, network_failures, main_document_headers)
         regression_results = await self._run_regression_tests(page, url, screenshots_dir, console_logs, network_failures)
@@ -1486,9 +1554,11 @@ class BrowserAutomationService:
         location: str,
         page: Page,
         element=None,
-        screenshots_dir: Optional[str] = None
+        screenshots_dir: Optional[str] = None,
+        console_log_index: Optional[int] = None,
+        console_logs: Optional[List[Dict]] = None
     ):
-        """Helper to add an issue with optional element metadata."""
+        """Helper to add an issue with optional element metadata. Always captures screenshot at issue occurrence."""
         issue = {
             'severity': severity,
             'title': title,
@@ -1496,18 +1566,35 @@ class BrowserAutomationService:
             'location': location
         }
         
+        # If this is a console error/warning, use its screenshot
+        if console_log_index is not None and console_logs and console_log_index < len(console_logs):
+            log_entry = console_logs[console_log_index]
+            if log_entry.get('screenshot'):
+                issue['element_screenshot'] = log_entry['screenshot']
+        
         if element:
             # Add selector
             selector = await self._get_element_selector(element)
             issue['selector'] = selector
             
-            # For major/critical issues, capture specific annotated screenshot
-            if severity in ['major', 'critical']:
+            # Always capture annotated screenshot for issues with elements (not just major/critical)
+            if not issue.get('element_screenshot'):
                 screenshot_url = await self._capture_annotated_issue_screenshot(
                     page, location, "automated", issue, element, screenshots_dir
                 )
                 if screenshot_url:
                     issue['element_screenshot'] = screenshot_url
+        elif not issue.get('element_screenshot'):
+            # No element but no screenshot yet - capture viewport screenshot
+            try:
+                screenshot_bytes = await page.screenshot(full_page=False)
+                screenshot_url = await self._upload_screenshot_to_cloudinary(
+                    screenshot_bytes, location, "automated", f"issue_{severity}_{len(issues)}", screenshots_dir
+                )
+                if screenshot_url:
+                    issue['element_screenshot'] = screenshot_url
+            except Exception as e:
+                logger.warning(f"Failed to capture screenshot for issue: {e}")
         
         issues.append(issue)
 
