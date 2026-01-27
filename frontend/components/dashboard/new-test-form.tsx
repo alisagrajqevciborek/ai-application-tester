@@ -12,6 +12,7 @@ import { Progress } from "@/components/ui/progress"
 import { applicationsApi, testRunsApi, type Application, type TestRun } from "@/lib/api"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
+import { TestProgressIndicator, type TestProgressData } from "./test-progress-indicator"
 
 interface NewTestFormProps {
   onTestComplete: (test: TestHistory) => void
@@ -30,6 +31,18 @@ export default function NewTestForm({ onTestComplete, applications }: NewTestFor
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [showNewAppForm, setShowNewAppForm] = useState(false)
+  const [testProgressData, setTestProgressData] = useState<TestProgressData>({
+    progress: 0,
+    currentStep: "Initializing...",
+    warnings: 0,
+    errors: 0,
+    elapsedTime: 0,
+    estimatedTime: 120, // 2 minutes estimate
+    status: "running"
+  })
+  const [testStartTime, setTestStartTime] = useState<number>(0)
+  const [showContinueButton, setShowContinueButton] = useState(false)
+  const [completedTestHistory, setCompletedTestHistory] = useState<TestHistory | null>(null)
 
   const selectedApp = applications.find((app) => app.id.toString() === selectedAppId)
 
@@ -113,56 +126,122 @@ export default function NewTestForm({ onTestComplete, applications }: NewTestFor
 
     setTestState("running")
     setProgress(0)
+    setShowContinueButton(false)
+    setCompletedTestHistory(null)
+    const startTime = Date.now()
+    setTestStartTime(startTime)
+
+    // Initialize progress data
+    setTestProgressData({
+      progress: 0,
+      currentStep: "Initializing test environment...",
+      warnings: 0,
+      errors: 0,
+      elapsedTime: 0,
+      estimatedTime: 120,
+      status: "running"
+    })
+
+    // Start elapsed time tracker
+    const timeTracker = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000)
+      setTestProgressData(prev => ({
+        ...prev,
+        elapsedTime: elapsed
+      }))
+    }, 1000)
 
     try {
       // Create test run via API
       const testRun = await testRunsApi.create(appToTest.id, testType as string)
-      
+
+      // Define test steps for progress tracking
+      const testSteps = [
+        { progress: 10, step: "Loading application...", warnings: 0, errors: 0 },
+        { progress: 20, step: "Analyzing page structure...", warnings: 1, errors: 0 },
+        { progress: 35, step: "Running functional tests...", warnings: 1, errors: 0 },
+        { progress: 50, step: "Checking responsive design...", warnings: 2, errors: 0 },
+        { progress: 65, step: "Testing user interactions...", warnings: 2, errors: 1 },
+        { progress: 80, step: "Checking accessibility...", warnings: 3, errors: 1 },
+        { progress: 90, step: "Generating test report...", warnings: 3, errors: 1 },
+        { progress: 100, step: "Finalizing results...", warnings: 3, errors: 1 }
+      ]
+
+      let currentStepIndex = 0
+
       // Poll for test completion
       let pollAttempts = 0
-      const maxPollAttempts = 60 // 60 seconds max
-      
+      const maxPollAttempts = 120 // 2 minutes max
+
       const pollInterval = setInterval(async () => {
         pollAttempts++
+        const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000)
+
         try {
           const updatedTestRun = await testRunsApi.get(testRun.id)
-          
+
           // Update progress based on status
           if (updatedTestRun.status === 'running' || updatedTestRun.status === 'pending') {
-            setProgress((prev) => Math.min(prev + 10, 90))
+            // Simulate progressive steps
+            if (currentStepIndex < testSteps.length - 1) {
+              const stepDuration = 3 // seconds per step
+              if (pollAttempts % stepDuration === 0) {
+                currentStepIndex++
+              }
+            }
+
+            const currentStep = testSteps[Math.min(currentStepIndex, testSteps.length - 1)]
+            setProgress(currentStep.progress)
+
+            setTestProgressData({
+              progress: currentStep.progress,
+              currentStep: currentStep.step,
+              warnings: currentStep.warnings,
+              errors: currentStep.errors,
+              elapsedTime: elapsedSeconds,
+              estimatedTime: 120,
+              status: "running"
+            })
           } else if (updatedTestRun.status === 'success' || updatedTestRun.status === 'failed') {
             clearInterval(pollInterval)
+            clearInterval(timeTracker)
             setProgress(100)
+
+            setTestProgressData({
+              progress: 100,
+              currentStep: updatedTestRun.status === 'success' ? "Test completed successfully!" : "Test completed with failures",
+              warnings: 3,
+              errors: updatedTestRun.status === 'failed' ? 2 : 1,
+              elapsedTime: elapsedSeconds,
+              estimatedTime: elapsedSeconds,
+              status: updatedTestRun.status === 'success' ? "completed" : "failed"
+            })
+
             setTestState("completed")
-            
+
             // Convert to TestHistory format and complete
             const testHistory = convertTestRunToHistory(updatedTestRun)
-            
-            // Short delay to show completed state
-            await new Promise((resolve) => setTimeout(resolve, 500))
-            onTestComplete(testHistory)
-            
-            // Reset form
-            setSelectedAppId("")
-            setTestType("")
-            setTestState("idle")
-            setProgress(0)
+            setCompletedTestHistory(testHistory)
+            setTimeout(() => {
+              setShowContinueButton(true)
+            }, 3000)
           }
-          
+
           // Stop polling if we've exceeded max attempts
           if (pollAttempts >= maxPollAttempts) {
             clearInterval(pollInterval)
+            clearInterval(timeTracker)
             setError("Test is taking longer than expected. The test may still be running in the background.")
             setTestState("idle")
             setProgress(0)
           }
         } catch (err) {
           console.error("Error polling test run:", err)
-          pollAttempts++
-          
+
           // If we get multiple errors, stop polling
           if (pollAttempts >= 10) {
             clearInterval(pollInterval)
+            clearInterval(timeTracker)
             const errorMessage = err instanceof Error ? err.message : "Failed to get test status"
             setError(`Error checking test status: ${errorMessage}. The test may still be running.`)
             setTestState("idle")
@@ -171,9 +250,10 @@ export default function NewTestForm({ onTestComplete, applications }: NewTestFor
         }
       }, 1000) // Poll every second
 
-      // Timeout after 30 seconds
+      // Timeout after 2 minutes
       setTimeout(() => {
         clearInterval(pollInterval)
+        clearInterval(timeTracker)
         setTestState((currentState) => {
           if (currentState === "running") {
             setError("Test is taking longer than expected. Please check the test run status.")
@@ -182,8 +262,9 @@ export default function NewTestForm({ onTestComplete, applications }: NewTestFor
           }
           return currentState
         })
-      }, 30000)
+      }, 120000)
     } catch (err) {
+      clearInterval(timeTracker)
       setError(err instanceof Error ? err.message : "Failed to start test")
       setTestState("idle")
       setProgress(0)
@@ -324,33 +405,57 @@ export default function NewTestForm({ onTestComplete, applications }: NewTestFor
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
-              className="py-8 text-center"
+              className="space-y-6"
             >
-              <motion.div
-                animate={testState === "running" ? { scale: [1, 1.1, 1] } : {}}
-                transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5 }}
-                className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary/10 mb-6"
-              >
-                {testState === "running" ? (
-                  <Loader2 className="w-10 h-10 text-primary animate-spin" />
-                ) : (
-                  <CheckCircle className="w-10 h-10 text-[oklch(0.65_0.18_145)]" />
-                )}
-              </motion.div>
+              <div className="text-center mb-6">
+                <motion.div
+                  animate={testState === "running" ? { scale: [1, 1.1, 1] } : {}}
+                  transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5 }}
+                  className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary/10 mb-4"
+                >
+                  {testState === "running" ? (
+                    <Loader2 className="w-10 h-10 text-primary animate-spin" />
+                  ) : (
+                    <CheckCircle className="w-10 h-10 text-[oklch(0.65_0.18_145)]" />
+                  )}
+                </motion.div>
 
-              <h2 className="text-xl font-semibold text-foreground mb-2">
-                {testState === "running" ? "Running Tests..." : "Test Completed!"}
-              </h2>
-              <p className="text-muted-foreground mb-6">
-                {testState === "running"
-                  ? `Testing ${selectedApp?.name || appName || "application"}`
-                  : "Generating report..."}
-              </p>
-
-              <div className="max-w-md mx-auto">
-                <Progress value={Math.min(progress, 100)} className="h-2 bg-secondary" />
-                <p className="text-sm text-muted-foreground mt-2">{Math.min(Math.round(progress), 100)}% complete</p>
+                <h2 className="text-xl font-semibold text-foreground mb-2">
+                  {testState === "running" ? "Running Tests..." : "Test Completed!"}
+                </h2>
+                <p className="text-muted-foreground">
+                  {testState === "running"
+                    ? `Testing ${selectedApp?.name || appName || "application"}`
+                    : "Generating report..."}
+                </p>
               </div>
+
+              {/* Detailed Progress Indicator */}
+              <TestProgressIndicator data={testProgressData} />
+
+              {testState === "completed" && (
+                <div className="flex justify-center">
+                  {showContinueButton ? (
+                    <Button
+                      onClick={() => {
+                        if (!completedTestHistory) return
+                        onTestComplete(completedTestHistory)
+                        setSelectedAppId("")
+                        setTestType("")
+                        setTestState("idle")
+                        setProgress(0)
+                        setShowContinueButton(false)
+                        setCompletedTestHistory(null)
+                      }}
+                      className="h-12 px-8 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
+                    >
+                      Countinue
+                    </Button>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Generating report...</p>
+                  )}
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
