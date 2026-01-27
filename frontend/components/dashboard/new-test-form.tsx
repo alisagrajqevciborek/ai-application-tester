@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Play, Globe, Tag, FileCode, Loader2, CheckCircle, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -17,16 +17,22 @@ import { TestProgressIndicator, type TestProgressData } from "./test-progress-in
 interface NewTestFormProps {
   onTestComplete: (test: TestHistory) => void
   applications: Application[]
+  initialAppName?: string
+  initialTestType?: TestType
+  autoStart?: boolean
 }
 
 type TestState = "idle" | "creating" | "running" | "completed"
 type TestType = "functional" | "regression" | "performance" | "accessibility"
 
-export default function NewTestForm({ onTestComplete, applications }: NewTestFormProps) {
-  const [selectedAppId, setSelectedAppId] = useState<string>("")
+export default function NewTestForm({ onTestComplete, applications, initialAppName, initialTestType, autoStart }: NewTestFormProps) {
+  // Find initial app if appName is provided
+  const initialApp = initialAppName ? applications.find(app => app.name === initialAppName) : null
+  
+  const [selectedAppId, setSelectedAppId] = useState<string>(initialApp?.id.toString() || "")
   const [appName, setAppName] = useState("")
   const [appUrl, setAppUrl] = useState("")
-  const [testType, setTestType] = useState<TestType | "">("")
+  const [testType, setTestType] = useState<TestType | "">(initialTestType || "")
   const [testState, setTestState] = useState<TestState>("idle")
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
@@ -43,6 +49,7 @@ export default function NewTestForm({ onTestComplete, applications }: NewTestFor
   const [testStartTime, setTestStartTime] = useState<number>(0)
   const [showContinueButton, setShowContinueButton] = useState(false)
   const [completedTestHistory, setCompletedTestHistory] = useState<TestHistory | null>(null)
+  const [hasAutoStarted, setHasAutoStarted] = useState(false)
 
   const selectedApp = applications.find((app) => app.id.toString() === selectedAppId)
 
@@ -270,6 +277,17 @@ export default function NewTestForm({ onTestComplete, applications }: NewTestFor
       setProgress(0)
     }
   }
+
+  // Auto-start test if initial values are provided
+  useEffect(() => {
+    if (autoStart && initialApp && initialTestType && !hasAutoStarted && testState === "idle") {
+      setHasAutoStarted(true)
+      // Small delay to ensure form is rendered
+      setTimeout(() => {
+        handleStartTest()
+      }, 200)
+    }
+  }, [autoStart, initialApp, initialTestType, hasAutoStarted, testState])
 
   return (
     <div className="max-w-2xl mx-auto">

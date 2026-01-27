@@ -554,6 +554,24 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
                 Delete
               </Button>
             )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="ml-2">
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="bg-popover border-border" align="end">
+                <DropdownMenuItem onClick={() => handleExportPDF()} className="cursor-pointer">
+                  <FileText className="mr-2 h-4 w-4 text-red-400" />
+                  <span>Export as PDF</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportExcel()} className="cursor-pointer">
+                  <FileSpreadsheet className="mr-2 h-4 w-4 text-green-400" />
+                  <span>Export as Excel</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </motion.div>
 

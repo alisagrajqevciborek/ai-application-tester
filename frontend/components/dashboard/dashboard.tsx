@@ -8,9 +8,15 @@ import NewTestForm from "@/components/dashboard/new-test-form"
 import VersionCard from "@/components/reports/version-card"
 import type { TestHistory } from "@/lib/types"
 import { applicationsApi, testRunsApi, type Application, type TestRun, type TestRunStats } from "@/lib/api"
-import { Loader2, Package, ArrowLeft, BarChart3 } from "lucide-react"
+import { Loader2, Package, ArrowLeft, BarChart3, Play, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import dynamic from "next/dynamic"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 // Lazy load heavy components that are conditionally rendered
 const ReportView = dynamic(() => import("@/components/reports/report-view"), {
@@ -209,6 +215,28 @@ export default function Dashboard() {
     }
   }
 
+  const [initialTestAppName, setInitialTestAppName] = useState<string | undefined>(undefined)
+  const [initialTestType, setInitialTestType] = useState<"functional" | "regression" | "performance" | "accessibility" | undefined>(undefined)
+  const [autoStartTest, setAutoStartTest] = useState(false)
+
+  const handleRunTestFromCard = (appName: string, testType: string) => {
+    // Find the application by name
+    const app = applications.find(a => a.name === appName)
+    if (app) {
+      // Navigate to new test form and pre-select the app
+      setSelectedApp(null)
+      setSelectedTest(null)
+      // Set initial values for the form
+      setInitialTestAppName(appName)
+      setInitialTestType(testType as "functional" | "regression" | "performance" | "accessibility")
+      setAutoStartTest(true)
+      // Scroll to the form
+      setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }, 100)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <TopNav onNavigateToProfile={() => setCurrentView("profile")} />
@@ -306,6 +334,7 @@ export default function Dashboard() {
                       selectedTestId={(selectedTest as TestHistory | null)?.id ?? null}
                       onSelectTest={handleSelectTest}
                       onDeleteTest={handleDeleteTest}
+                      onRunTest={handleRunTestFromCard}
                     />
                   </motion.div>
                 ) : (
@@ -329,7 +358,19 @@ export default function Dashboard() {
                     </div>
 
                     {/* New Test Form */}
-                    <NewTestForm onTestComplete={handleNewTestComplete} applications={applications} />
+                    <NewTestForm
+                      onTestComplete={(test) => {
+                        handleNewTestComplete(test)
+                        // Reset initial values after test completes
+                        setInitialTestAppName(undefined)
+                        setInitialTestType(undefined)
+                        setAutoStartTest(false)
+                      }}
+                      applications={applications}
+                      initialAppName={initialTestAppName}
+                      initialTestType={initialTestType}
+                      autoStart={autoStartTest}
+                    />
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -355,9 +396,10 @@ interface AppVersionsViewProps {
   selectedTestId: string | null
   onSelectTest: (test: TestHistory) => void
   onDeleteTest: (testId: string) => void
+  onRunTest?: (appName: string, testType: string) => void
 }
 
-function AppVersionsView({ appName, history, selectedTestId, onSelectTest, onDeleteTest }: AppVersionsViewProps) {
+function AppVersionsView({ appName, history, selectedTestId, onSelectTest, onDeleteTest, onRunTest }: AppVersionsViewProps) {
   // Filter versions for this app and sort by version number (newest first)
   const versions = useMemo(() => {
     return history
@@ -376,10 +418,36 @@ function AppVersionsView({ appName, history, selectedTestId, onSelectTest, onDel
   return (
     <div className="space-y-4">
       {/* App Header */}
-      <div className="flex items-center gap-2 pb-2 border-b border-border">
-        <Package className="h-5 w-5 text-orange-600" />
-        <h2 className="text-xl font-semibold text-foreground">{appName}</h2>
-        <span className="text-sm text-muted-foreground">({versions.length} version{versions.length !== 1 ? 's' : ''})</span>
+      <div className="flex items-center justify-between pb-2 border-b border-border">
+        <div className="flex items-center gap-2">
+          <Package className="h-5 w-5 text-orange-600" />
+          <h2 className="text-xl font-semibold text-foreground">{appName}</h2>
+          <span className="text-sm text-muted-foreground">({versions.length} version{versions.length !== 1 ? 's' : ''})</span>
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
+              <Play className="w-4 h-4 mr-2" />
+              Run New Test
+              <ChevronDown className="w-4 h-4 ml-2 opacity-50" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="bg-popover border-border">
+            <DropdownMenuItem onClick={() => onRunTest && onRunTest(appName, "functional")}>
+              Functional Testing
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onRunTest && onRunTest(appName, "regression")}>
+              Regression Testing
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onRunTest && onRunTest(appName, "performance")}>
+              Performance Testing
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onRunTest && onRunTest(appName, "accessibility")}>
+              Accessibility Testing
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Version Cards Grid */}
@@ -390,6 +458,7 @@ function AppVersionsView({ appName, history, selectedTestId, onSelectTest, onDel
             test={test}
             onSelect={onSelectTest}
             onDelete={onDeleteTest}
+            onRunTest={onRunTest}
             isSelected={selectedTestId === test.id}
           />
         ))}
