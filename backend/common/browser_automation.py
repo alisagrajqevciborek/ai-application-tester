@@ -71,6 +71,16 @@ class BrowserAutomationService:
             
             page.on('console', handle_console)
             
+            # Collect uncaught exceptions (page crashes)
+            def handle_page_error(error):
+                console_logs.append({
+                    'type': 'error',
+                    'text': f"Uncaught Exception: {str(error)}",
+                    'location': getattr(error, 'stack', None) or url
+                })
+            
+            page.on('pageerror', handle_page_error)
+            
             # Store main document response headers for security checks
             main_document_headers = {}
             
