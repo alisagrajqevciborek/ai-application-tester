@@ -176,53 +176,38 @@ def group_similar_issues(issues: List[Dict]) -> List[Dict]:
                     if error_msg:
                         error_messages.append(error_msg)
             
-            # Build rich description
-            description_parts = []
-            
-            # What failed
+            # Build user-friendly description with context for AI
+            # This description will be completely rewritten by AI, but provides context
             unique_resource_types = list(set(resource_types))
-            if unique_resource_types:
-                type_str = ', '.join(unique_resource_types)
-                if count == 1:
-                    description_parts.append(f"Failed to load {type_str} file.")
-                else:
-                    description_parts.append(f"Failed to load {count} {type_str} file(s).")
-            
-            # Which resources
-            if resource_urls:
-                unique_urls = list(dict.fromkeys(resource_urls))[:3]  # Preserve order, limit to 3
-                if len(unique_urls) == 1:
-                    filename = unique_urls[0].split('/')[-1]
-                    description_parts.append(f"Resource: {filename}")
-                elif len(unique_urls) <= 3:
-                    filenames = [url.split('/')[-1] for url in unique_urls]
-                    description_parts.append(f"Resources: {', '.join(filenames)}")
-                else:
-                    filenames = [url.split('/')[-1] for url in unique_urls[:2]]
-                    description_parts.append(f"Resources include: {', '.join(filenames)} and {len(unique_urls) - 2} more")
-            
-            # Why it failed
             unique_error_types = list(set(error_types))
+            
+            # Create a simple, context-rich description for AI to work with
+            description = f"Issue: {group_data['type']}\n\n"
+            
+            # What failed - in simple terms
+            if unique_resource_types:
+                type_str = ' and '.join(unique_resource_types)
+                if count == 1:
+                    description += f"One {type_str} file failed to load.\n"
+                else:
+                    description += f"{count} {type_str} files failed to load.\n"
+            
+            # Which files
+            if resource_urls:
+                unique_urls = list(dict.fromkeys(resource_urls))[:3]
+                filenames = [url.split('/')[-1] for url in unique_urls]
+                if len(filenames) == 1:
+                    description += f"File: {filenames[0]}\n"
+                elif len(filenames) <= 3:
+                    description += f"Files: {', '.join(filenames)}\n"
+                else:
+                    description += f"Files include: {', '.join(filenames[:2])} and {len(filenames) - 2} more\n"
+            
+            # Error reason
             if unique_error_types:
-                if len(unique_error_types) == 1:
-                    description_parts.append(f"Error type: {unique_error_types[0]}.")
-                else:
-                    description_parts.append(f"Error types: {', '.join(unique_error_types[:2])}.")
+                description += f"Reason: {unique_error_types[0]}\n"
             
-            # Where it happened
-            if locations:
-                if len(locations) == 1:
-                    description_parts.append(f"Location: {locations[0]}")
-                else:
-                    description_parts.append(f"Affected pages: {len(locations)} page(s)")
-            
-            # Combine into description
-            description = ' '.join(description_parts)
-            
-            # Add example error message if available
-            if error_messages:
-                example_msg = error_messages[0]
-                description += f"\n\nExample error: {example_msg}"
+            # Note: downstream pipeline may rewrite/enhance this description for end users.
             
             # Store additional context for AI
             grouped_issue = {

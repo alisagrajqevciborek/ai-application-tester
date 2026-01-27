@@ -753,7 +753,9 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
                     >
                       <div className="px-4 pb-4 pt-0">
                         <div className="border-t border-border/50 pt-4">
-                          <p className="text-muted-foreground text-sm mb-4">{issue.description}</p>
+                          <div className="text-muted-foreground text-sm mb-4 whitespace-pre-wrap leading-relaxed">
+                            {issue.description}
+                          </div>
 
                           {/* CSS Selector Highlight */}
                           {issue.selector && issue.selector !== "unknown" && (
@@ -990,7 +992,9 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
                                 <span className="text-xs text-muted-foreground">{issue.location}</span>
                               </div>
                               <h4 className="font-medium text-foreground">{issue.title}</h4>
-                              <p className="text-sm text-muted-foreground mt-1">{issue.description}</p>
+                              <div className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap leading-relaxed">
+                                {issue.description}
+                              </div>
                             </div>
                           </div>
                         </div>

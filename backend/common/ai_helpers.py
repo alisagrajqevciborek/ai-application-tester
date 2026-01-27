@@ -137,9 +137,17 @@ def enhance_issue_description(
     Returns:
         Enhanced issue dictionary with improved description
     """
+    # Always provide a user-friendly, structured explanation.
+    # If OpenAI is not available/configured, fall back to deterministic templates.
+    from common.issue_explanations import build_structured_issue_explanation
+
     client = get_openai_client()
     if not client:
-        return issue  # Return original issue if AI is not available
+        enhanced_issue = issue.copy()
+        enhanced_issue['description'] = build_structured_issue_explanation(issue, test_type=test_type)
+        enhanced_issue['ai_enhanced'] = False
+        enhanced_issue['description_generated'] = True
+        return enhanced_issue
     
     try:
         # Build rich context for AI
@@ -190,78 +198,95 @@ The Issue:
 {screenshot_context}
 
 Your Task:
-Write a clear, friendly explanation that helps people understand:
-1. What's wrong (in plain English - be specific about what failed)
-2. Why it matters (who it affects and what they'll notice)
-3. How to fix it (simple, actionable steps)
+COMPLETELY REWRITE the description in simple, friendly language. Do NOT just enhance it - replace the technical description with a clear, user-friendly explanation.
 
-IMPORTANT for grouped issues:
-- Explain what type of resources failed (fonts, images, scripts, etc.)
-- Explain what visitors will see/experience (wrong fonts, broken images, etc.)
-- Be specific about the impact (e.g., "Text will appear in a different font" or "Images won't display")
-- Provide clear fix steps for the specific resource type
+Requirements:
+1. **What's wrong** - Explain in plain English what failed (e.g., "Your website tried to load 2 font files but couldn't")
+2. **What visitors see** - Be specific about what users will experience (e.g., "Text appears in a different font than intended" or "Images show as broken")
+3. **Why it matters** - Explain the impact in simple terms
+4. **How to fix** - Provide clear, actionable steps
 
-Write as if explaining to a friend who isn't technical. Use everyday language. Avoid jargon.
+CRITICAL INSTRUCTIONS:
+- IGNORE the technical description provided - it's just context for you
+- Write a COMPLETELY NEW description from scratch
+- Use everyday language - no technical terms unless you explain them
+- For grouped issues, explain what type of files failed and what that means for visitors
+- Be specific and concrete - avoid vague statements
 
-Output format (markdown, be concise and friendly, max 500 words):
+Example of good explanation:
+"Your website tried to load 2 custom font files, but they failed to load. This means visitors will see text in a default font instead of your custom font, which can make your website look different than you intended. This affects your brand consistency and can make the site look less professional."
+
+Output format (markdown, be friendly and clear, max 600 words):
 
 ## What's Wrong?
-[1-3 sentences explaining the problem in simple terms. Be specific: "Your website tried to load X font files but failed" or "Y images couldn't be loaded"]
+[2-3 sentences in plain English. Example: "Your website tried to load 2 font files (alef-2c57b332.woff2 and BeatriceTRIAL-Regular.otf) but they failed to load due to a network error."]
 
 ## What This Means
-[2-4 sentences explaining the impact in plain language]
-- **For visitors:** [What will visitors see/experience? Be specific: "Text will appear in a fallback font instead of the custom font" or "Images will show as broken"]
-- **For your business:** [Why should you care? "Makes the website look unprofessional" or "Affects brand consistency"]
+[3-4 sentences explaining the real-world impact]
+- **For visitors:** [Be very specific: "Text will appear in a fallback font (like Arial or Times New Roman) instead of your custom font. This makes your website look different from what you designed."]
+- **For your business:** [Explain business impact: "This affects your brand consistency and can make your website look less professional or unfinished."]
 
 ## Suggested Fix
-[Simple, step-by-step instructions specific to the resource type]
+[Clear, step-by-step instructions]
 
-1. [First thing to do - explain in plain language, be specific]
-2. [Next step if needed]
+1. [First step in plain language - be specific]
+2. [Next step]
 3. [Final step if needed]
 
-[If you can see the screenshot, reference what's visible: "Looking at the screenshot, you can see..."]
+[If screenshot is available, mention what you see: "In the screenshot, you can see..."]
 
 ## Quick Check
-After fixing, you should see: [What to look for to confirm it's fixed - be specific]
+After fixing, you should see: [Specific thing to verify - be concrete]
 
-Keep it simple, helpful, and specific!"""
+Remember: Write as if explaining to someone who has never heard of fonts, network errors, or web development. Use analogies if helpful!"""
 
         response = client.chat.completions.create(
             model="gpt-4o-mini",  # Changed from gpt-4o to reduce costs
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a professional QA engineer who writes clear, actionable bug reports with specific code examples."
+                    "content": "You are a friendly, helpful assistant who explains website problems in simple, everyday language. You write for non-technical users who need to understand what's wrong and how to fix it. Never use technical jargon unless absolutely necessary, and always explain what it means."
                 },
                 {
                     "role": "user",
                     "content": prompt
                 }
             ],
-            max_tokens=800,  # Reduced from 1500
-            temperature=0.2
+            max_tokens=1000,  # Increased to allow for more detailed explanations
+            temperature=0.3  # Slightly higher for more natural language
         )
         
         content = response.choices[0].message.content
         if not content:
-            return issue  # Return original if no content
+            enhanced_issue = issue.copy()
+            enhanced_issue['description'] = build_structured_issue_explanation(issue, test_type=test_type)
+            enhanced_issue['ai_enhanced'] = False
+            enhanced_issue['description_generated'] = True
+            return enhanced_issue
+        
+        # The AI response should be the complete, user-friendly description
+        # It should replace the technical description entirely
         enhanced_description = content.strip()
         
         # SKIP screenshot analysis to save costs (most expensive operation)
         # Screenshots are analyzed in the main report anyway
         
-        # Return enhanced issue
+        # Return enhanced issue - COMPLETELY replace the description
         enhanced_issue = issue.copy()
-        enhanced_issue['description'] = enhanced_description
+        enhanced_issue['description'] = enhanced_description  # This replaces the technical description
         enhanced_issue['ai_enhanced'] = True
+        enhanced_issue['description_generated'] = True
         
         logger.info(f"Successfully enhanced issue description for: {issue.get('title')}")
         return enhanced_issue
         
     except Exception as e:
         logger.error(f"Error enhancing issue description: {e}", exc_info=True)
-        return issue  # Return original issue on error
+        enhanced_issue = issue.copy()
+        enhanced_issue['description'] = build_structured_issue_explanation(issue, test_type=test_type)
+        enhanced_issue['ai_enhanced'] = False
+        enhanced_issue['description_generated'] = True
+        return enhanced_issue
 
 
 def generate_ai_report(
