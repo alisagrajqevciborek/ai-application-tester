@@ -10,9 +10,9 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 const geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "TestFlow AI - AI-Powered Application Testing",
+  title: "TestFlow - AI-Powered Application Testing",
   description: "Intelligent automated testing powered by AI",
-    generator: 'v0.app'
+  generator: 'v0.app'
 }
 
 export default function RootLayout({

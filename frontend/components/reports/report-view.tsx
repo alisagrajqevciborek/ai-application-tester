@@ -270,7 +270,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
     // Title
     doc.setFontSize(20)
     doc.setTextColor(255, 140, 0) // Orange color
-    doc.text("TestFlow AI - Test Report", margin, yPos)
+    doc.text("TestFlow - Test Report", margin, yPos)
     yPos += 12
 
     // Test Information
@@ -417,7 +417,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
       doc.setFontSize(8)
       doc.setTextColor(150, 150, 150)
       doc.text(
-        `Page ${i} of ${totalPages} - TestFlow AI Test Report`,
+        `Page ${i} of ${totalPages} - TestFlow Test Report`,
         pageWidth / 2,
         doc.internal.pageSize.getHeight() - 10,
         { align: "center" }
@@ -434,7 +434,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
 
     // Prepare data for Excel
     const excelData = [
-      ["TestFlow AI - Test Report"],
+      ["TestFlow - Test Report"],
       ["Exported on", new Date().toLocaleString()],
       [""],
       ["Test Information"],

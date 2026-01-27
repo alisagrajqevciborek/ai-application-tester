@@ -28,7 +28,7 @@ export default function LoginPage({ onLogin, onShowRegister }: LoginPageProps) {
     e.preventDefault()
     setError(null)
     setIsLoading(true)
-    
+
     try {
       await login(email, password)
       onLogin()
@@ -60,7 +60,7 @@ export default function LoginPage({ onLogin, onShowRegister }: LoginPageProps) {
               <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-primary/20">
                 <Zap className="w-6 h-6 text-primary" />
               </div>
-              <span className="font-bold text-2xl text-foreground">TestFlow AI</span>
+              <span className="font-bold text-2xl text-foreground">TestFlow</span>
             </motion.div>
             <p className="text-muted-foreground mt-2">AI-Powered Application Testing</p>
           </div>
@@ -73,7 +73,7 @@ export default function LoginPage({ onLogin, onShowRegister }: LoginPageProps) {
                 <AlertDescription className="text-red-400">{error}</AlertDescription>
               </Alert>
             )}
-            
+
             <div className="space-y-2">
               <Label htmlFor="email" className="text-foreground/80">
                 Email
@@ -136,7 +136,7 @@ export default function LoginPage({ onLogin, onShowRegister }: LoginPageProps) {
           {/* Footer */}
           <p className="text-center text-muted-foreground text-sm mt-6">
             Don&apos;t have an account?{" "}
-            <button 
+            <button
               type="button"
               onClick={onShowRegister}
               className="text-primary hover:text-orange-600 hover:underline font-medium"

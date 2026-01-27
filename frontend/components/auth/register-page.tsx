@@ -122,7 +122,7 @@ export default function RegisterPage({ onBack, onRegisterComplete }: RegisterPag
               <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-primary/20">
                 <Zap className="w-6 h-6 text-primary" />
               </div>
-              <span className="font-bold text-2xl text-foreground">TestFlow AI</span>
+              <span className="font-bold text-2xl text-foreground">TestFlow</span>
             </motion.div>
             <p className="text-muted-foreground mt-2">
               {step === "register" ? "Create your account" : "Verify your email"}

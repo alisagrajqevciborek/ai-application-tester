@@ -21,7 +21,7 @@ interface TopNavProps {
 export default function TopNav({ onNavigateToProfile }: TopNavProps) {
   const { user, logout } = useAuth()
   const router = useRouter()
-  
+
   const getInitials = () => {
     if (!user) return "U"
     const first = user.first_name?.[0] || ""
@@ -42,7 +42,7 @@ export default function TopNav({ onNavigateToProfile }: TopNavProps) {
   return (
     <header className="h-16 border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-50">
       <div className="flex items-center justify-between h-full px-4 lg:px-6">
-        <span className="font-bold text-lg text-foreground">TestFlow AI</span>
+        <span className="font-bold text-lg text-foreground">TestFlow</span>
 
         {/* User Profile */}
         <DropdownMenu>

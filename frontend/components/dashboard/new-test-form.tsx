@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Play, Globe, Tag, FileCode, Loader2, CheckCircle, Plus } from "lucide-react"
+import { Play, Globe, Tag, FileCode, Loader2, CheckCircle, Plus, Pause } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -22,13 +22,13 @@ interface NewTestFormProps {
   autoStart?: boolean
 }
 
-type TestState = "idle" | "creating" | "running" | "completed"
+type TestState = "idle" | "creating" | "running" | "paused" | "completed"
 type TestType = "functional" | "regression" | "performance" | "accessibility"
 
 export default function NewTestForm({ onTestComplete, applications, initialAppName, initialTestType, autoStart }: NewTestFormProps) {
   // Find initial app if appName is provided
   const initialApp = initialAppName ? applications.find(app => app.name === initialAppName) : null
-  
+
   const [selectedAppId, setSelectedAppId] = useState<string>(initialApp?.id.toString() || "")
   const [appName, setAppName] = useState("")
   const [appUrl, setAppUrl] = useState("")
@@ -50,6 +50,17 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
   const [showContinueButton, setShowContinueButton] = useState(false)
   const [completedTestHistory, setCompletedTestHistory] = useState<TestHistory | null>(null)
   const [hasAutoStarted, setHasAutoStarted] = useState(false)
+  const isPausedRef = useRef(false)
+
+  const togglePause = () => {
+    if (testState === "running") {
+      setTestState("paused")
+      isPausedRef.current = true
+    } else if (testState === "paused") {
+      setTestState("running")
+      isPausedRef.current = false
+    }
+  }
 
   const selectedApp = applications.find((app) => app.id.toString() === selectedAppId)
 
@@ -181,6 +192,8 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
       const maxPollAttempts = 120 // 2 minutes max
 
       const pollInterval = setInterval(async () => {
+        if (isPausedRef.current) return
+
         pollAttempts++
         const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000)
 
@@ -417,7 +430,7 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
             </motion.div>
           )}
 
-          {(testState === "running" || testState === "completed") && (
+          {(testState === "running" || testState === "paused" || testState === "completed") && (
             <motion.div
               key="running"
               initial={{ opacity: 0, scale: 0.95 }}
@@ -433,16 +446,18 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                 >
                   {testState === "running" ? (
                     <Loader2 className="w-10 h-10 text-primary animate-spin" />
+                  ) : testState === "paused" ? (
+                    <Pause className="w-10 h-10 text-primary" />
                   ) : (
                     <CheckCircle className="w-10 h-10 text-[oklch(0.65_0.18_145)]" />
                   )}
                 </motion.div>
 
                 <h2 className="text-xl font-semibold text-foreground mb-2">
-                  {testState === "running" ? "Running Tests..." : "Test Completed!"}
+                  {testState === "running" ? "Running Tests..." : testState === "paused" ? "Test Paused" : "Test Completed!"}
                 </h2>
                 <p className="text-muted-foreground">
-                  {testState === "running"
+                  {testState === "running" || testState === "paused"
                     ? `Testing ${selectedApp?.name || appName || "application"}`
                     : "Generating report..."}
                 </p>
@@ -450,6 +465,26 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
 
               {/* Detailed Progress Indicator */}
               <TestProgressIndicator data={testProgressData} />
+
+              {testState === "running" || testState === "paused" ? (
+                <div className="flex justify-center mt-6">
+                  <Button
+                    variant="outline"
+                    onClick={togglePause}
+                    className="flex items-center gap-2 min-w-[120px]"
+                  >
+                    {testState === "running" ? (
+                      <>
+                        <Pause className="w-4 h-4" /> Pause
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-4 h-4" /> Resume
+                      </>
+                    )}
+                  </Button>
+                </div>
+              ) : null}
 
               {testState === "completed" && (
                 <div className="flex justify-center">
@@ -467,7 +502,7 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                       }}
                       className="h-12 px-8 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
                     >
-                      Countinue
+                      Continue
                     </Button>
                   ) : (
                     <p className="text-sm text-muted-foreground">Generating report...</p>
