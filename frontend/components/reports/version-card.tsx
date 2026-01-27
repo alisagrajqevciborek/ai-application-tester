@@ -1,7 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { Clock, Trash2 } from "lucide-react"
+import { Clock, Trash2, Play } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { TestHistory } from "@/lib/types"
@@ -16,17 +16,35 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { useState } from "react"
 
 interface VersionCardProps {
   test: TestHistory
   onSelect: (test: TestHistory) => void
   onDelete?: (testId: string) => void
+  onRunTest?: (appName: string, testType: string) => void
   isSelected?: boolean
 }
 
-export default function VersionCard({ test, onSelect, onDelete, isSelected }: VersionCardProps) {
+export default function VersionCard({ test, onSelect, onDelete, onRunTest, isSelected }: VersionCardProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [runTestDialogOpen, setRunTestDialogOpen] = useState(false)
+  const [selectedTestType, setSelectedTestType] = useState<string>("")
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -38,6 +56,13 @@ export default function VersionCard({ test, onSelect, onDelete, isSelected }: Ve
       onDelete(test.id)
     }
     setDeleteDialogOpen(false)
+  }
+
+  const handleRunTestClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (onRunTest) {
+      onRunTest(test.appName, test.testType)
+    }
   }
 
   const getTestTypeColor = (type: string) => {
@@ -77,16 +102,29 @@ export default function VersionCard({ test, onSelect, onDelete, isSelected }: Ve
               <StatusBadge status={test.status} />
             </div>
           </div>
-          {onDelete && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleDeleteClick}
-              className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10 flex-shrink-0"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {onRunTest && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRunTestClick}
+                className="h-7 px-2 text-primary hover:text-primary hover:bg-primary/10 flex-shrink-0"
+                title="Run test again"
+              >
+                <Play className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            {onDelete && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleDeleteClick}
+                className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10 flex-shrink-0"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Test type badge */}
