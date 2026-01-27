@@ -130,15 +130,101 @@ def group_similar_issues(issues: List[Dict]) -> List[Dict]:
             count = len(group_data['issues'])
             locations = list(group_data['locations'])
             
-            # Create description with details
-            description = f"This issue occurred {count} time(s) on the following page(s): {', '.join(locations[:3])}"
-            if len(locations) > 3:
-                description += f" and {len(locations) - 3} more"
+            # Extract rich context from all issues in the group
+            resource_urls = []
+            resource_types = []
+            error_types = []
+            error_messages = []
             
-            # Add example issue details
-            example_issue = group_data['issues'][0]
-            description += f"\n\nExample: {example_issue.get('description', '')[:200]}"
+            for issue in group_data['issues']:
+                desc = issue.get('description', '')
+                title = issue.get('title', '')
+                
+                # Extract URLs from descriptions
+                url_pattern = r'https?://[^\s\)]+'
+                urls = re.findall(url_pattern, desc + ' ' + title)
+                resource_urls.extend(urls[:1])  # One URL per issue
+                
+                # Determine resource type from URL or description
+                url_text = (desc + ' ' + title).lower()
+                if any(ext in url_text for ext in ['.woff', '.woff2', '.ttf', '.otf', '.eot']):
+                    resource_types.append('font')
+                elif any(ext in url_text for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']):
+                    resource_types.append('image')
+                elif any(ext in url_text for ext in ['.js', '.mjs']):
+                    resource_types.append('script')
+                elif any(ext in url_text for ext in ['.css']):
+                    resource_types.append('stylesheet')
+                else:
+                    resource_types.append('resource')
+                
+                # Extract error type
+                if 'cors' in desc.lower() or 'cross-origin' in desc.lower():
+                    error_types.append('CORS policy violation')
+                elif '404' in desc or 'not found' in desc.lower():
+                    error_types.append('File not found (404)')
+                elif '500' in desc or 'server error' in desc.lower():
+                    error_types.append('Server error (500)')
+                elif 'failed to load' in desc.lower() or 'err_failed' in desc.lower():
+                    error_types.append('Network failure')
+                else:
+                    error_types.append('Loading error')
+                
+                # Extract error message
+                if 'console error:' in desc.lower():
+                    error_msg = desc.split('console error:')[-1].strip()[:100]
+                    if error_msg:
+                        error_messages.append(error_msg)
             
+            # Build rich description
+            description_parts = []
+            
+            # What failed
+            unique_resource_types = list(set(resource_types))
+            if unique_resource_types:
+                type_str = ', '.join(unique_resource_types)
+                if count == 1:
+                    description_parts.append(f"Failed to load {type_str} file.")
+                else:
+                    description_parts.append(f"Failed to load {count} {type_str} file(s).")
+            
+            # Which resources
+            if resource_urls:
+                unique_urls = list(dict.fromkeys(resource_urls))[:3]  # Preserve order, limit to 3
+                if len(unique_urls) == 1:
+                    filename = unique_urls[0].split('/')[-1]
+                    description_parts.append(f"Resource: {filename}")
+                elif len(unique_urls) <= 3:
+                    filenames = [url.split('/')[-1] for url in unique_urls]
+                    description_parts.append(f"Resources: {', '.join(filenames)}")
+                else:
+                    filenames = [url.split('/')[-1] for url in unique_urls[:2]]
+                    description_parts.append(f"Resources include: {', '.join(filenames)} and {len(unique_urls) - 2} more")
+            
+            # Why it failed
+            unique_error_types = list(set(error_types))
+            if unique_error_types:
+                if len(unique_error_types) == 1:
+                    description_parts.append(f"Error type: {unique_error_types[0]}.")
+                else:
+                    description_parts.append(f"Error types: {', '.join(unique_error_types[:2])}.")
+            
+            # Where it happened
+            if locations:
+                if len(locations) == 1:
+                    description_parts.append(f"Location: {locations[0]}")
+                else:
+                    description_parts.append(f"Affected pages: {len(locations)} page(s)")
+            
+            # Combine into description
+            description = ' '.join(description_parts)
+            
+            # Add example error message if available
+            if error_messages:
+                example_msg = error_messages[0]
+                description += f"\n\nExample error: {example_msg}"
+            
+            # Store additional context for AI
             grouped_issue = {
                 'severity': group_data['severity'],
                 'title': f"{group_data['type']} ({count} occurrences)",
@@ -148,7 +234,12 @@ def group_similar_issues(issues: List[Dict]) -> List[Dict]:
                 'frequency': count,
                 'affected_locations': locations,
                 'all_screenshots': group_data['screenshots'],
-                'is_grouped': True
+                'is_grouped': True,
+                # Additional context for AI
+                'resource_types': unique_resource_types,
+                'resource_urls': list(dict.fromkeys(resource_urls))[:5],
+                'error_types': unique_error_types,
+                'group_type': group_data['type']
             }
             grouped_issues.append(grouped_issue)
         else:

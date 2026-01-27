@@ -142,14 +142,39 @@ def enhance_issue_description(
         return issue  # Return original issue if AI is not available
     
     try:
-        # Build context-aware prompt with screenshot
+        # Build rich context for AI
         screenshot_context = ""
         if screenshot_url:
             screenshot_context = f"\n\nScreenshot available: {screenshot_url}\nAnalyze the screenshot to understand the visual context. Describe what you see and how it relates to the problem."
         
-        frequency_info = ""
+        # Build detailed context for grouped issues
+        grouped_context = ""
         if issue.get('is_grouped'):
-            frequency_info = f"\n\nThis issue occurred {issue.get('frequency', 1)} time(s) across: {', '.join(issue.get('affected_locations', [])[:3])}"
+            frequency = issue.get('frequency', 1)
+            group_type = issue.get('group_type', 'Issue')
+            resource_types = issue.get('resource_types', [])
+            resource_urls = issue.get('resource_urls', [])
+            error_types = issue.get('error_types', [])
+            locations = issue.get('affected_locations', [])
+            
+            grouped_context = f"""
+This is a GROUPED issue - it happened {frequency} time(s) across your website.
+
+Issue Type: {group_type}
+"""
+            if resource_types:
+                grouped_context += f"Resource Types Affected: {', '.join(resource_types)}\n"
+            if resource_urls:
+                grouped_context += f"Failed Resources ({len(resource_urls)}):\n"
+                for url in resource_urls[:3]:
+                    filename = url.split('/')[-1] if '/' in url else url
+                    grouped_context += f"  - {filename}\n"
+                if len(resource_urls) > 3:
+                    grouped_context += f"  ... and {len(resource_urls) - 3} more\n"
+            if error_types:
+                grouped_context += f"Error Types: {', '.join(error_types)}\n"
+            if locations:
+                grouped_context += f"Affected Pages: {len(locations)} page(s)\n"
         
         prompt = f"""You are a helpful QA assistant explaining a website issue in simple, friendly language that anyone can understand.
 
@@ -157,7 +182,7 @@ Context:
 - Test type: {test_type}
 - Page/URL: {issue.get('location', 'Unknown')}
 - Issue severity: {issue.get('severity', 'unknown')}
-{frequency_info}
+{grouped_context}
 
 The Issue:
 - Title: {issue.get('title', 'Unknown')}
@@ -166,34 +191,41 @@ The Issue:
 
 Your Task:
 Write a clear, friendly explanation that helps people understand:
-1. What's wrong (in plain English)
-2. Why it matters (who it affects)
-3. How to fix it (simple steps)
+1. What's wrong (in plain English - be specific about what failed)
+2. Why it matters (who it affects and what they'll notice)
+3. How to fix it (simple, actionable steps)
+
+IMPORTANT for grouped issues:
+- Explain what type of resources failed (fonts, images, scripts, etc.)
+- Explain what visitors will see/experience (wrong fonts, broken images, etc.)
+- Be specific about the impact (e.g., "Text will appear in a different font" or "Images won't display")
+- Provide clear fix steps for the specific resource type
 
 Write as if explaining to a friend who isn't technical. Use everyday language. Avoid jargon.
 
-Output format (markdown, be concise and friendly, max 400 words):
+Output format (markdown, be concise and friendly, max 500 words):
 
 ## What's Wrong?
-[1-2 sentences explaining the problem in simple terms]
+[1-3 sentences explaining the problem in simple terms. Be specific: "Your website tried to load X font files but failed" or "Y images couldn't be loaded"]
 
 ## What This Means
-[2-3 sentences explaining the impact in plain language]
-- **For visitors:** [How does this affect people using the website?]
-- **For your business:** [Why should you care?]
+[2-4 sentences explaining the impact in plain language]
+- **For visitors:** [What will visitors see/experience? Be specific: "Text will appear in a fallback font instead of the custom font" or "Images will show as broken"]
+- **For your business:** [Why should you care? "Makes the website look unprofessional" or "Affects brand consistency"]
 
 ## Suggested Fix
-[Simple, step-by-step instructions]
+[Simple, step-by-step instructions specific to the resource type]
 
-1. [First thing to do - explain in plain language]
+1. [First thing to do - explain in plain language, be specific]
 2. [Next step if needed]
+3. [Final step if needed]
 
 [If you can see the screenshot, reference what's visible: "Looking at the screenshot, you can see..."]
 
 ## Quick Check
-After fixing, you should see: [What to look for to confirm it's fixed]
+After fixing, you should see: [What to look for to confirm it's fixed - be specific]
 
-Keep it simple and helpful!"""
+Keep it simple, helpful, and specific!"""
 
         response = client.chat.completions.create(
             model="gpt-4o-mini",  # Changed from gpt-4o to reduce costs
