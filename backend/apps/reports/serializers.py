@@ -48,6 +48,7 @@ class ReportSerializer(serializers.ModelSerializer):
             'summary',
             'detailed_report',
             'issues_json',
+            'console_logs_json',
             'screenshots',
             'created_at',
         ]
