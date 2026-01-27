@@ -70,15 +70,19 @@ def execute_test_run_task(self, test_run_id):
                 issues = results.get('issues', [])
                 screenshot_urls = results.get('screenshots', [])
                 
-                # Enhance issues with AI if screenshots are available
+                # Group similar issues together
+                from common.issue_grouper import group_similar_issues
+                grouped_issues = group_similar_issues(issues)
+                
+                # Enhance ALL issues with AI for better user-friendly descriptions
                 enhanced_issues = []
-                for issue in issues:
-                    # Try to enhance issue with AI, using first screenshot if available
-                    screenshot_url = screenshot_urls[0] if screenshot_urls else None
+                for issue in grouped_issues:
                     try:
+                        # Use the issue's screenshot if available
+                        screenshot_url = issue.get('element_screenshot') or (issue.get('all_screenshots', [None])[0] if issue.get('is_grouped') else None)
                         enhanced_issue = enhance_issue_description(
                             issue,
-                            screenshot_url=screenshot_url,
+                            screenshot_url=screenshot_url,  # Use screenshot for context
                             test_type=test_type
                         )
                         enhanced_issues.append(enhanced_issue)
@@ -86,17 +90,20 @@ def execute_test_run_task(self, test_run_id):
                         logger.warning(f"Failed to enhance issue with AI: {e}. Using original issue.")
                         enhanced_issues.append(issue)
                 
-                # Use enhanced issues if available, otherwise use original
-                final_issues = enhanced_issues if enhanced_issues else issues
+                # Use enhanced issues
+                final_issues = enhanced_issues
                 
-                # Generate AI-powered report
+                # Generate AI-powered report (single comprehensive call)
                 try:
                     report_data = generate_ai_report(
                         test_results=results,
                         application_name=test_run.application.name,
                         application_url=test_run.application.url,
                         test_type=test_type,
-                        screenshot_urls=screenshot_urls
+                        screenshot_urls=screenshot_urls,
+                        console_logs=results.get('console_logs', []),
+                        network_failures=results.get('network_failures', []),
+                        network_requests=results.get('network_requests', [])
                     )
                     summary = report_data.get('summary', '')
                     detailed_report = report_data.get('detailed_report', '')

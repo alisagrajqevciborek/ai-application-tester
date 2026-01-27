@@ -53,6 +53,7 @@ def analyze_screenshot_with_ai(
 ) -> Optional[str]:
     """
     Analyze a screenshot using OpenAI Vision API to identify issues.
+    OPTIMIZED: Only use for critical/major issues, uses cheaper model.
     
     Args:
         screenshot_url: URL of the screenshot to analyze
@@ -64,6 +65,10 @@ def analyze_screenshot_with_ai(
     """
     client = get_openai_client()
     if not client:
+        return None
+    
+    # Only analyze screenshots for critical/major issues to reduce costs
+    if issue_context and issue_context.get('severity') not in ['critical', 'major']:
         return None
     
     try:
@@ -79,12 +84,12 @@ Look for:
 """
         
         if issue_context:
-            prompt += f"\nContext: {issue_context.get('title', 'Unknown issue')} - {issue_context.get('description', 'No description')}\n"
+            prompt += f"\nContext: {issue_context.get('title', 'Unknown issue')}\n"
         
-        prompt += "\nProvide a detailed analysis of what you see in the screenshot, focusing on any issues or problems. Be specific about what's wrong and where it appears."
+        prompt += "\nProvide a brief analysis (2-3 sentences) focusing on visible issues."
         
         response = client.chat.completions.create(
-            model="gpt-4o",  # Using GPT-4o for vision capabilities
+            model="gpt-4o-mini",  # Changed from gpt-4o to reduce costs
             messages=[
                 {
                     "role": "user",
@@ -102,8 +107,8 @@ Look for:
                     ]
                 }
             ],
-            max_tokens=500,
-            temperature=0.3  # Lower temperature for more focused analysis
+            max_tokens=300,  # Reduced from 500
+            temperature=0.3
         )
         
         analysis = response.choices[0].message.content
@@ -122,10 +127,11 @@ def enhance_issue_description(
 ) -> Dict:
     """
     Enhance an issue description using AI analysis.
+    OPTIMIZED: Uses cheaper model, skips screenshot analysis to reduce costs.
     
     Args:
         issue: Issue dictionary with title, description, severity, location
-        screenshot_url: Optional screenshot URL to analyze
+        screenshot_url: Optional screenshot URL to analyze (ignored for cost optimization)
         test_type: Type of test
         
     Returns:
@@ -136,77 +142,61 @@ def enhance_issue_description(
         return issue  # Return original issue if AI is not available
     
     try:
-        # Build prompt for enhancing the issue description with concrete fix guidance
-        prompt = f"""You are a senior QA engineer writing a DETAILED, ACTIONABLE bug report.
+        # Build context-aware prompt with screenshot
+        screenshot_context = ""
+        if screenshot_url:
+            screenshot_context = f"\n\nScreenshot available: {screenshot_url}\nAnalyze the screenshot to understand the visual context. Describe what you see and how it relates to the problem."
+        
+        frequency_info = ""
+        if issue.get('is_grouped'):
+            frequency_info = f"\n\nThis issue occurred {issue.get('frequency', 1)} time(s) across: {', '.join(issue.get('affected_locations', [])[:3])}"
+        
+        prompt = f"""You are a helpful QA assistant explaining a website issue in simple, friendly language that anyone can understand.
 
 Context:
 - Test type: {test_type}
-- Application/page: {issue.get('location', 'Unknown')}
+- Page/URL: {issue.get('location', 'Unknown')}
+- Issue severity: {issue.get('severity', 'unknown')}
+{frequency_info}
 
-Evidence (automated finding):
+The Issue:
 - Title: {issue.get('title', 'Unknown')}
-- Severity: {issue.get('severity', 'unknown')}
 - Description: {issue.get('description', 'No description')}
+{screenshot_context}
 
-Task:
-Transform this into a comprehensive, developer-friendly bug report with SPECIFIC fixes.
+Your Task:
+Write a clear, friendly explanation that helps people understand:
+1. What's wrong (in plain English)
+2. Why it matters (who it affects)
+3. How to fix it (simple steps)
 
-Requirements:
-1. **Be SPECIFIC** - Include exact code snippets, not pseudocode
-2. **Provide CONTEXT** - Explain why this matters
-3. **Show CODE** - Include before/after examples
-4. **Be ACTIONABLE** - Developers should know exactly what to do
-5. **Include VERIFICATION** - How to test the fix works
+Write as if explaining to a friend who isn't technical. Use everyday language. Avoid jargon.
 
-Output format (markdown, use these exact headings):
+Output format (markdown, be concise and friendly, max 400 words):
 
-## 🔍 What Happened (Evidence)
-- [Specific description of what was found]
-- [Any observable symptoms]
+## What's Wrong?
+[1-2 sentences explaining the problem in simple terms]
 
-## 💥 Why It Matters (Impact)
-- **User Impact**: [How this affects users]
-- **Business Impact**: [SEO, conversion, accessibility, etc.]
-- **Technical Debt**: [Long-term consequences if not fixed]
+## What This Means
+[2-3 sentences explaining the impact in plain language]
+- **For visitors:** [How does this affect people using the website?]
+- **For your business:** [Why should you care?]
 
-## 🔎 Root Cause (Analysis)
-- **Likely Cause**: [Technical explanation]
-- **Code Location**: [Where the problem likely exists]
-- **Related Systems**: [What else might be affected]
+## Suggested Fix
+[Simple, step-by-step instructions]
 
-## 🛠️ How to Fix (Concrete Steps with Code)
+1. [First thing to do - explain in plain language]
+2. [Next step if needed]
 
-### Step 1: [Action description]
-```[language]
-// Before (current problematic code)
-[show what's wrong]
+[If you can see the screenshot, reference what's visible: "Looking at the screenshot, you can see..."]
 
-// After (corrected code)
-[show the fix]
-```
-**Why this works**: [Brief explanation]
+## Quick Check
+After fixing, you should see: [What to look for to confirm it's fixed]
 
-### Step 2: [Next action]
-```[language]
-[code example]
-```
-
-### Step 3: [Final action]
-[Configuration change, testing step, etc.]
-
-## ✅ Verification Checklist
-- [ ] [Specific test 1]
-- [ ] [Specific test 2]
-- [ ] [Expected outcome]
-
-## 📚 Additional Resources
-- [Link to relevant documentation if applicable]
-- [Best practice reference]
-
-CRITICAL: Include ACTUAL code snippets, not placeholders. Be as specific as possible."""
+Keep it simple and helpful!"""
 
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",  # Changed from gpt-4o to reduce costs
             messages=[
                 {
                     "role": "system",
@@ -217,7 +207,7 @@ CRITICAL: Include ACTUAL code snippets, not placeholders. Be as specific as poss
                     "content": prompt
                 }
             ],
-            max_tokens=1500,  # Increased for detailed bug reports
+            max_tokens=800,  # Reduced from 1500
             temperature=0.2
         )
         
@@ -226,12 +216,8 @@ CRITICAL: Include ACTUAL code snippets, not placeholders. Be as specific as poss
             return issue  # Return original if no content
         enhanced_description = content.strip()
         
-        # If we have a screenshot, analyze it and add to description
-        screenshot_analysis = None
-        if screenshot_url:
-            screenshot_analysis = analyze_screenshot_with_ai(screenshot_url, test_type, issue)
-            if screenshot_analysis:
-                enhanced_description += f"\n\n**Screenshot analysis (evidence):**\n{screenshot_analysis}"
+        # SKIP screenshot analysis to save costs (most expensive operation)
+        # Screenshots are analyzed in the main report anyway
         
         # Return enhanced issue
         enhanced_issue = issue.copy()
@@ -251,10 +237,14 @@ def generate_ai_report(
     application_name: str,
     application_url: str,
     test_type: str,
-    screenshot_urls: Optional[List[str]] = None
+    screenshot_urls: Optional[List[str]] = None,
+    console_logs: Optional[List] = None,
+    network_failures: Optional[List] = None,
+    network_requests: Optional[List] = None
 ) -> Dict[str, str]:
     """
     Generate an AI-enhanced test report.
+    OPTIMIZED: Reduced tokens, limited screenshots, truncated data.
     
     Args:
         test_results: Dictionary with pass_rate, fail_rate, status, issues
@@ -262,6 +252,9 @@ def generate_ai_report(
         application_url: URL of the application
         test_type: Type of test performed
         screenshot_urls: List of screenshot URLs (optional)
+        console_logs: List of console logs (optional)
+        network_failures: List of network failures (optional)
+        network_requests: List of network requests (optional)
         
     Returns:
         Dictionary with 'summary' and 'detailed_report' keys
@@ -276,6 +269,10 @@ def generate_ai_report(
         pass_rate = test_results.get('pass_rate', 0)
         fail_rate = test_results.get('fail_rate', 100)
         status = test_results.get('status', 'failed')
+        
+        # Only include critical/major issues in prompt to reduce tokens
+        critical_issues = [i for i in issues if i.get('severity') in ['critical', 'major']]
+        issues_to_analyze = critical_issues[:10]  # Limit to top 10 critical/major issues
         
         # Build comprehensive prompt using structured QA/UX analysis format
         prompt = f"""You are a senior QA engineer, UX analyst, and web performance expert with 10+ years of experience.
@@ -303,48 +300,49 @@ Test Type: {test_type}
 Test Status: {status}
 Pass Rate: {pass_rate}%
 Fail Rate: {fail_rate}%
-Total Issues Found: {len(issues)}
+Total Issues Found: {len(issues)} (analyzing top {len(issues_to_analyze)} critical/major)
 
 ────────────────────────
 EVIDENCE PROVIDED
 ────────────────────────
 """
         
+        # Limit screenshots to 2 most important
         if screenshot_urls:
-            prompt += f"Screenshots Available: {len(screenshot_urls)} screenshot(s)\n"
-            for idx, screenshot_url in enumerate(screenshot_urls, 1):
-                prompt += f"  Screenshot {idx}: {screenshot_url}\n"
+            prompt += f"Screenshots Available: {len(screenshot_urls)} total (analyzing first 2)\n"
         
-        # Add console logs
-        console_logs = test_results.get('console_logs', [])
-        if console_logs:
-            console_errors = [log for log in console_logs if log.get('type') == 'error']
-            console_warnings = [log for log in console_logs if log.get('type') == 'warning']
+        # Truncate console logs to top 5
+        console_logs_data = console_logs or test_results.get('console_logs', [])
+        if console_logs_data:
+            console_errors = [log for log in console_logs_data if log.get('type') == 'error'][:5]
+            console_warnings = [log for log in console_logs_data if log.get('type') == 'warning'][:5]
             if console_errors or console_warnings:
                 prompt += f"\nConsole Messages:\n"
                 if console_errors:
                     prompt += f"  Errors ({len(console_errors)}):\n"
-                    for error in console_errors[:10]:  # First 10 errors
-                        prompt += f"    - {error.get('text', 'Unknown error')}\n"
+                    for error in console_errors:
+                        error_text = error.get('text', 'Unknown error')
+                        prompt += f"    - {error_text[:200]}\n"  # Truncate long messages
                 if console_warnings:
                     prompt += f"  Warnings ({len(console_warnings)}):\n"
-                    for warning in console_warnings[:10]:  # First 10 warnings
-                        prompt += f"    - {warning.get('text', 'Unknown warning')}\n"
+                    for warning in console_warnings:
+                        warning_text = warning.get('text', 'Unknown warning')
+                        prompt += f"    - {warning_text[:200]}\n"  # Truncate long messages
         
-        # Add network failures
-        network_failures = test_results.get('network_failures', [])
-        if network_failures:
-            prompt += f"\nNetwork Failures ({len(network_failures)}):\n"
-            for failure in network_failures[:10]:  # First 10 failures
-                prompt += f"  - {failure.get('url', 'Unknown URL')} (Status: {failure.get('status', 'Unknown')} {failure.get('status_text', '')})\n"
-                prompt += f"    Resource Type: {failure.get('resource_type', 'unknown')}\n"
+        # Truncate network failures to top 5
+        network_failures_data = network_failures or test_results.get('network_failures', [])
+        if network_failures_data:
+            prompt += f"\nNetwork Failures (showing top 5):\n"
+            for failure in network_failures_data[:5]:
+                url = failure.get('url', 'Unknown URL')
+                prompt += f"  - {url[:100]} (Status: {failure.get('status', 'Unknown')})\n"
         
-        if issues:
-            prompt += "\nAutomated Test Findings:\n"
-            for idx, issue in enumerate(issues, 1):
+        if issues_to_analyze:
+            prompt += "\nCritical/Major Issues:\n"
+            for idx, issue in enumerate(issues_to_analyze, 1):
+                issue_desc = issue.get('description', 'No description')
                 prompt += f"  {idx}. [{issue.get('severity', 'unknown').upper()}] {issue.get('title', 'Unknown')}\n"
-                prompt += f"     Description: {issue.get('description', 'No description')}\n"
-                prompt += f"     Location: {issue.get('location', 'Unknown')}\n\n"
+                prompt += f"     {issue_desc[:150]}\n\n"  # Truncate descriptions
         
         prompt += """
 ────────────────────────
@@ -653,7 +651,10 @@ CRITICAL: Be SPECIFIC. "Optimize images" is too vague. Instead: "Convert hero.jp
         # If screenshots are available, include them in the vision analysis
         messages_content = []
         
-        if screenshot_urls:
+        # Limit to 2 screenshots max (most expensive part)
+        screenshots_to_analyze = screenshot_urls[:2] if screenshot_urls else []
+        
+        if screenshots_to_analyze:
             # Use vision model for screenshot analysis
             vision_prompt = prompt + "\n\nIMPORTANT: Analyze the provided screenshots carefully. Describe what you see in the UI, identify visual issues, and correlate them with the automated test findings. Use the screenshots as primary evidence for your analysis."
             
@@ -662,8 +663,8 @@ CRITICAL: Be SPECIFIC. "Optimize images" is too vague. Instead: "Convert hero.jp
                 "text": vision_prompt
             })
             
-            # Add all screenshots
-            for screenshot_url in screenshot_urls[:5]:  # Limit to first 5 screenshots to avoid token limits
+            # Add limited screenshots
+            for screenshot_url in screenshots_to_analyze:
                 messages_content.append({
                     "type": "image_url",
                     "image_url": {
@@ -677,7 +678,7 @@ CRITICAL: Be SPECIFIC. "Optimize images" is too vague. Instead: "Convert hero.jp
             })
         
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o",  # Keep gpt-4o for main report (most important)
             messages=[
                 {
                     "role": "system",
@@ -688,8 +689,8 @@ CRITICAL: Be SPECIFIC. "Optimize images" is too vague. Instead: "Convert hero.jp
                     "content": messages_content
                 }
             ],
-            max_tokens=10000,  # Increased for comprehensive reports with code examples
-            temperature=0.2  # More focused, less fluffy
+            max_tokens=4000,  # Reduced from 10000 for cost optimization
+            temperature=0.2
         )
         
         ai_response = response.choices[0].message.content
