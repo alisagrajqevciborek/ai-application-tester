@@ -27,13 +27,7 @@ export function TestProgressIndicator({ data, className }: TestProgressIndicator
         return `${mins}m ${secs}s`
     }
 
-    const formatThinkingTime = (seconds: number): string => {
-        const safeSeconds = Math.max(1, Math.floor(seconds))
-        if (safeSeconds < 60) {
-            return `${safeSeconds} seconds`
-        }
-        return formatTime(safeSeconds)
-    }
+
 
     const getTextProgressBar = (progress: number) => {
         const segments = 10
@@ -49,9 +43,8 @@ export function TestProgressIndicator({ data, className }: TestProgressIndicator
 
     const progressSegments = getProgressBarSegments(data.progress)
     const textProgressBar = getTextProgressBar(data.progress)
-    const consoleSummary = `${data.warnings} ${
-        data.warnings === 1 ? "warning" : "warnings"
-    }, ${data.errors} ${data.errors === 1 ? "error" : "errors"}`
+    const consoleSummary = `${data.warnings} ${data.warnings === 1 ? "warning" : "warnings"
+        }, ${data.errors} ${data.errors === 1 ? "error" : "errors"}`
 
     if (data.status === "running") {
         return (
@@ -63,20 +56,6 @@ export function TestProgressIndicator({ data, className }: TestProgressIndicator
                     className
                 )}
             >
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
-                            <div className="w-4 h-4 rounded-full border-2 border-primary/40 border-t-primary animate-spin" />
-                        </div>
-                        <div>
-                            <p className="text-sm text-muted-foreground">Tap to view live details</p>
-                            <p className="text-lg font-semibold text-foreground">
-                                Thinking for {formatThinkingTime(data.elapsedTime)}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
                 <motion.ul
                     key={data.currentStep}
                     initial="hidden"
@@ -96,9 +75,6 @@ export function TestProgressIndicator({ data, className }: TestProgressIndicator
                         `${Math.round(data.progress)}% Test Progress: ${textProgressBar}`,
                         `Current: ${data.currentStep}`,
                         `Console: ${consoleSummary}`,
-                        `Time: ${formatTime(data.elapsedTime)}${
-                            data.estimatedTime ? ` / ~${formatTime(data.estimatedTime)}` : ""
-                        }`,
                     ].map((line) => (
                         <motion.li
                             key={line}

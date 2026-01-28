@@ -51,6 +51,25 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
   const [completedTestHistory, setCompletedTestHistory] = useState<TestHistory | null>(null)
   const [hasAutoStarted, setHasAutoStarted] = useState(false)
   const isPausedRef = useRef(false)
+  const [loadingText, setLoadingText] = useState("Testing")
+  const [loadingDots, setLoadingDots] = useState("")
+
+  useEffect(() => {
+    if (testState !== "running") {
+      setLoadingDots("")
+      return
+    }
+
+    setLoadingText("Testing")
+
+    const dotsInterval = setInterval(() => {
+      setLoadingDots((prev) => (prev.length >= 3 ? "" : prev + "."))
+    }, 500)
+
+    return () => {
+      clearInterval(dotsInterval)
+    }
+  }, [testState])
 
   const togglePause = () => {
     if (testState === "running") {
@@ -453,14 +472,23 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                   )}
                 </motion.div>
 
-                <h2 className="text-xl font-semibold text-foreground mb-2">
-                  {testState === "running" ? "Running Tests..." : testState === "paused" ? "Test Paused" : "Test Completed!"}
-                </h2>
-                <p className="text-muted-foreground">
+                <p className="text-muted-foreground mb-1">
                   {testState === "running" || testState === "paused"
                     ? `Testing ${selectedApp?.name || appName || "application"}`
                     : "Generating report..."}
                 </p>
+                <h2 className="text-xl font-semibold text-foreground flex items-center justify-center min-h-[2rem]">
+                  {testState === "running" ? (
+                    <span>
+                      {loadingText}
+                      <span className="inline-block w-[24px] text-left">{loadingDots}</span>
+                    </span>
+                  ) : testState === "paused" ? (
+                    "Test Paused"
+                  ) : (
+                    "Test Completed!"
+                  )}
+                </h2>
               </div>
 
               {/* Detailed Progress Indicator */}
