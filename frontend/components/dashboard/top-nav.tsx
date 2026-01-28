@@ -41,8 +41,19 @@ export default function TopNav({ onNavigateToProfile }: TopNavProps) {
 
   return (
     <header className="h-16 border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-      <div className="flex items-center justify-between h-full px-4 lg:px-6">
-        <span className="font-bold text-lg text-foreground">TestFlow</span>
+      <div className="flex items-center justify-between h-full pr-4 lg:pr-6">
+        <div className="flex items-center gap-4 group cursor-pointer transition-all hover:opacity-90 h-full">
+          <div className="h-full aspect-square relative overflow-hidden">
+            <img
+              src="/logo/testflow-logo.png"
+              alt="TestFlow Logo"
+              className="w-full h-full object-cover scale-110"
+            />
+          </div>
+          <span className="font-bold text-xl tracking-tight text-foreground">
+            TestFlow
+          </span>
+        </div>
 
         {/* User Profile */}
         <DropdownMenu>
