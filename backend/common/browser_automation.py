@@ -606,7 +606,7 @@ class BrowserAutomationService:
         
         # Pass rate is based on tests passed vs total points (including penalties)
         if total_points > 0:
-            pass_rate = int((tests_passed / total_points * 100))
+            pass_rate = round(tests_passed / total_points * 100)
         else:
             pass_rate = 100
         
@@ -753,7 +753,7 @@ class BrowserAutomationService:
         
         total_tests = tests_passed + tests_failed
         total_points = total_tests + issue_penalty
-        pass_rate = int((tests_passed / total_points * 100)) if total_points > 0 else 100
+        pass_rate = round(tests_passed / total_points * 100) if total_points > 0 else 100
         fail_rate = 100 - pass_rate
         
         return {
@@ -1034,7 +1034,7 @@ class BrowserAutomationService:
         
         total_tests = tests_passed + tests_failed
         total_points = total_tests + issue_penalty
-        pass_rate = int((tests_passed / total_points * 100)) if total_points > 0 else 100
+        pass_rate = round(tests_passed / total_points * 100) if total_points > 0 else 100
         fail_rate = 100 - pass_rate
         
         return {
@@ -1257,7 +1257,7 @@ class BrowserAutomationService:
         
         total_tests = tests_passed + tests_failed
         total_points = total_tests + issue_penalty
-        pass_rate = int((tests_passed / total_points * 100)) if total_points > 0 else 100
+        pass_rate = round(tests_passed / total_points * 100) if total_points > 0 else 100
         fail_rate = 100 - pass_rate
         
         return {
@@ -1297,12 +1297,12 @@ class BrowserAutomationService:
         all_screenshots = [x for x in all_screenshots if not (x in seen or seen.add(x))]
         
         # Calculate average pass rate
-        avg_pass_rate = (
-            functional_results['pass_rate'] +
+        avg_pass_rate = round(
+            (functional_results['pass_rate'] +
             regression_results['pass_rate'] +
             performance_results['pass_rate'] +
-            accessibility_results['pass_rate']
-        ) // 4
+            accessibility_results['pass_rate']) / 4
+        )
         
         avg_fail_rate = 100 - avg_pass_rate
         

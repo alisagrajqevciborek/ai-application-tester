@@ -211,8 +211,8 @@ def testrun_stats(request):
     
     completed_tests = test_runs.filter(status__in=['success', 'failed'])
     if completed_tests.exists():
-        avg_pass_rate = int(completed_tests.aggregate(avg=Avg('pass_rate'))['avg'] or 0)
-        avg_fail_rate = int(completed_tests.aggregate(avg=Avg('fail_rate'))['avg'] or 0)
+        avg_pass_rate = round(completed_tests.aggregate(avg=Avg('pass_rate'))['avg'] or 0)
+        avg_fail_rate = round(completed_tests.aggregate(avg=Avg('fail_rate'))['avg'] or 0)
     else:
         avg_pass_rate = 0
         avg_fail_rate = 0
