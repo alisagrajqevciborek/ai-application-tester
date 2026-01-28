@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import type { TestHistory } from "@/lib/types"
+import type { Application } from "@/lib/api"
 import StatusBadge from "@/components/common/status-badge"
 import {
   AlertDialog,
@@ -23,11 +24,13 @@ interface SidebarProps {
   collapsed: boolean
   onToggle: () => void
   history: TestHistory[]
+  applications: Application[]
   selectedId: string | null
   selectedTestId: string | null
   onSelectApp: (appName: string) => void
   onSelectTest: (test: TestHistory) => void
   onDeleteTest?: (testId: string) => void
+  onDeleteApp?: (applicationId: number, appName: string) => void
   onBackToApps?: () => void
 }
 
@@ -46,13 +49,16 @@ const typeOptions = [
   { value: "accessibility", label: "Accessibility" },
 ]
 
-export default function Sidebar({ collapsed, onToggle, history, selectedId, selectedTestId, onSelectApp, onSelectTest, onDeleteTest, onBackToApps }: SidebarProps) {
+export default function Sidebar({ collapsed, onToggle, history, applications, selectedId, selectedTestId, onSelectApp, onSelectTest, onDeleteTest, onDeleteApp, onBackToApps }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [typeFilter, setTypeFilter] = useState("all")
   const [showFilters, setShowFilters] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [testToDelete, setTestToDelete] = useState<string | null>(null)
+
+  const [deleteAppDialogOpen, setDeleteAppDialogOpen] = useState(false)
+  const [appToDelete, setAppToDelete] = useState<{ id: number; name: string } | null>(null)
 
   const hasActiveFilters = statusFilter !== "all" || typeFilter !== "all" || searchQuery !== ""
 
@@ -108,6 +114,25 @@ export default function Sidebar({ collapsed, onToggle, history, selectedId, sele
     }
     setDeleteDialogOpen(false)
     setTestToDelete(null)
+  }
+
+  const handleDeleteAppClick = (e: React.MouseEvent, appName: string) => {
+    e.stopPropagation()
+    if (!onDeleteApp) return
+
+    const app = applications.find((a) => a.name === appName)
+    if (!app) return
+
+    setAppToDelete({ id: app.id, name: appName })
+    setDeleteAppDialogOpen(true)
+  }
+
+  const handleDeleteAppConfirm = () => {
+    if (appToDelete && onDeleteApp) {
+      onDeleteApp(appToDelete.id, appToDelete.name)
+    }
+    setDeleteAppDialogOpen(false)
+    setAppToDelete(null)
   }
 
   return (
@@ -306,6 +331,7 @@ export default function Sidebar({ collapsed, onToggle, history, selectedId, sele
             filteredApps.map((appName) => {
               const versions = appsWithVersions[appName]
               const versionCount = versions.length
+              const canDeleteApp = Boolean(onDeleteApp && applications.some((a) => a.name === appName))
               return (
                 <div
                   key={appName}
@@ -336,6 +362,17 @@ export default function Sidebar({ collapsed, onToggle, history, selectedId, sele
                           {versionCount} version{versionCount !== 1 ? 's' : ''}
                         </div>
                       </div>
+                      {canDeleteApp && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => handleDeleteAppClick(e, appName)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          title="Delete app and all versions"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </motion.div>
                   )}
                 </div>
@@ -361,6 +398,27 @@ export default function Sidebar({ collapsed, onToggle, history, selectedId, sele
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete App Confirmation Dialog */}
+      <AlertDialog open={deleteAppDialogOpen} onOpenChange={setDeleteAppDialogOpen}>
+        <AlertDialogContent className="bg-popover border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete App</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete “{appToDelete?.name}”? This will permanently remove the app and all its versions (test runs), reports, and screenshots. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAppConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete App
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

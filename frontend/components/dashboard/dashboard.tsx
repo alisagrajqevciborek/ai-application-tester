@@ -207,6 +207,29 @@ export default function Dashboard() {
     }
   }
 
+  const handleDeleteApp = async (applicationId: number, appName: string) => {
+    try {
+      await applicationsApi.delete(applicationId)
+
+      // Clear selections if they reference the deleted app
+      if (selectedApp === appName) {
+        setSelectedApp(null)
+        setSelectedTest(null)
+      }
+
+      // Remove all local history entries for this app
+      setHistory((prev) => prev.filter((t) => t.appName !== appName))
+
+      // Reload to ensure sync across API + stats
+      loadApplications()
+      loadTestRuns()
+      loadStats()
+    } catch (err) {
+      console.error("Failed to delete application:", err)
+      setError(err instanceof Error ? err.message : "Failed to delete application")
+    }
+  }
+
   const handleSelectTest = (test: TestHistory) => {
     setSelectedTest(test)
     // If we're not already viewing this app, switch to it
@@ -251,6 +274,7 @@ export default function Dashboard() {
             collapsed={sidebarCollapsed}
             onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
             history={history}
+            applications={applications}
             selectedId={selectedApp}
             selectedTestId={selectedTest?.id || null}
             onSelectApp={(appName) => {
@@ -259,6 +283,7 @@ export default function Dashboard() {
             }}
             onSelectTest={handleSelectTest}
             onDeleteTest={handleDeleteTest}
+            onDeleteApp={handleDeleteApp}
             onBackToApps={() => {
               setSelectedApp(null)
               setSelectedTest(null)
