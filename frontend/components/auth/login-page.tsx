@@ -52,19 +52,12 @@ export default function LoginPage({ onLogin, onShowRegister }: LoginPageProps) {
           {/* Logo and Title */}
           <div className="text-center mb-8">
             <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-              className="inline-flex items-center gap-3 mb-4"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="mb-2"
             >
-              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-primary/20 border border-primary/20 overflow-hidden shadow-inner">
-                <img
-                  src="/logo/testflow-logo.png"
-                  alt="TestFlow Logo"
-                  className="w-8 h-8 object-contain brightness-110"
-                />
-              </div>
-              <span className="font-bold text-2xl text-foreground">TestFlow</span>
+              <span className="font-bold text-4xl tracking-tight text-foreground">TestFlow</span>
             </motion.div>
             <p className="text-muted-foreground mt-2">AI-Powered Application Testing</p>
           </div>

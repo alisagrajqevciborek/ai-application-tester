@@ -3,6 +3,8 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from typing import cast
+from datetime import timedelta
+from django.utils import timezone
 from django.db.models import Avg
 from .models import Application, TestRun
 from .serializers import (
@@ -203,6 +205,12 @@ def testrun_stats(request):
     
     test_runs = TestRun.objects.filter(application__owner=request.user)  # type: ignore[attr-defined]
     
+    # Auto-cleanup stalled tests (e.g., stuck in 'running' for > 1 hour)
+    timeout = timezone.now() - timedelta(hours=1)
+    stalled_tests = test_runs.filter(status__in=['running', 'pending'], started_at__lt=timeout)
+    if stalled_tests.exists():
+        stalled_tests.update(status='failed', pass_rate=0, fail_rate=100, completed_at=timezone.now())
+    
     total = test_runs.count()
     success = test_runs.filter(status='success').count()
     failed = test_runs.filter(status='failed').count()
@@ -212,7 +220,7 @@ def testrun_stats(request):
     completed_tests = test_runs.filter(status__in=['success', 'failed'])
     if completed_tests.exists():
         avg_pass_rate = round(completed_tests.aggregate(avg=Avg('pass_rate'))['avg'] or 0)
-        avg_fail_rate = round(completed_tests.aggregate(avg=Avg('fail_rate'))['avg'] or 0)
+        avg_fail_rate = 100 - avg_pass_rate
     else:
         avg_pass_rate = 0
         avg_fail_rate = 0
