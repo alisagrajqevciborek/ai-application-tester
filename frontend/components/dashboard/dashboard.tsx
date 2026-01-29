@@ -239,7 +239,7 @@ export default function Dashboard() {
   }
 
   const [initialTestAppName, setInitialTestAppName] = useState<string | undefined>(undefined)
-  const [initialTestType, setInitialTestType] = useState<"functional" | "regression" | "performance" | "accessibility" | undefined>(undefined)
+  const [initialTestType, setInitialTestType] = useState<"functional" | "regression" | "performance" | "accessibility" | "broken_links" | "authentication" | undefined>(undefined)
   const [autoStartTest, setAutoStartTest] = useState(false)
 
   const handleRunTestFromCard = (appName: string, testType: string) => {
@@ -261,7 +261,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
       <TopNav onNavigateToProfile={() => setCurrentView("profile")} />
 
       {currentView === "profile" ? (
@@ -269,7 +269,7 @@ export default function Dashboard() {
           <ProfilePage onBack={() => setCurrentView("dashboard")} />
         </main>
       ) : (
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 overflow-hidden min-h-0">
           <Sidebar
             collapsed={sidebarCollapsed}
             onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}

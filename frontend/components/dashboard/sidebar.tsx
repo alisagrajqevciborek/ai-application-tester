@@ -79,8 +79,8 @@ export default function Sidebar({ collapsed, onToggle, history, applications, se
 
   // When filters are active, show versioned entries; otherwise show apps
   const filteredHistory = history.filter((item) => {
-    const matchesSearch = item.versionName.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         item.appName.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesSearch = item.versionName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.appName.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesStatus = statusFilter === "all" || item.status === statusFilter
     const matchesType = typeFilter === "all" || item.testType === typeFilter
     return matchesSearch && matchesStatus && matchesType
@@ -89,7 +89,7 @@ export default function Sidebar({ collapsed, onToggle, history, applications, se
   // Filter apps based on search (when no other filters)
   const filteredApps = useMemo(() => {
     if (!hasActiveFilters) {
-      return appNames.filter((appName) => 
+      return appNames.filter((appName) =>
         appName.toLowerCase().includes(searchQuery.toLowerCase())
       )
     }
@@ -140,7 +140,7 @@ export default function Sidebar({ collapsed, onToggle, history, applications, se
       initial={false}
       animate={{ width: collapsed ? 64 : 300 }}
       transition={{ duration: 0.3, ease: "easeInOut" }}
-      className="h-[calc(100vh-64px)] bg-sidebar border-r border-sidebar-border flex flex-col"
+      className="h-full bg-sidebar border-r border-sidebar-border flex flex-col"
     >
       {/* Toggle Button */}
       <div className="p-3 border-b border-sidebar-border">
@@ -252,7 +252,7 @@ export default function Sidebar({ collapsed, onToggle, history, applications, se
       {/* Results count */}
       {!collapsed && (
         <div className="px-4 py-2 text-xs text-muted-foreground">
-          {hasActiveFilters 
+          {hasActiveFilters
             ? `${filteredHistory.length} test${filteredHistory.length !== 1 ? "s" : ""} found`
             : `${filteredApps.length} app${filteredApps.length !== 1 ? "s" : ""} found`
           }

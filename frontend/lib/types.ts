@@ -4,7 +4,7 @@ export interface TestHistory {
   versionName: string
   version: number
   status: "success" | "failed" | "running"
-  testType: "functional" | "regression" | "performance" | "accessibility"
+  testType: "functional" | "regression" | "performance" | "accessibility" | "broken_links" | "authentication"
   date: string
   passRate: number
   failRate: number

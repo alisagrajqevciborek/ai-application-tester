@@ -17,6 +17,9 @@ export interface Application {
   url: string
   owner: number
   owner_email: string
+  test_username?: string
+  test_password?: string
+  login_url?: string
   created_at: string
   updated_at: string
 }
@@ -26,10 +29,12 @@ export interface TestRun {
   application: number
   application_name: string
   application_url: string
-  test_type: 'functional' | 'regression' | 'performance' | 'accessibility'
+  test_type: 'functional' | 'regression' | 'performance' | 'accessibility' | 'broken_links' | 'authentication'
   status: 'pending' | 'running' | 'success' | 'failed'
   pass_rate: number
   fail_rate: number
+  check_broken_links: boolean
+  check_auth: boolean
   started_at: string
   completed_at: string | null
   version: number
@@ -349,7 +354,7 @@ export const applicationsApi = {
     return apiRequest<Application>(`/applications/${id}`)
   },
 
-  async create(name: string, url: string): Promise<Application> {
+  async create(name: string, url: string, authData?: { test_username?: string; test_password?: string; login_url?: string }): Promise<Application> {
     // Validate inputs
     if (!name || !name.trim()) {
       throw new Error('Application name is required')
@@ -366,7 +371,11 @@ export const applicationsApi = {
 
     return apiRequest<Application>('/applications/', {
       method: 'POST',
-      body: JSON.stringify({ name: name.trim(), url: normalizedUrl }),
+      body: JSON.stringify({
+        name: name.trim(),
+        url: normalizedUrl,
+        ...authData
+      }),
     })
   },
 
@@ -406,12 +415,13 @@ export const testRunsApi = {
     return apiRequest<TestRun>(`/applications/test-runs/${id}`)
   },
 
-  async create(applicationId: number, testType: string): Promise<TestRun> {
+  async create(applicationId: number, testType: string, options?: { check_broken_links?: boolean; check_auth?: boolean }): Promise<TestRun> {
     return apiRequest<TestRun>('/applications/test-runs/', {
       method: 'POST',
       body: JSON.stringify({
         application: applicationId,
-        test_type: testType
+        test_type: testType,
+        ...options
       }),
     })
   },

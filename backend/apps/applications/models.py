@@ -13,6 +13,11 @@ class Application(models.Model):
         related_name='applications',
         help_text="User who owns this application"
     )
+    
+    # Testing credentials and URLs
+    test_username = models.CharField(max_length=255, null=True, blank=True, help_text="Username for automated testing")
+    test_password = models.CharField(max_length=255, null=True, blank=True, help_text="Password for automated testing")
+    login_url = models.URLField(max_length=500, null=True, blank=True, help_text="Login URL for auth testing")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -41,6 +46,8 @@ class TestRun(models.Model):
         ('regression', 'Regression'),
         ('performance', 'Performance'),
         ('accessibility', 'Accessibility'),
+        ('broken_links', 'Broken Links'),
+        ('authentication', 'Authentication Flow'),
     ]
     
     application = models.ForeignKey(
@@ -55,6 +62,10 @@ class TestRun(models.Model):
     fail_rate = models.IntegerField(default=0, help_text="Percentage of tests that failed")  # type: ignore[arg-type]
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Enhanced testing options
+    check_broken_links = models.BooleanField(default=False, help_text="Whether to check for broken links")
+    check_auth = models.BooleanField(default=False, help_text="Whether to test login functionality")
     
     class Meta:
         db_table = 'test_runs'
