@@ -9,7 +9,11 @@ class ApplicationSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Application
-        fields = ('id', 'name', 'url', 'owner', 'owner_email', 'created_at', 'updated_at')
+        fields = (
+            'id', 'name', 'url', 'owner', 'owner_email', 
+            'test_username', 'test_password', 'login_url',
+            'created_at', 'updated_at'
+        )
         read_only_fields = ('id', 'owner', 'created_at', 'updated_at')
     
     def create(self, validated_data):
@@ -23,7 +27,7 @@ class ApplicationCreateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Application
-        fields = ('name', 'url')
+        fields = ('name', 'url', 'test_username', 'test_password', 'login_url')
     
     def validate_url(self, value):
         """Validate that the URL is properly formatted."""
@@ -45,6 +49,7 @@ class TestRunSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'application', 'application_name', 'application_url',
             'test_type', 'status', 'pass_rate', 'fail_rate',
+            'check_broken_links', 'check_auth',
             'started_at', 'completed_at', 'version', 'version_name'
         )
         read_only_fields = ('id', 'status', 'pass_rate', 'fail_rate', 'started_at', 'completed_at', 'version', 'version_name')
@@ -69,7 +74,7 @@ class TestRunCreateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = TestRun
-        fields = ('application', 'test_type')
+        fields = ('application', 'test_type', 'check_broken_links', 'check_auth')
     
     def validate_application(self, value):
         """Ensure user owns the application."""

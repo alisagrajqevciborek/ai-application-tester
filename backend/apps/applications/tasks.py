@@ -44,7 +44,18 @@ def execute_test_run_task(self, test_run_id):
         asyncio.set_event_loop(loop)
         try:
             results = loop.run_until_complete(
-                service.run_test(url, test_type, screenshots_dir=None)
+                service.run_test(
+                    url, 
+                    test_type, 
+                    screenshots_dir=None,
+                    check_broken_links=test_run.check_broken_links or (test_type == 'broken_links'),
+                    check_auth=test_run.check_auth or (test_type == 'authentication'),
+                    auth_credentials={
+                        'username': test_run.application.test_username,
+                        'password': test_run.application.test_password,
+                        'login_url': test_run.application.login_url,
+                    } if (test_run.check_auth or test_type == 'authentication') else None
+                )
             )
         finally:
             loop.close()

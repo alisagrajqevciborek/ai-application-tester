@@ -7,11 +7,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import type { TestHistory } from "@/lib/types"
 import { Progress } from "@/components/ui/progress"
 import { applicationsApi, testRunsApi, type Application, type TestRun } from "@/lib/api"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
+import { AlertCircle, Link as LinkIcon, Lock } from "lucide-react"
 import { TestProgressIndicator, type TestProgressData } from "./test-progress-indicator"
 
 interface NewTestFormProps {
@@ -23,7 +24,7 @@ interface NewTestFormProps {
 }
 
 type TestState = "idle" | "creating" | "running" | "paused" | "completed"
-type TestType = "functional" | "regression" | "performance" | "accessibility"
+type TestType = "functional" | "regression" | "performance" | "accessibility" | "broken_links" | "authentication"
 
 export default function NewTestForm({ onTestComplete, applications, initialAppName, initialTestType, autoStart }: NewTestFormProps) {
   // Find initial app if appName is provided
@@ -32,11 +33,18 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
   const [selectedAppId, setSelectedAppId] = useState<string>(initialApp?.id.toString() || "")
   const [appName, setAppName] = useState("")
   const [appUrl, setAppUrl] = useState("")
+  // Authentication fields
+  const [testUsername, setTestUsername] = useState("")
+  const [testPassword, setTestPassword] = useState("")
+  const [loginUrl, setLoginUrl] = useState("")
+
   const [testType, setTestType] = useState<TestType | "">(initialTestType || "")
+
   const [testState, setTestState] = useState<TestState>("idle")
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [showNewAppForm, setShowNewAppForm] = useState(false)
+  const [showAuthFields, setShowAuthFields] = useState(false)
   const [testProgressData, setTestProgressData] = useState<TestProgressData>({
     progress: 0,
     currentStep: "Initializing...",
@@ -99,10 +107,17 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
     setTestState("creating")
 
     try {
-      const newApp = await applicationsApi.create(appName, normalizedUrl)
+      const newApp = await applicationsApi.create(appName, normalizedUrl, {
+        test_username: testUsername,
+        test_password: testPassword,
+        login_url: loginUrl
+      })
       setSelectedAppId(newApp.id.toString())
       setAppName("")
       setAppUrl("")
+      setTestUsername("")
+      setTestPassword("")
+      setLoginUrl("")
       setShowNewAppForm(false)
       setTestState("idle")
       return newApp
@@ -417,6 +432,63 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                       className="bg-input border-border/50 focus:border-primary h-12 rounded-xl"
                     />
                   </div>
+
+                  <div className="pt-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowAuthFields(!showAuthFields)}
+                      className="text-xs text-primary hover:bg-primary/10 rounded-lg h-8 px-2"
+                    >
+                      {showAuthFields ? "- Hide" : "+ Add"} Authentication Credentials (Optional)
+                    </Button>
+                  </div>
+
+                  <AnimatePresence>
+                    {showAuthFields && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="space-y-4 pt-2 overflow-hidden"
+                      >
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="testUsername" className="text-xs text-foreground/60">Test Username</Label>
+                            <Input
+                              id="testUsername"
+                              placeholder="test_user"
+                              value={testUsername}
+                              onChange={(e) => setTestUsername(e.target.value)}
+                              className="bg-input border-border/30 focus:border-primary h-10 rounded-lg text-sm"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="testPassword" className="text-xs text-foreground/60">Test Password</Label>
+                            <Input
+                              id="testPassword"
+                              type="password"
+                              placeholder="••••••••"
+                              value={testPassword}
+                              onChange={(e) => setTestPassword(e.target.value)}
+                              className="bg-input border-border/30 focus:border-primary h-10 rounded-lg text-sm"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="loginUrl" className="text-xs text-foreground/60">Login Page URL</Label>
+                          <Input
+                            id="loginUrl"
+                            placeholder="https://myapp.com/login"
+                            value={loginUrl}
+                            onChange={(e) => setLoginUrl(e.target.value)}
+                            className="bg-input border-border/30 focus:border-primary h-10 rounded-lg text-sm"
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </motion.div>
               )}
 
@@ -434,17 +506,26 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                     <SelectItem value="regression">Regression Testing</SelectItem>
                     <SelectItem value="performance">Performance Testing</SelectItem>
                     <SelectItem value="accessibility">Accessibility Testing</SelectItem>
+                    <SelectItem value="broken_links">Broken Link Check</SelectItem>
+                    <SelectItem value="authentication">Authentication Flow</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <Button
                 onClick={handleStartTest}
-                disabled={(!selectedApp && !appName && !appUrl) || !testType || testState !== "idle"}
+                disabled={
+                  (!selectedApp && !appName && !appUrl) ||
+                  !testType ||
+                  testState !== "idle" ||
+                  (testType === 'authentication' && (selectedApp ? (!selectedApp.login_url || !selectedApp.test_username) : (!loginUrl || !testUsername)))
+                }
                 className="w-full h-14 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-semibold text-lg transition-all duration-200 mt-4"
               >
                 <Play className="w-5 h-5 mr-2" />
-                Start Test
+                {testType === 'authentication' && (selectedApp ? (!selectedApp.login_url || !selectedApp.test_username) : (!loginUrl || !testUsername))
+                  ? "Set Credentials First"
+                  : "Start Test"}
               </Button>
             </motion.div>
           )}
@@ -540,7 +621,7 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
             </motion.div>
           )}
         </AnimatePresence>
-      </motion.div>
-    </div>
+      </motion.div >
+    </div >
   )
 }

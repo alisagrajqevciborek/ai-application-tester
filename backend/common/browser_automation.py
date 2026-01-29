@@ -28,7 +28,10 @@ class BrowserAutomationService:
         self,
         url: str,
         test_type: str,
-        screenshots_dir: Optional[str] = None
+        screenshots_dir: Optional[str] = None,
+        check_broken_links: bool = False,
+        check_auth: bool = False,
+        auth_credentials: Optional[Dict] = None
     ) -> Dict:
         """
         Run automated tests on a given URL.
@@ -215,7 +218,7 @@ class BrowserAutomationService:
                     logger.warning("Page appears to have no visible content, waiting longer...")
                     await page.wait_for_timeout(5000)  # Wait 5 more seconds for JS frameworks
                 
-                # Run tests based on type
+                # Run initial tests based on type
                 if test_type == 'functional':
                     results = await self._run_functional_tests(page, url, screenshots_dir, console_logs, network_failures, main_document_headers or {})
                 elif test_type == 'regression':
@@ -227,6 +230,28 @@ class BrowserAutomationService:
                 else:
                     # Default: run all tests
                     results = await self._run_all_tests(page, url, screenshots_dir, console_logs, network_failures, network_requests, main_document_headers or {})
+                
+                # Add enhanced testing checks
+                issues = results.get('issues', [])
+                
+                if check_broken_links:
+                    await self._check_broken_links(page, url, issues)
+                
+                if check_auth and auth_credentials:
+                    await self._test_authentication(page, url, issues, auth_credentials)
+                
+                # Recalculate pass/fail rates if new issues were added
+                if check_broken_links or check_auth:
+                    total_major_issues = len([i for i in issues if i.get('severity') in ['critical', 'major']])
+                    if total_major_issues > 0:
+                        # Slightly penalize pass rate for each major/critical issue added
+                        # This is a simple heuristic since we don't know total "tests" for these new checks
+                        new_pass_rate = max(0, results.get('pass_rate', 100) - (total_major_issues * 5))
+                        results['pass_rate'] = new_pass_rate
+                        results['fail_rate'] = 100 - new_pass_rate
+                        results['status'] = 'failed' if new_pass_rate < 70 else 'success'
+                
+                results['issues'] = issues
                 
                 # Add collected data to results
                 results['console_logs'] = console_logs
@@ -1667,6 +1692,146 @@ class BrowserAutomationService:
         except Exception as e:
             logger.error(f"Error capturing annotated issue screenshot: {e}")
             return None
+
+    async def _check_broken_links(self, page: Page, url: str, issues: List[Dict]) -> None:
+        """Scan page for broken internal links."""
+        logger.info(f"Checking for broken links on {url}")
+        
+        # Get all links on the page
+        links = await page.evaluate('''() => {
+            const anchors = Array.from(document.querySelectorAll('a[href]'));
+            return anchors.map(a => ({
+                href: a.href,
+                text: (a.innerText || a.textContent || '').trim().substring(0, 50)
+            })).filter(link => 
+                link.href.startsWith('http') && 
+                !link.href.includes('mailto:') && 
+                !link.href.includes('tel:')
+            );
+        }''')
+        
+        # Extract base domain to identify internal links
+        from urllib.parse import urlparse
+        base_domain = urlparse(url).netloc
+        
+        # Limit checking to first 20 internal links to avoid getting blocked/timeout
+        internal_links = [l for l in links if urlparse(l['href']).netloc == base_domain][:20]
+        
+        for link in internal_links:
+            try:
+                # Use a separate context/request to check the link status without full navigation
+                async with page.context.request.get(link['href'], timeout=5000) as response:
+                    if response.status >= 400:
+                        issues.append({
+                            'severity': 'major',
+                            'title': 'Broken Link Found',
+                            'description': f"Link to '{link['href']}' with text '{link['text']}' returned status {response.status}.",
+                            'location': url,
+                            'type': 'broken_link'
+                        })
+            except Exception as e:
+                logger.debug(f"Failed to check link {link['href']}: {e}")
+
+    async def _test_authentication(self, page: Page, url: str, issues: List[Dict], credentials: Dict) -> None:
+        """Test login or signup functionality."""
+        login_url = credentials.get('login_url')
+        username = credentials.get('username')
+        password = credentials.get('password')
+        
+        if not login_url or not username or not password:
+            return
+
+        logger.info(f"Testing authentication at {login_url}")
+        
+        try:
+            # Navigate to login page
+            await page.goto(login_url, wait_until='networkidle', timeout=30000)
+            
+            # Try to identify login fields
+            # Common selectors for email/username/password
+            user_selectors = ['input[type="email"]', 'input[name="email"]', 'input[name="username"]', 'input[id="username"]', 'input[id="email"]']
+            pass_selectors = ['input[type="password"]', 'input[name="password"]', 'input[id="password"]']
+            submit_selectors = ['button[type="submit"]', 'input[type="submit"]', 'button:has-text("Login")', 'button:has-text("Sign in")']
+            
+            user_field = None
+            for s in user_selectors:
+                try:
+                    if await page.is_visible(s):
+                        user_field = s
+                        break
+                except: continue
+                
+            pass_field = None
+            for s in pass_selectors:
+                try:
+                    if await page.is_visible(s):
+                        pass_field = s
+                        break
+                except: continue
+                
+            if user_field and pass_field:
+                await page.fill(user_field, username)
+                await page.fill(pass_field, password)
+                
+                # Look for submit button
+                submit_btn = None
+                for s in submit_selectors:
+                    try:
+                        if await page.is_visible(s):
+                            submit_btn = s
+                            break
+                    except: continue
+                
+                if submit_btn:
+                    await page.click(submit_btn)
+                    # Wait for navigation or change
+                    await page.wait_for_timeout(3000)
+                    
+                    # Check for errors or success
+                    error_indicators = [':has-text("Invalid")', ':has-text("failed")', '.error', '.alert-danger']
+                    found_error = False
+                    for s in error_indicators:
+                        try:
+                            if await page.is_visible(s):
+                                found_error = True
+                                break
+                        except: continue
+                    
+                    if found_error:
+                        issues.append({
+                            'severity': 'major',
+                            'title': 'Authentication Failure',
+                            'description': "Login attempt failed. Error message detected on the page.",
+                            'location': login_url,
+                            'type': 'auth_failure'
+                        })
+                    else:
+                        logger.info("Authentication test completed without visible errors")
+                else:
+                    issues.append({
+                        'severity': 'minor',
+                        'title': 'Authentication Test Incomplete',
+                        'description': "Could not find a login submit button on the page.",
+                        'location': login_url,
+                        'type': 'auth_warning'
+                    })
+            else:
+                issues.append({
+                    'severity': 'minor',
+                    'title': 'Authentication Test Incomplete',
+                    'description': "Could not identify username or password fields on the login page.",
+                    'location': login_url,
+                    'type': 'auth_warning'
+                })
+        except Exception as e:
+            logger.error(f"Error during authentication test: {e}")
+            issues.append({
+                'severity': 'minor',
+                'title': 'Authentication Test Error',
+                'description': f"An error occurred during authentication testing: {str(e)[:100]}",
+                'location': login_url,
+                'type': 'auth_error'
+            })
 
 def run_test_sync(url: str, test_type: str, screenshots_dir: Optional[str] = None) -> Dict:
     """
