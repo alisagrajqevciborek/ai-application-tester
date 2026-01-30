@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Application, TestRun, Screenshot
+from .models import Application, TestRun, Screenshot, TestArtifact
 
 
 class ApplicationSerializer(serializers.ModelSerializer):
@@ -81,3 +81,12 @@ class TestRunCreateSerializer(serializers.ModelSerializer):
         if value.owner != self.context['request'].user:
             raise serializers.ValidationError("You don't have permission to run tests on this application.")
         return value
+
+
+class TestArtifactSerializer(serializers.ModelSerializer):
+    """Serializer for TestArtifact model."""
+    
+    class Meta:
+        model = TestArtifact
+        fields = ('id', 'kind', 'url', 'step_name', 'created_at')
+        read_only_fields = ('id', 'created_at')

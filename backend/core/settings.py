@@ -7,11 +7,26 @@ from datetime import timedelta
 import os
 from dotenv import load_dotenv
  
-# Load environment variables
-load_dotenv()
- 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables from .env file in backend directory
+# Try multiple possible locations for .env file
+env_paths = [
+    BASE_DIR / '.env',  # backend/.env
+    BASE_DIR.parent / 'backend' / '.env',  # project/backend/.env (if nested)
+    Path('.env'),  # Current directory
+]
+env_loaded = False
+for env_path in env_paths:
+    if env_path.exists():
+        load_dotenv(dotenv_path=env_path, override=True)
+        env_loaded = True
+        break
+
+if not env_loaded:
+    # Fallback: try loading from current directory
+    load_dotenv(override=True)
  
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-vr4g-p&0a$%!0kk032q$-o6%16h_=-zggep3+o=09gpn2yu=!j')

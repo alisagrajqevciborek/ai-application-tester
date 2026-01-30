@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Report
+from apps.applications.models import TestArtifact
 
 
 class ReportSerializer(serializers.ModelSerializer):
@@ -15,14 +16,11 @@ class ReportSerializer(serializers.ModelSerializer):
     started_at = serializers.DateTimeField(source='test_run.started_at', read_only=True)
     completed_at = serializers.DateTimeField(source='test_run.completed_at', read_only=True)
     screenshots = serializers.SerializerMethodField()
+    artifacts = serializers.SerializerMethodField()
 
     def get_screenshots(self, obj):
-        """
-        Return screenshot URLs for this report's test run.
-        Prefer Screenshot.cloudinary_url; fallback to Screenshot.image.url.
-        """
+        """Return screenshot URLs for this report's test run."""
         urls = []
-        # related_name='screenshots' on Screenshot.test_run
         for s in obj.test_run.screenshots.all().order_by('created_at'):
             if getattr(s, 'cloudinary_url', None):
                 urls.append(s.cloudinary_url)
@@ -31,6 +29,19 @@ class ReportSerializer(serializers.ModelSerializer):
             if image and getattr(image, 'url', None):
                 urls.append(image.url)
         return urls
+
+    def get_artifacts(self, obj):
+        """Return artifacts (videos, traces) for this report's test run."""
+        artifacts = []
+        for a in obj.test_run.artifacts.all().order_by('created_at'):
+            artifacts.append({
+                'id': a.id,
+                'kind': a.kind,
+                'url': a.url,
+                'step_name': a.step_name,
+                'created_at': a.created_at.isoformat() if a.created_at else None,
+            })
+        return artifacts
     
     class Meta:
         model = Report
@@ -50,6 +61,7 @@ class ReportSerializer(serializers.ModelSerializer):
             'issues_json',
             'console_logs_json',
             'screenshots',
+            'artifacts',
             'created_at',
         ]
         read_only_fields = ['id', 'created_at']

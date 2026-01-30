@@ -279,15 +279,23 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
             setTimeout(() => {
               setShowContinueButton(true)
             }, 3000)
+
+            // Important: avoid falling through to max-attempt logic
+            // on the same tick that we detect completion.
+            return
           }
 
-          // Stop polling if we've exceeded max attempts
-          if (pollAttempts >= maxPollAttempts) {
+          // Stop polling if we've exceeded max attempts (only meaningful while still running)
+          if (
+            pollAttempts >= maxPollAttempts &&
+            (updatedTestRun.status === 'running' || updatedTestRun.status === 'pending')
+          ) {
             clearInterval(pollInterval)
             clearInterval(timeTracker)
             setError("Test is taking longer than expected. The test may still be running in the background.")
             setTestState("idle")
             setProgress(0)
+            return
           }
         } catch (err) {
           console.error("Error polling test run:", err)
@@ -300,6 +308,7 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
             setError(`Error checking test status: ${errorMessage}. The test may still be running.`)
             setTestState("idle")
             setProgress(0)
+            return
           }
         }
       }, 1000) // Poll every second

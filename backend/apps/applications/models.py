@@ -123,3 +123,46 @@ class Screenshot(models.Model):
     
     def __str__(self):
         return f"Screenshot for {self.test_run} at {self.created_at}"
+
+
+class TestArtifact(models.Model):
+    """Model storing test artifacts (videos, traces, before/after screenshots)."""
+    
+    ARTIFACT_KIND_CHOICES = [
+        ('playwright_trace', 'Playwright Trace'),
+        ('playwright_video', 'Playwright Video'),
+        ('before_step', 'Before Step Screenshot'),
+        ('after_step', 'After Step Screenshot'),
+    ]
+    
+    test_run = models.ForeignKey(
+        TestRun,
+        on_delete=models.CASCADE,
+        related_name='artifacts',
+        help_text="Test run this artifact belongs to"
+    )
+    kind = models.CharField(
+        max_length=50,
+        choices=ARTIFACT_KIND_CHOICES,
+        help_text="Type of artifact"
+    )
+    url = models.URLField(
+        max_length=500,
+        help_text="Cloudinary URL or local path to the artifact"
+    )
+    step_name = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text="Optional step name (e.g., 'login', 'submit_form')"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'test_artifacts'
+        ordering = ['-created_at']
+        verbose_name = 'Test Artifact'
+        verbose_name_plural = 'Test Artifacts'
+    
+    def __str__(self):
+        return f"{self.kind} for {self.test_run} at {self.created_at}"
