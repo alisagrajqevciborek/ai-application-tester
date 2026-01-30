@@ -30,15 +30,16 @@ async def check_broken_links(page: Page, url: str, issues: List[Dict]) -> None:
     
     for link in internal_links:
         try:
-            async with page.context.request.get(link['href'], timeout=5000) as response:
-                if response.status >= 400:
-                    issues.append({
-                        'severity': 'major',
-                        'title': 'Broken Link Found',
-                        'description': f"Link to '{link['href']}' with text '{link['text']}' returned status {response.status}.",
-                        'location': url,
-                        'type': 'broken_link'
-                    })
+            response = await page.context.request.get(link['href'], timeout=5000)
+            if response.status >= 400:
+                issues.append({
+                    'severity': 'major',
+                    'title': 'Broken Link Found',
+                    'description': f"Link to '{link['href']}' with text '{link['text']}' returned status {response.status}.",
+                    'location': url,
+                    'type': 'broken_link'
+                })
+            await response.dispose()
         except Exception as e:
             logger.debug(f"Failed to check link {link['href']}: {e}")
 
@@ -55,7 +56,8 @@ async def test_authentication(page: Page, url: str, issues: List[Dict], credenti
     logger.info(f"Testing authentication at {login_url}")
     
     try:
-        await page.goto(login_url, wait_until='networkidle', timeout=30000)
+        await page.goto(login_url, wait_until='domcontentloaded', timeout=30000)
+        await page.wait_for_timeout(3000)  # Wait for JS to execute instead of networkidle
         
         user_selectors = ['input[type="email"]', 'input[name="email"]', 'input[name="username"]', 'input[id="username"]', 'input[id="email"]']
         pass_selectors = ['input[type="password"]', 'input[name="password"]', 'input[id="password"]']

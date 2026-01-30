@@ -19,4 +19,6 @@ export interface TestIssue {
   location: string
   selector?: string
   element_screenshot?: string
+  before_screenshot?: string
+  after_screenshot?: string
 }

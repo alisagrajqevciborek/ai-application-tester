@@ -37,7 +37,7 @@ class IsActiveUser(permissions.BasePermission):
     Permission to check if user is active (not disabled).
     """
     
-    def has_permission(self, request, view):
+    def has_permission(self, request, view) -> bool:  # type: ignore[override]
         if not request.user or not request.user.is_authenticated:
             return False
         return request.user.status == 'active'

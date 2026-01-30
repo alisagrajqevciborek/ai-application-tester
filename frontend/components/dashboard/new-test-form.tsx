@@ -51,7 +51,7 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
     warnings: 0,
     errors: 0,
     elapsedTime: 0,
-    estimatedTime: 120, // 2 minutes estimate
+    estimatedTime: 300, // 5 minutes estimate (can vary based on test type)
     status: "running"
   })
   const [testStartTime, setTestStartTime] = useState<number>(0)
@@ -223,7 +223,7 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
 
       // Poll for test completion
       let pollAttempts = 0
-      const maxPollAttempts = 120 // 2 minutes max
+      const maxPollAttempts = 600 // 10 minutes max (600 seconds = 10 minutes, polling every second)
 
       const pollInterval = setInterval(async () => {
         if (isPausedRef.current) return
@@ -253,7 +253,7 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
               warnings: currentStep.warnings,
               errors: currentStep.errors,
               elapsedTime: elapsedSeconds,
-              estimatedTime: 120,
+              estimatedTime: 300, // 5 minutes estimate
               status: "running"
             })
           } else if (updatedTestRun.status === 'success' || updatedTestRun.status === 'failed') {
@@ -300,12 +300,13 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
         } catch (err) {
           console.error("Error polling test run:", err)
 
-          // If we get multiple errors, stop polling
-          if (pollAttempts >= 10) {
+          // If we get multiple errors, stop polling but don't show error (test may still be running)
+          if (pollAttempts >= 20) { // Increased from 10 to 20 attempts
             clearInterval(pollInterval)
             clearInterval(timeTracker)
             const errorMessage = err instanceof Error ? err.message : "Failed to get test status"
-            setError(`Error checking test status: ${errorMessage}. The test may still be running.`)
+            setError(`Error checking test status: ${errorMessage}. The test may still be running in the background.`)
+            setShowContinueButton(true)
             setTestState("idle")
             setProgress(0)
             return
@@ -313,19 +314,20 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
         }
       }, 1000) // Poll every second
 
-      // Timeout after 2 minutes
+      // Timeout after 10 minutes (tests can take longer with screenshots, artifacts, etc.)
       setTimeout(() => {
         clearInterval(pollInterval)
         clearInterval(timeTracker)
         setTestState((currentState) => {
           if (currentState === "running") {
-            setError("Test is taking longer than expected. Please check the test run status.")
+            setError("Test is taking longer than expected. The test may still be running in the background.")
+            setShowContinueButton(true)
             setProgress(0)
             return "idle"
           }
           return currentState
         })
-      }, 120000)
+      }, 600000) // 10 minutes
     } catch (err) {
       clearInterval(timeTracker)
       setError(err instanceof Error ? err.message : "Failed to start test")

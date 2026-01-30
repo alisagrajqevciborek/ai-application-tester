@@ -227,6 +227,8 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
     location: issue.location,
     selector: issue.selector,
     element_screenshot: issue.element_screenshot,
+    before_screenshot: issue.before_screenshot,
+    after_screenshot: issue.after_screenshot,
   })) || []
 
   const criticalCount = issues.filter((i) => i.severity === "critical").length
@@ -770,8 +772,67 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
                             </div>
                           )}
 
-                          {/* Screenshot for this issue */}
-                          {issue.element_screenshot ? (
+                          {/* Before/After Screenshots for this issue */}
+                          {(issue.before_screenshot || issue.after_screenshot) ? (
+                            <div className="mt-4 space-y-4">
+                              <p className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide flex items-center gap-2">
+                                <Layout className="w-3 h-3" />
+                                Before & After Screenshots
+                              </p>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {issue.before_screenshot && (
+                                  <div>
+                                    <p className="text-xs text-muted-foreground mb-2 font-medium">Before</p>
+                                    <div className="relative group rounded-lg overflow-hidden border border-border bg-black/20">
+                                      <button
+                                        type="button"
+                                        onClick={() => setActiveScreenshotUrl(issue.before_screenshot || null)}
+                                        className="w-full relative"
+                                        title="Click to view full size"
+                                      >
+                                        <img
+                                          src={issue.before_screenshot}
+                                          alt={`Before screenshot for ${issue.title}`}
+                                          className="w-full h-auto object-contain max-h-[300px]"
+                                        />
+                                        <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                          <div className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-secondary text-secondary-foreground text-sm">
+                                            <Maximize2 className="w-4 h-4" />
+                                            View Full Size
+                                          </div>
+                                        </div>
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                                {issue.after_screenshot && (
+                                  <div>
+                                    <p className="text-xs text-muted-foreground mb-2 font-medium">After</p>
+                                    <div className="relative group rounded-lg overflow-hidden border border-border bg-black/20">
+                                      <button
+                                        type="button"
+                                        onClick={() => setActiveScreenshotUrl(issue.after_screenshot || null)}
+                                        className="w-full relative"
+                                        title="Click to view full size"
+                                      >
+                                        <img
+                                          src={issue.after_screenshot}
+                                          alt={`After screenshot for ${issue.title}`}
+                                          className="w-full h-auto object-contain max-h-[300px]"
+                                        />
+                                        <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                          <div className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-secondary text-secondary-foreground text-sm">
+                                            <Maximize2 className="w-4 h-4" />
+                                            View Full Size
+                                          </div>
+                                        </div>
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ) : issue.element_screenshot ? (
                             <div className="mt-4">
                               <p className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide flex items-center gap-2">
                                 <Layout className="w-3 h-3" />

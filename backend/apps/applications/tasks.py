@@ -148,12 +148,8 @@ def execute_test_run_task(self, test_run_id):
                     detailed_report += "No issues found during testing.\n"
 
             # Ensure failure diagnostics are visible to the user (video/trace URLs)
-            artifacts = results.get('artifacts', []) if isinstance(results.get('artifacts'), list) else []
-            artifact_urls = [a.get('url') for a in artifacts if isinstance(a, dict) and a.get('url')]
-            if artifact_urls:
-                detailed_report += "\n\nArtifacts (for debugging):\n"
-                for artifact_url in artifact_urls:
-                    detailed_report += f"- {artifact_url}\n"
+            # Artifacts are stored separately in TestArtifact model and accessible via API
+            # No need to include them in the detailed_report text
 
             Report.objects.update_or_create(
                 test_run=test_run,
@@ -187,18 +183,23 @@ def execute_test_run_task(self, test_run_id):
 
             # Save artifacts (videos, traces, before/after)
             artifacts = results.get('artifacts', [])
+            logger.info(f"Found {len(artifacts)} artifacts to save")
             if artifacts:
-                for artifact in artifacts:
+                for idx, artifact in enumerate(artifacts):
                     if isinstance(artifact, dict) and artifact.get('url'):
                         try:
+                            logger.info(f"Saving artifact {idx+1}/{len(artifacts)}: kind={artifact.get('kind')}, url={artifact.get('url')[:50]}...")
                             TestArtifact.objects.create(  # type: ignore[attr-defined]
                                 test_run=test_run,
                                 kind=artifact.get('kind', 'playwright_trace'),
                                 url=artifact['url'],
                                 step_name=artifact.get('note'),
                             )
+                            logger.info(f"Successfully saved artifact {idx+1}")
                         except Exception as e:
-                            logger.error(f"Error saving artifact: {e}")
+                            logger.error(f"Error saving artifact {idx+1}: {e}", exc_info=True)
+            else:
+                logger.warning("No artifacts found in results")
         except Exception:
             logger.exception("Error saving screenshots/artifacts")
         

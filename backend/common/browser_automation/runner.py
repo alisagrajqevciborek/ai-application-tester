@@ -6,7 +6,7 @@ import os
 import shutil
 import tempfile
 import logging
-from typing import Dict, Optional, List, Any
+from typing import Dict, Optional, List
 try:
     from playwright.async_api import async_playwright, Page, TimeoutError as PlaywrightTimeoutError  # type: ignore[import-untyped]
 except ImportError:
@@ -25,7 +25,7 @@ class BrowserAutomationService:
     """Service for running automated browser tests using Playwright."""
     
     def __init__(self):
-        self.timeout = 60000
+        self.timeout = 120000  # Increased to 120 seconds (2 minutes)
         self.viewport_width = 1920
         self.viewport_height = 1080
         self.annotator = ScreenshotAnnotator()
@@ -49,6 +49,7 @@ class BrowserAutomationService:
             self.artifact_manager.reset()
             self._current_test_type = test_type
             issue_manager = IssueManager(self.screenshot_manager, self.annotator, test_type)
+            issue_manager.artifact_manager = self.artifact_manager  # Give access to artifact manager
             
             record_video = os.getenv('PLAYWRIGHT_RECORD_VIDEO', '1') == '1'
             video_dir: Optional[str] = None
@@ -86,19 +87,18 @@ class BrowserAutomationService:
                     await page.goto(url, wait_until='commit', timeout=self.timeout)
                 
                 logger.info("Waiting for page to fully load...")
+                # Wait for load state with timeout - don't block if it takes too long
                 try:
-                    await page.wait_for_load_state('load', timeout=30000)
+                    await page.wait_for_load_state('load', timeout=20000)  # Reduced from 30000
                 except PlaywrightTimeoutError:
                     logger.warning("Page load state timed out, continuing anyway")
                 
-                try:
-                    await page.wait_for_load_state('networkidle', timeout=10000)
-                except PlaywrightTimeoutError:
-                    logger.warning("Network idle timed out, waiting additional time for JS execution")
-                    await page.wait_for_timeout(3000)
+                # Skip networkidle - it can hang on pages with continuous network activity
+                # Instead, just wait a reasonable amount of time for JS to execute
+                logger.info("Waiting for JavaScript execution...")
+                await page.wait_for_timeout(3000)  # Reduced from 5000 to 3 seconds
                 
-                await page.wait_for_timeout(2000)
-                
+                # Check if page has content (quick check)
                 has_content = await page.evaluate('''() => {
                     const body = document.body;
                     if (!body) return false;
@@ -109,8 +109,8 @@ class BrowserAutomationService:
                 }''')
                 
                 if not has_content:
-                    logger.warning("Page appears to have no visible content, waiting longer...")
-                    await page.wait_for_timeout(5000)
+                    logger.warning("Page appears to have no visible content, waiting a bit more...")
+                    await page.wait_for_timeout(2000)  # Reduced from 3000
                 
                 # Always capture baseline screenshot
                 try:
@@ -175,8 +175,8 @@ class BrowserAutomationService:
                 issues = results.get('issues', [])
                 
                 if check_broken_links:
-                    from .helpers import check_broken_links
-                    await check_broken_links(page, url, issues)
+                    from .helpers import check_broken_links as check_broken_links_func
+                    await check_broken_links_func(page, url, issues)
                 
                 if check_auth and auth_credentials:
                     from .helpers import test_authentication
@@ -204,6 +204,14 @@ class BrowserAutomationService:
                 except Exception:
                     pass
                 
+                # Always capture before/after screenshots at the end of test run
+                logger.info("Capturing before/after screenshots...")
+                try:
+                    await self._capture_failure_screenshots(page, url, test_type, screenshots_dir, step_name='test_completion')
+                    logger.info("Before/after screenshots captured successfully")
+                except Exception as e:
+                    logger.error(f"Error capturing before/after screenshots: {e}", exc_info=True)
+                
                 if something_wrong:
                     try:
                         after_run_bytes = await page.screenshot(full_page=True)
@@ -217,17 +225,14 @@ class BrowserAutomationService:
                         )
                     except Exception:
                         pass
-                    try:
-                        await self._capture_failure_screenshots(page, url, test_type, screenshots_dir, step_name='run')
-                    except Exception:
-                        pass
                 
                 # Get video path before closing (if video recording is enabled)
-                video_path_to_save = None
+                video_path_to_save: Optional[str] = None
                 if record_video and something_wrong:
                     try:
                         if page.video:
-                            video_path_to_save = await page.video.path()
+                            video_path = await page.video.path()
+                            video_path_to_save = str(video_path) if video_path else None
                     except Exception as e:
                         logger.warning(f"Error getting video path before close: {e}")
                 
@@ -255,7 +260,13 @@ class BrowserAutomationService:
                 results['network_requests'] = network_requests[:50]
                 results['network_failures'] = network_failures
                 results['screenshots_meta'] = self.screenshot_manager.get_metadata()
-                results['artifacts'] = self.artifact_manager.get_metadata()
+                
+                # Get artifacts and log them for debugging
+                artifacts_meta = self.artifact_manager.get_metadata()
+                results['artifacts'] = artifacts_meta
+                logger.info(f"Total artifacts collected: {len(artifacts_meta)}")
+                for idx, artifact in enumerate(artifacts_meta):
+                    logger.info(f"Artifact {idx+1}: kind={artifact.get('kind')}, url={artifact.get('url', '')[:80]}..., note={artifact.get('note')}")
                 
                 meta_urls = [m.get('url') for m in self.screenshot_manager.get_metadata() if m.get('url')]
                 existing = results.get('screenshots') if isinstance(results.get('screenshots'), list) else []
@@ -400,34 +411,42 @@ class BrowserAutomationService:
         *,
         step_name: str,
     ) -> None:
-        """Capture before/after screenshots for a failure and save as artifacts."""
+        """Capture before/after screenshots and save as artifacts."""
+        logger.info(f"Capturing before screenshot for step: {step_name}")
         try:
             before_bytes = await page.screenshot(full_page=False)
             before_url = await self.screenshot_manager.upload_to_cloudinary(
                 before_bytes, url, test_type, f"before_{step_name}", screenshots_dir
             )
             if before_url:
+                logger.info(f"Before screenshot uploaded: {before_url}")
                 self.artifact_manager._record_artifact_meta(
                     url=before_url,
                     kind='before_step',
                     note=f"Before {step_name}",
                 )
-        except Exception:
-            pass
+            else:
+                logger.warning("Before screenshot upload returned None")
+        except Exception as e:
+            logger.error(f"Error capturing/uploading before screenshot: {e}", exc_info=True)
         
+        logger.info(f"Capturing after screenshot for step: {step_name}")
         try:
             after_bytes = await page.screenshot(full_page=True)
             after_url = await self.screenshot_manager.upload_to_cloudinary(
                 after_bytes, url, test_type, f"after_{step_name}", screenshots_dir
             )
             if after_url:
+                logger.info(f"After screenshot uploaded: {after_url}")
                 self.artifact_manager._record_artifact_meta(
                     url=after_url,
                     kind='after_step',
                     note=f"After {step_name}",
                 )
-        except Exception:
-            pass
+            else:
+                logger.warning("After screenshot upload returned None")
+        except Exception as e:
+            logger.error(f"Error capturing/uploading after screenshot: {e}", exc_info=True)
 
 
 def run_test_sync(url: str, test_type: str, screenshots_dir: Optional[str] = None) -> Dict:

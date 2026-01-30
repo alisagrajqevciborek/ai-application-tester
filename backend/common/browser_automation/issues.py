@@ -15,6 +15,7 @@ class IssueManager:
         self.screenshot_manager = screenshot_manager
         self.annotator = annotator
         self.current_test_type = current_test_type
+        self.artifact_manager: Optional[Any] = None  # Will be set by runner
     
     async def get_element_selector(self, element) -> str:
         """Get a unique CSS selector for an element."""
@@ -99,7 +100,7 @@ class IssueManager:
         element=None,
         screenshots_dir: Optional[str] = None,
         console_log_index: Optional[int] = None,
-        console_logs: Optional[List[Dict]] = None
+        console_logs: Optional[List[Dict]] = None,
     ):
         """Helper to add an issue with optional element metadata."""
         issue = {
@@ -108,6 +109,41 @@ class IssueManager:
             'description': description,
             'location': location
         }
+        
+        # Capture before/after screenshots for this specific issue (if artifact_manager is available)
+        if self.artifact_manager:
+            try:
+                logger.info(f"Capturing before/after screenshots for issue: {title}")
+                
+                # Before screenshot (viewport) - state before issue
+                before_bytes = await page.screenshot(full_page=False)
+                before_url = await self.screenshot_manager.upload_to_cloudinary(
+                    before_bytes, location, self.current_test_type or "automated", f"before_issue_{len(issues)}", screenshots_dir
+                )
+                if before_url:
+                    self.artifact_manager._record_artifact_meta(
+                        url=before_url,
+                        kind='before_step',
+                        note=f"Before issue: {title}",
+                    )
+                    issue['before_screenshot'] = before_url
+                    logger.info(f"Before screenshot for issue captured: {before_url}")
+                
+                # After screenshot (full page) - showing the issue
+                after_bytes = await page.screenshot(full_page=True)
+                after_url = await self.screenshot_manager.upload_to_cloudinary(
+                    after_bytes, location, self.current_test_type or "automated", f"after_issue_{len(issues)}", screenshots_dir
+                )
+                if after_url:
+                    self.artifact_manager._record_artifact_meta(
+                        url=after_url,
+                        kind='after_step',
+                        note=f"After issue: {title}",
+                    )
+                    issue['after_screenshot'] = after_url
+                    logger.info(f"After screenshot for issue captured: {after_url}")
+            except Exception as e:
+                logger.warning(f"Error capturing before/after for issue: {e}", exc_info=True)
         
         if console_log_index is not None and console_logs and console_log_index < len(console_logs):
             log_entry = console_logs[console_log_index]
