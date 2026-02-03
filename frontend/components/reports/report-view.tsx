@@ -29,6 +29,7 @@ import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { reportsApi, type Report } from "@/lib/api"
 import { Loader2 } from "lucide-react"
+import { toast } from "sonner"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 // Note: jspdf and xlsx are imported dynamically in functions to avoid SSR issues
 import {
@@ -180,6 +181,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
   const [error, setError] = useState<string | null>(null)
   const [activeScreenshotUrl, setActiveScreenshotUrl] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<"findings" | "logs">("findings")
+  const [isExportingToJira, setIsExportingToJira] = useState(false)
 
   useEffect(() => {
     loadReport()
@@ -527,6 +529,57 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
     XLSX.writeFile(wb, `testflow-report-${test.versionName.replace(/\s+/g, "-")}-${test.date.replace(/\//g, "-")}.xlsx`)
   }
 
+  const handleExportToJira = async () => {
+    try {
+      setIsExportingToJira(true)
+      const result = await reportsApi.exportToJira(parseInt(test.id))
+      
+      if (result.error) {
+        toast.error("Export Failed", {
+          description: result.error,
+        })
+        return
+      }
+      
+      // Build success message with ticket links
+      const messages: string[] = []
+      if (result.error_ticket) {
+        messages.push(`Error ticket: ${result.error_ticket.key} (${result.errors_exported || 0} errors)`)
+      }
+      if (result.warning_ticket) {
+        messages.push(`Warning ticket: ${result.warning_ticket.key} (${result.warnings_exported || 0} warnings)`)
+      }
+      
+      if (messages.length > 0) {
+        toast.success("✅ Ticket Created - Check Jira!", {
+          description: messages.join(", "),
+          duration: 5000,
+          action: result.error_ticket || result.warning_ticket ? {
+            label: "View Tickets",
+            onClick: () => {
+              if (result.error_ticket) {
+                window.open(result.error_ticket.url, '_blank')
+              } else if (result.warning_ticket) {
+                window.open(result.warning_ticket.url, '_blank')
+              }
+            }
+          } : undefined,
+        })
+      } else {
+        toast.info("No tickets created", {
+          description: "No errors or warnings found to export.",
+        })
+      }
+    } catch (err) {
+      console.error("Error exporting to Jira:", err)
+      toast.error("Export Failed", {
+        description: err instanceof Error ? err.message : "Failed to export to Jira. Please check your Jira configuration.",
+      })
+    } finally {
+      setIsExportingToJira(false)
+    }
+  }
+
   return (
     <>
       <div className="max-w-5xl mx-auto">
@@ -571,6 +624,18 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
                 <DropdownMenuItem onClick={() => handleExportExcel()} className="cursor-pointer">
                   <FileSpreadsheet className="mr-2 h-4 w-4 text-green-400" />
                   <span>Export as Excel</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => handleExportToJira()} 
+                  className="cursor-pointer"
+                  disabled={isExportingToJira}
+                >
+                  {isExportingToJira ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin text-blue-400" />
+                  ) : (
+                    <ExternalLink className="mr-2 h-4 w-4 text-blue-400" />
+                  )}
+                  <span>Export to Jira</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

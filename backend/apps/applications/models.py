@@ -67,6 +67,12 @@ class TestRun(models.Model):
     check_broken_links = models.BooleanField(default=False, help_text="Whether to check for broken links")
     check_auth = models.BooleanField(default=False, help_text="Whether to test login functionality")
     
+    # Cancellation fields
+    cancel_requested = models.BooleanField(default=False, help_text="Whether cancellation was requested")
+    cancel_requested_at = models.DateTimeField(null=True, blank=True, help_text="When cancellation was requested")
+    canceled_at = models.DateTimeField(null=True, blank=True, help_text="When test was canceled")
+    cancel_reason = models.CharField(max_length=255, null=True, blank=True, help_text="Reason for cancellation")
+    
     class Meta:
         db_table = 'test_runs'
         ordering = ['-started_at']

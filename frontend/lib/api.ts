@@ -444,5 +444,25 @@ export const reportsApi = {
   async get(testRunId: number): Promise<Report> {
     return apiRequest<Report>(`/reports/${testRunId}/`)
   },
+
+  async exportToJira(testRunId: number): Promise<{
+    message: string
+    error_ticket?: { key: string; url: string }
+    warning_ticket?: { key: string; url: string }
+    errors_exported?: number
+    warnings_exported?: number
+    error?: string
+  }> {
+    return apiRequest<{
+      message: string
+      error_ticket?: { key: string; url: string }
+      warning_ticket?: { key: string; url: string }
+      errors_exported?: number
+      warnings_exported?: number
+      error?: string
+    }>(`/reports/${testRunId}/jira-export/`, {
+      method: 'POST',
+    })
+  },
 }
 
