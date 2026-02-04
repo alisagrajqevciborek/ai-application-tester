@@ -222,3 +222,167 @@ def execute_test_run_task(self, test_run_id):
         
         # Retry the task
         raise self.retry(exc=exc, countdown=60)
+
+
+@shared_task(bind=True, max_retries=3)
+def execute_generated_test_case_task(self, test_run_id, test_steps):
+    """
+    Execute a test run using custom generated test case steps.
+    
+    Args:
+        test_run_id: The ID of the TestRun to execute
+        test_steps: List of test steps to execute
+    """
+    try:
+        # Get the test run
+        test_run = TestRun.objects.get(pk=test_run_id)  # type: ignore[attr-defined]
+        
+        # Update status to running
+        test_run.status = 'running'
+        test_run.save()
+        
+        # Get application URL and test type
+        url = test_run.application.url
+        test_type = test_run.test_type
+        
+        logger.info(f"Starting generated test case run {test_run_id} for {url} (type: {test_type})")
+        
+        # Run the browser automation test with custom steps
+        from common.browser_automation.generated_test_runner import GeneratedTestRunner
+        
+        # Import asyncio for running async test
+        import asyncio
+        
+        # Create event loop and run test
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            runner = GeneratedTestRunner()
+            results = loop.run_until_complete(
+                runner.run_test_case(
+                    url=url,
+                    test_type=test_type,
+                    steps=test_steps,
+                )
+            )
+        finally:
+            loop.close()
+        
+        logger.info(f"Generated test results received: status={results.get('status')}")
+        
+        # Update test run with results
+        with transaction.atomic():  # type: ignore[call-overload]
+            test_run = TestRun.objects.select_for_update().get(pk=test_run_id)  # type: ignore[attr-defined]
+            test_run.status = results.get('status', 'failed')
+            test_run.pass_rate = results.get('pass_rate', 0)
+            test_run.fail_rate = results.get('fail_rate', 100)
+            test_run.completed_at = timezone.now()
+            test_run.save()
+
+        # Generate report from test results
+        try:
+            from apps.reports.models import Report
+            from common.issue_grouper import group_similar_issues
+
+            issues = results.get('issues', [])
+            screenshot_urls = results.get('screenshots', [])
+
+            # Group similar issues together (like normal tests)
+            grouped_issues = group_similar_issues(issues)
+
+            # Build summary and detailed report
+            pass_rate = results.get('pass_rate', 0)
+            fail_rate = results.get('fail_rate', 100)
+            status_result = results.get('status', 'failed')
+            console_error_count = results.get('console_error_count', 0)
+            console_warning_count = results.get('console_warning_count', 0)
+            
+            total_steps = len(test_steps)
+            passed_steps = results.get('passed_steps', 0)
+            failed_steps = results.get('failed_steps', 0)
+
+            if status_result == 'success':
+                summary = f"Generated test case completed successfully. {passed_steps}/{total_steps} steps passed ({pass_rate}% pass rate)."
+                if console_warning_count > 0:
+                    summary += f" {console_warning_count} console warnings detected."
+            else:
+                summary = f"Generated test case encountered failures. {passed_steps}/{total_steps} steps passed, {failed_steps} failed ({fail_rate}% fail rate)."
+                if console_error_count > 0:
+                    summary += f" {console_error_count} console errors detected."
+
+            detailed_report = f"Generated Test Case Execution Report\n"
+            detailed_report += f"{'=' * 50}\n\n"
+            detailed_report += f"Application: {test_run.application.name} ({test_run.application.url})\n"
+            detailed_report += f"Test Type: {test_type}\n"
+            detailed_report += f"Status: {status_result}\n"
+            detailed_report += f"Pass Rate: {pass_rate}%\n\n"
+            
+            detailed_report += f"Step Results:\n"
+            detailed_report += f"{'-' * 30}\n"
+            
+            step_results = results.get('step_results', [])
+            for idx, step_result in enumerate(step_results, 1):
+                status_icon = "✓" if step_result.get('passed') else "✗"
+                detailed_report += f"\n{idx}. [{status_icon}] {step_result.get('description', 'Unknown step')}\n"
+                if not step_result.get('passed'):
+                    detailed_report += f"   Error: {step_result.get('error', 'Unknown error')}\n"
+
+            if grouped_issues:
+                detailed_report += f"\n\nIssues Found:\n"
+                detailed_report += f"{'-' * 30}\n"
+                for idx, issue in enumerate(grouped_issues, 1):
+                    frequency = issue.get('frequency', 1)
+                    freq_text = f" ({frequency} occurrences)" if frequency > 1 else ""
+                    detailed_report += f"\n{idx}. [{issue.get('severity', 'unknown').upper()}] {issue.get('title', 'Unknown issue')}{freq_text}\n"
+                    detailed_report += f"   Description: {issue.get('description', 'No description')}\n"
+
+            Report.objects.update_or_create(
+                test_run=test_run,
+                defaults={
+                    'summary': summary,
+                    'detailed_report': detailed_report,
+                    'issues_json': grouped_issues,  # Use grouped issues
+                    'console_logs_json': results.get('console_logs', []),
+                },
+            )
+            logger.info(f"Report generated for generated test run {test_run_id}")
+        except Exception as e:
+            logger.error(f"Error generating report for test run {test_run_id}: {e}", exc_info=True)
+
+        # Save screenshots
+        try:
+            from .models import Screenshot
+
+            screenshot_urls = results.get('screenshots', [])
+            if screenshot_urls:
+                for screenshot_url in screenshot_urls:
+                    if screenshot_url:
+                        try:
+                            Screenshot.objects.create(  # type: ignore[attr-defined]
+                                test_run=test_run,
+                                cloudinary_url=screenshot_url,
+                            )
+                        except Exception as e:
+                            logger.error(f"Error saving screenshot: {e}")
+        except Exception:
+            logger.exception("Error saving screenshots")
+        
+        logger.info(f"Generated test run {test_run_id} completed with status: {test_run.status}")
+        
+    except TestRun.DoesNotExist:  # type: ignore[attr-defined]
+        logger.error(f"TestRun {test_run_id} does not exist")
+    except Exception as exc:
+        logger.error(f"Error executing generated test run {test_run_id}: {exc}", exc_info=True)
+        
+        # Mark test run as failed
+        try:
+            with transaction.atomic():  # type: ignore[call-overload]
+                test_run = TestRun.objects.select_for_update().get(pk=test_run_id)  # type: ignore[attr-defined]
+                test_run.status = 'failed'
+                test_run.completed_at = timezone.now()
+                test_run.save()
+        except Exception:
+            pass
+        
+        # Retry the task
+        raise self.retry(exc=exc, countdown=60)

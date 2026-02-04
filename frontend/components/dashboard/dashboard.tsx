@@ -8,7 +8,7 @@ import NewTestForm from "@/components/dashboard/new-test-form"
 import VersionCard from "@/components/reports/version-card"
 import type { TestHistory } from "@/lib/types"
 import { applicationsApi, testRunsApi, type Application, type TestRun, type TestRunStats } from "@/lib/api"
-import { Loader2, Package, ArrowLeft, BarChart3, Play, ChevronDown } from "lucide-react"
+import { Loader2, Package, ArrowLeft, BarChart3, Play, ChevronDown, Sparkles, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import dynamic from "next/dynamic"
 import {
@@ -17,6 +17,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 // Lazy load heavy components that are conditionally rendered
 const ReportView = dynamic(() => import("@/components/reports/report-view"), {
@@ -29,6 +30,10 @@ const ProfilePage = dynamic(() => import("@/components/profile/profile-page"), {
 
 const StatisticsModal = dynamic(() => import("@/components/charts/statistics-modal"), {
   ssr: false,
+})
+
+const AITestCaseGenerator = dynamic(() => import("@/components/dashboard/ai-test-case-generator"), {
+  loading: () => <div className="flex items-center justify-center min-h-[200px]"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
 })
 
 // Helper to convert TestRun to TestHistory
@@ -382,20 +387,50 @@ export default function Dashboard() {
                       </Button>
                     </div>
 
-                    {/* New Test Form */}
-                    <NewTestForm
-                      onTestComplete={(test) => {
-                        handleNewTestComplete(test)
-                        // Reset initial values after test completes
-                        setInitialTestAppName(undefined)
-                        setInitialTestType(undefined)
-                        setAutoStartTest(false)
-                      }}
-                      applications={applications}
-                      initialAppName={initialTestAppName}
-                      initialTestType={initialTestType}
-                      autoStart={autoStartTest}
-                    />
+                    {/* Tabs for Quick Test and AI Generator */}
+                    <Tabs defaultValue="quick-test" className="w-full">
+                      <TabsList className="grid w-full grid-cols-2 mb-6">
+                        <TabsTrigger value="quick-test" className="flex items-center gap-2">
+                          <Zap className="w-4 h-4" />
+                          Quick Test
+                        </TabsTrigger>
+                        <TabsTrigger value="ai-generator" className="flex items-center gap-2">
+                          <Sparkles className="w-4 h-4" />
+                          AI Test Generator
+                        </TabsTrigger>
+                      </TabsList>
+                      
+                      <TabsContent value="quick-test">
+                        {/* New Test Form */}
+                        <NewTestForm
+                          onTestComplete={(test) => {
+                            handleNewTestComplete(test)
+                            // Reset initial values after test completes
+                            setInitialTestAppName(undefined)
+                            setInitialTestType(undefined)
+                            setAutoStartTest(false)
+                          }}
+                          applications={applications}
+                          initialAppName={initialTestAppName}
+                          initialTestType={initialTestType}
+                          autoStart={autoStartTest}
+                        />
+                      </TabsContent>
+                      
+                      <TabsContent value="ai-generator">
+                        <AITestCaseGenerator
+                          application={applications.length > 0 ? applications[0] : null}
+                          applications={applications}
+                          onTestCaseGenerated={(testCase) => {
+                            console.log("Test case generated:", testCase)
+                          }}
+                          onTestComplete={(testHistory) => {
+                            // When test completes, add to history and navigate to it
+                            handleNewTestComplete(testHistory)
+                          }}
+                        />
+                      </TabsContent>
+                    </Tabs>
                   </motion.div>
                 )}
               </AnimatePresence>

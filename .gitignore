@@ -54,6 +54,8 @@ backend/static/
 # Node.js / Next.js
 node_modules/
 **/node_modules/
+.pnpm-store/
+**/.pnpm-store/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -233,3 +235,73 @@ venv.bak/
 
 # Cython debug symbols
 cython_debug/
+# Cloudinary uploads cache
+.cloudinary/
+
+# Celery
+celerybeat-schedule
+celerybeat-schedule.db
+celerybeat.pid
+celery.pid
+*.celery.log
+
+# Redis dump
+dump.rdb
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Secrets/credentials
+*.pem
+*.key
+secrets/
+credentials/
+
+# Local development config
+local_settings.py
+settings_local.py
+*.local.py
+
+# Test artifacts
+test_screenshots/
+test_artifacts/
+test_reports/
+screenshots/
+artifacts/
+recordings/
+traces/
+videos/
+
+# Browser automation
+.browser/
+.browserless/
+.chromium/
+.firefox/
+.webkit/
+
+# AI/ML
+*.model
+*.pkl
+*.h5
+*.pt
+*.onnx
+
+# API keys (extra safety)
+*api_key*
+*apikey*
+*secret_key*
+*secretkey*
+!**/*example*
+!**/*sample*
+
+# Backup files
+*.backup
+*.bkp
+backup/
+backups/
+
+# Temp uploads
+uploads/
+tmp/
+temp/

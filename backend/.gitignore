@@ -36,3 +36,29 @@ Thumbs.db
 .coverage
 htmlcov/
 .pytest_cache/
+# Celery
+celerybeat-schedule
+celerybeat-schedule.db
+celerybeat.pid
+
+# Playwright/Browser automation
+playwright-report/
+test-results/
+.ms-playwright/
+
+# Test artifacts
+test_screenshots/
+screenshots/
+artifacts/
+recordings/
+traces/
+videos/
+
+# Redis
+dump.rdb
+
+# Local secrets
+*.pem
+*.key
+secrets.py
+local_settings.py

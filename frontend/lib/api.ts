@@ -140,10 +140,15 @@ export function getUser(): User | null {
   }
 }
 
+// Extended options for API requests
+interface ApiRequestOptions extends RequestInit {
+  timeout?: number // Custom timeout in milliseconds
+}
+
 // Generic API request function
 async function apiRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: ApiRequestOptions = {}
 ): Promise<T> {
   const token = getAuthToken()
 
@@ -155,9 +160,11 @@ async function apiRequest<T>(
 
   const url = `${API_BASE_URL}${endpoint}`
 
+  const { timeout = 60000, ...fetchOptions } = options // Default 60 second timeout (increased from 30s)
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string> || {}),
+    ...(fetchOptions.headers as Record<string, string> || {}),
   }
 
   if (token) {
@@ -166,11 +173,11 @@ async function apiRequest<T>(
 
   // Add timeout to prevent hanging requests
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+  const timeoutId = setTimeout(() => controller.abort(), timeout)
 
   try {
     const response = await fetch(url, {
-      ...options,
+      ...fetchOptions,
       headers,
       signal: controller.signal,
     })
@@ -223,7 +230,7 @@ async function apiRequest<T>(
   } catch (error) {
     clearTimeout(timeoutId)
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error('Request timeout. Please check your internet connection.')
+      throw new Error('Request timeout. The operation is taking longer than expected. Please wait and try again.')
     }
     throw error
   }
@@ -446,3 +453,80 @@ export const reportsApi = {
   },
 }
 
+// Generated Test Case Types
+export interface TestCaseStep {
+  order: number
+  action: string
+  selector: string | null
+  value: string | null
+  description: string
+  expected_result: string
+}
+
+export interface GeneratedTestCase {
+  id?: number
+  application?: number
+  application_name?: string
+  application_url?: string
+  name: string
+  description: string
+  test_type: string
+  steps: TestCaseStep[]
+  expected_results: string
+  tags: string[]
+  estimated_duration: string
+  is_ai_generated?: boolean
+  fallback?: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+// Test Case Generator API
+export const testCaseApi = {
+  async generate(prompt: string, applicationId: number, testType: string = 'functional'): Promise<GeneratedTestCase> {
+    return apiRequest<GeneratedTestCase>('/applications/test-cases/generate', {
+      method: 'POST',
+      body: JSON.stringify({
+        prompt,
+        application_id: applicationId,
+        test_type: testType,
+      }),
+    })
+  },
+
+  async refine(testCase: GeneratedTestCase, refinementPrompt: string): Promise<GeneratedTestCase> {
+    return apiRequest<GeneratedTestCase>('/applications/test-cases/refine', {
+      method: 'POST',
+      body: JSON.stringify({
+        test_case: testCase,
+        refinement_prompt: refinementPrompt,
+      }),
+    })
+  },
+
+  async save(applicationId: number, testCase: GeneratedTestCase): Promise<GeneratedTestCase> {
+    return apiRequest<GeneratedTestCase>('/applications/test-cases/save', {
+      method: 'POST',
+      body: JSON.stringify({
+        application_id: applicationId,
+        test_case: testCase,
+      }),
+    })
+  },
+
+  async list(applicationId: number): Promise<GeneratedTestCase[]> {
+    return apiRequest<GeneratedTestCase[]>(`/applications/${applicationId}/test-cases`)
+  },
+
+  async delete(testCaseId: number): Promise<void> {
+    return apiRequest<void>(`/applications/test-cases/${testCaseId}`, {
+      method: 'DELETE',
+    })
+  },
+
+  async run(testCaseId: number): Promise<TestRun> {
+    return apiRequest<TestRun>(`/applications/test-cases/${testCaseId}/run`, {
+      method: 'POST',
+    })
+  },
+}

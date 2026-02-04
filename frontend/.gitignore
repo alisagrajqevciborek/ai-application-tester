@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+.pnpm-store/
 
 # next.js
 /.next/
@@ -25,3 +26,23 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Playwright/Testing
+playwright-report/
+test-results/
+.playwright/
+coverage/
+
+# Storybook
+storybook-static/
+
+# Cache
+.cache/
+.turbo/
+.swc/
+
+# Local
+*.local
+
+# Sentry
+.sentryclirc

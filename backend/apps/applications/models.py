@@ -166,3 +166,42 @@ class TestArtifact(models.Model):
     
     def __str__(self):
         return f"{self.kind} for {self.test_run} at {self.created_at}"
+
+
+class GeneratedTestCase(models.Model):
+    """Model storing AI-generated test cases."""
+    
+    TEST_TYPE_CHOICES = [
+        ('functional', 'Functional'),
+        ('regression', 'Regression'),
+        ('performance', 'Performance'),
+        ('accessibility', 'Accessibility'),
+        ('broken_links', 'Broken Links'),
+        ('authentication', 'Authentication Flow'),
+    ]
+    
+    application = models.ForeignKey(
+        Application,
+        on_delete=models.CASCADE,
+        related_name='generated_test_cases',
+        help_text="Application this test case belongs to"
+    )
+    name = models.CharField(max_length=255, help_text="Name of the test case")
+    description = models.TextField(help_text="Description of what this test verifies")
+    test_type = models.CharField(max_length=20, choices=TEST_TYPE_CHOICES, help_text="Type of test")
+    steps_json = models.JSONField(default=list, help_text="JSON array of test steps")
+    expected_results = models.TextField(help_text="Overall expected outcome")
+    tags = models.JSONField(default=list, help_text="Tags for categorization")
+    estimated_duration = models.CharField(max_length=50, default="5 minutes", help_text="Estimated test duration")
+    is_ai_generated = models.BooleanField(default=True, help_text="Whether this was AI-generated")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'generated_test_cases'
+        ordering = ['-created_at']
+        verbose_name = 'Generated Test Case'
+        verbose_name_plural = 'Generated Test Cases'
+    
+    def __str__(self):
+        return f"{self.name} ({self.application.name})"
