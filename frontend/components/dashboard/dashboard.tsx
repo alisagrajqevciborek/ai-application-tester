@@ -8,7 +8,7 @@ import NewTestForm from "@/components/dashboard/new-test-form"
 import VersionCard from "@/components/reports/version-card"
 import type { TestHistory } from "@/lib/types"
 import { applicationsApi, testRunsApi, type Application, type TestRun, type TestRunStats } from "@/lib/api"
-import { Loader2, Package, ArrowLeft, BarChart3, Play, ChevronDown, Sparkles, Zap } from "lucide-react"
+import { Loader2, Package, ArrowLeft, BarChart3, Play, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import dynamic from "next/dynamic"
 import {
@@ -17,7 +17,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 // Lazy load heavy components that are conditionally rendered
 const ReportView = dynamic(() => import("@/components/reports/report-view"), {
@@ -52,6 +51,7 @@ const convertTestRunToHistory = (testRun: TestRun): TestHistory => {
 }
 
 type View = "dashboard" | "profile"
+type SidebarSection = "tests" | "ai"
 
 export default function Dashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -62,6 +62,7 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentView, setCurrentView] = useState<View>("dashboard")
+  const [activeSidebarSection, setActiveSidebarSection] = useState<SidebarSection>("tests")
   const [stats, setStats] = useState<TestRunStats | null>(null)
   const [statsModalOpen, setStatsModalOpen] = useState(false)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -239,6 +240,7 @@ export default function Dashboard() {
 
   const handleSelectTest = (test: TestHistory) => {
     setSelectedTest(test)
+    setActiveSidebarSection("tests")
     // If we're not already viewing this app, switch to it
     if (selectedApp !== test.appName) {
       setSelectedApp(test.appName)
@@ -254,6 +256,7 @@ export default function Dashboard() {
     const app = applications.find(a => a.name === appName)
     if (app) {
       // Navigate to new test form and pre-select the app
+      setActiveSidebarSection("tests")
       setSelectedApp(null)
       setSelectedTest(null)
       // Set initial values for the form
@@ -284,14 +287,22 @@ export default function Dashboard() {
             applications={applications}
             selectedId={selectedApp}
             selectedTestId={selectedTest?.id || null}
+            activeSection={activeSidebarSection}
             onSelectApp={(appName) => {
+              setActiveSidebarSection("tests")
               setSelectedApp(appName)
               setSelectedTest(null)
             }}
             onSelectTest={handleSelectTest}
+            onSelectAIGenerator={() => {
+              setActiveSidebarSection("ai")
+              setSelectedApp(null)
+              setSelectedTest(null)
+            }}
             onDeleteTest={handleDeleteTest}
             onDeleteApp={handleDeleteApp}
             onBackToApps={() => {
+              setActiveSidebarSection("tests")
               setSelectedApp(null)
               setSelectedTest(null)
             }}
@@ -316,7 +327,48 @@ export default function Dashboard() {
               </div>
             ) : (
               <AnimatePresence mode="wait">
-                {selectedTest ? (
+                {activeSidebarSection === "ai" ? (
+                  <motion.div
+                    key="ai-generator-view"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.2 }}
+                    className="space-y-8"
+                  >
+                    <div className="flex items-center justify-between">
+                      <Button
+                        variant="ghost"
+                        onClick={() => setActiveSidebarSection("tests")}
+                        className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
+                      >
+                        <ArrowLeft className="h-4 w-4" />
+                        <span>Back to Dashboard</span>
+                      </Button>
+
+                      <Button
+                        onClick={() => setStatsModalOpen(true)}
+                        className="flex items-center gap-2"
+                      >
+                        <BarChart3 className="h-5 w-5" />
+                        <span>View Statistics</span>
+                      </Button>
+                    </div>
+
+                    <AITestCaseGenerator
+                      application={applications.length > 0 ? applications[0] : null}
+                      applications={applications}
+                      onTestCaseGenerated={(testCase) => {
+                        console.log("Test case generated:", testCase)
+                      }}
+                      onTestComplete={(testHistory) => {
+                        // When test completes, add to history and navigate to it
+                        handleNewTestComplete(testHistory)
+                        setActiveSidebarSection("tests")
+                      }}
+                    />
+                  </motion.div>
+                ) : selectedTest ? (
                   <motion.div
                     key="report"
                     initial={{ opacity: 0, y: 20 }}
@@ -389,50 +441,20 @@ export default function Dashboard() {
                       </Button>
                     </div>
 
-                    {/* Tabs for Quick Test and AI Generator */}
-                    <Tabs defaultValue="quick-test" className="w-full">
-                      <TabsList className="grid w-full grid-cols-2 mb-6">
-                        <TabsTrigger value="quick-test" className="flex items-center gap-2">
-                          <Zap className="w-4 h-4" />
-                          Quick Test
-                        </TabsTrigger>
-                        <TabsTrigger value="ai-generator" className="flex items-center gap-2">
-                          <Sparkles className="w-4 h-4" />
-                          AI Test Generator
-                        </TabsTrigger>
-                      </TabsList>
-                      
-                      <TabsContent value="quick-test">
-                        {/* New Test Form */}
-                        <NewTestForm
-                          onTestComplete={(test) => {
-                            handleNewTestComplete(test)
-                            // Reset initial values after test completes
-                            setInitialTestAppName(undefined)
-                            setInitialTestType(undefined)
-                            setAutoStartTest(false)
-                          }}
-                          applications={applications}
-                          initialAppName={initialTestAppName}
-                          initialTestType={initialTestType}
-                          autoStart={autoStartTest}
-                        />
-                      </TabsContent>
-                      
-                      <TabsContent value="ai-generator">
-                        <AITestCaseGenerator
-                          application={applications.length > 0 ? applications[0] : null}
-                          applications={applications}
-                          onTestCaseGenerated={(testCase) => {
-                            console.log("Test case generated:", testCase)
-                          }}
-                          onTestComplete={(testHistory) => {
-                            // When test completes, add to history and navigate to it
-                            handleNewTestComplete(testHistory)
-                          }}
-                        />
-                      </TabsContent>
-                    </Tabs>
+                    {/* New Test Form */}
+                    <NewTestForm
+                      onTestComplete={(test) => {
+                        handleNewTestComplete(test)
+                        // Reset initial values after test completes
+                        setInitialTestAppName(undefined)
+                        setInitialTestType(undefined)
+                        setAutoStartTest(false)
+                      }}
+                      applications={applications}
+                      initialAppName={initialTestAppName}
+                      initialTestType={initialTestType}
+                      autoStart={autoStartTest}
+                    />
                   </motion.div>
                 )}
               </AnimatePresence>

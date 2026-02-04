@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { motion } from "framer-motion"
-import { ChevronLeft, ChevronRight, History, Clock, Search, Filter, X, Trash2, Package } from "lucide-react"
+import { ChevronLeft, ChevronRight, History, Clock, Search, Filter, X, Trash2, Package, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -27,8 +27,10 @@ interface SidebarProps {
   applications: Application[]
   selectedId: string | null
   selectedTestId: string | null
+  activeSection: "tests" | "ai"
   onSelectApp: (appName: string) => void
   onSelectTest: (test: TestHistory) => void
+  onSelectAIGenerator: () => void
   onDeleteTest?: (testId: string) => void
   onDeleteApp?: (applicationId: number, appName: string) => void
   onBackToApps?: () => void
@@ -49,7 +51,7 @@ const typeOptions = [
   { value: "accessibility", label: "Accessibility" },
 ]
 
-export default function Sidebar({ collapsed, onToggle, history, applications, selectedId, selectedTestId, onSelectApp, onSelectTest, onDeleteTest, onDeleteApp, onBackToApps }: SidebarProps) {
+export default function Sidebar({ collapsed, onToggle, history, applications, selectedId, selectedTestId, activeSection, onSelectApp, onSelectTest, onSelectAIGenerator, onDeleteTest, onDeleteApp, onBackToApps }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [typeFilter, setTypeFilter] = useState("all")
@@ -151,6 +153,22 @@ export default function Sidebar({ collapsed, onToggle, history, applications, se
           className="w-full justify-center hover:bg-orange-600/10 hover:text-orange-600 text-sidebar-foreground"
         >
           {collapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
+        </Button>
+      </div>
+
+      {/* AI Generator Shortcut */}
+      <div className={cn("px-3 pt-3", collapsed ? "pb-2" : "pb-1")}> 
+        <Button
+          variant="ghost"
+          size={collapsed ? "sm" : "default"}
+          onClick={onSelectAIGenerator}
+          className={cn(
+            "w-full justify-start gap-2 hover:bg-orange-600/10 hover:text-orange-600 text-sidebar-foreground",
+            activeSection === "ai" && "bg-orange-600/20 border-2 border-orange-600"
+          )}
+        >
+          <Sparkles className="h-4 w-4 text-orange-600" />
+          {!collapsed && <span className="text-sm font-medium">AI Test Generator</span>}
         </Button>
       </div>
 
