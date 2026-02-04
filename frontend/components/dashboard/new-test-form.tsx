@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Play, Globe, Tag, FileCode, Loader2, CheckCircle, Plus, Pause } from "lucide-react"
+import { Play, Globe, Tag, FileCode, Loader2, CheckCircle, Plus, Pause, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -59,6 +59,9 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
   const [completedTestHistory, setCompletedTestHistory] = useState<TestHistory | null>(null)
   const [hasAutoStarted, setHasAutoStarted] = useState(false)
   const isPausedRef = useRef(false)
+  const testRunIdRef = useRef<number | null>(null)
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const timeTrackerRef = useRef<NodeJS.Timeout | null>(null)
   const [loadingText, setLoadingText] = useState("Testing")
   const [loadingDots, setLoadingDots] = useState("")
 
@@ -86,6 +89,49 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
     } else if (testState === "paused") {
       setTestState("running")
       isPausedRef.current = false
+    }
+  }
+
+  const handleStopTest = async () => {
+    if (!testRunIdRef.current) return
+
+    // Show confirmation dialog
+    if (!confirm("Are you sure you want to stop this test? The test run will be deleted and cannot be recovered.")) {
+      return
+    }
+
+    try {
+      // Delete the test run from the database
+      await testRunsApi.delete(testRunIdRef.current)
+
+      // Clear all intervals
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
+      if (timeTrackerRef.current) {
+        clearInterval(timeTrackerRef.current)
+        timeTrackerRef.current = null
+      }
+
+      // Reset state
+      testRunIdRef.current = null
+      setTestState("idle")
+      setProgress(0)
+      setTestProgressData({
+        progress: 0,
+        currentStep: "",
+        warnings: 0,
+        errors: 0,
+        elapsedTime: 0,
+        estimatedTime: 0,
+        status: "running"
+      })
+      isPausedRef.current = false
+      setError(null)
+    } catch (err) {
+      console.error("Failed to stop test:", err)
+      setError(err instanceof Error ? err.message : "Failed to stop test")
     }
   }
 
@@ -195,7 +241,7 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
     })
 
     // Start elapsed time tracker
-    const timeTracker = setInterval(() => {
+    timeTrackerRef.current = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTime) / 1000)
       setTestProgressData(prev => ({
         ...prev,
@@ -206,6 +252,7 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
     try {
       // Create test run via API
       const testRun = await testRunsApi.create(appToTest.id, testType as string)
+      testRunIdRef.current = testRun.id // Store the test run ID
 
       // Define test steps for progress tracking
       const testSteps = [
@@ -225,7 +272,7 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
       let pollAttempts = 0
       const maxPollAttempts = 600 // 10 minutes max (600 seconds = 10 minutes, polling every second)
 
-      const pollInterval = setInterval(async () => {
+      pollIntervalRef.current = setInterval(async () => {
         if (isPausedRef.current) return
 
         pollAttempts++
@@ -257,8 +304,15 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
               status: "running"
             })
           } else if (updatedTestRun.status === 'success' || updatedTestRun.status === 'failed') {
-            clearInterval(pollInterval)
-            clearInterval(timeTracker)
+            if (pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current)
+              pollIntervalRef.current = null
+            }
+            if (timeTrackerRef.current) {
+              clearInterval(timeTrackerRef.current)
+              timeTrackerRef.current = null
+            }
+            testRunIdRef.current = null
             setProgress(100)
 
             setTestProgressData({
@@ -290,8 +344,15 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
             pollAttempts >= maxPollAttempts &&
             (updatedTestRun.status === 'running' || updatedTestRun.status === 'pending')
           ) {
-            clearInterval(pollInterval)
-            clearInterval(timeTracker)
+            if (pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current)
+              pollIntervalRef.current = null
+            }
+            if (timeTrackerRef.current) {
+              clearInterval(timeTrackerRef.current)
+              timeTrackerRef.current = null
+            }
+            testRunIdRef.current = null
             setError("Test is taking longer than expected. The test may still be running in the background.")
             setTestState("idle")
             setProgress(0)
@@ -302,8 +363,15 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
 
           // If we get multiple errors, stop polling but don't show error (test may still be running)
           if (pollAttempts >= 20) { // Increased from 10 to 20 attempts
-            clearInterval(pollInterval)
-            clearInterval(timeTracker)
+            if (pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current)
+              pollIntervalRef.current = null
+            }
+            if (timeTrackerRef.current) {
+              clearInterval(timeTrackerRef.current)
+              timeTrackerRef.current = null
+            }
+            testRunIdRef.current = null
             const errorMessage = err instanceof Error ? err.message : "Failed to get test status"
             setError(`Error checking test status: ${errorMessage}. The test may still be running in the background.`)
             setShowContinueButton(true)
@@ -316,8 +384,15 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
 
       // Timeout after 10 minutes (tests can take longer with screenshots, artifacts, etc.)
       setTimeout(() => {
-        clearInterval(pollInterval)
-        clearInterval(timeTracker)
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current)
+          pollIntervalRef.current = null
+        }
+        if (timeTrackerRef.current) {
+          clearInterval(timeTrackerRef.current)
+          timeTrackerRef.current = null
+        }
+        testRunIdRef.current = null
         setTestState((currentState) => {
           if (currentState === "running") {
             setError("Test is taking longer than expected. The test may still be running in the background.")
@@ -329,7 +404,11 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
         })
       }, 600000) // 10 minutes
     } catch (err) {
-      clearInterval(timeTracker)
+      if (timeTrackerRef.current) {
+        clearInterval(timeTrackerRef.current)
+        timeTrackerRef.current = null
+      }
+      testRunIdRef.current = null
       setError(err instanceof Error ? err.message : "Failed to start test")
       setTestState("idle")
       setProgress(0)
@@ -587,7 +666,7 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
               <TestProgressIndicator data={testProgressData} />
 
               {testState === "running" || testState === "paused" ? (
-                <div className="flex justify-center mt-6">
+                <div className="flex justify-center gap-3 mt-6">
                   <Button
                     variant="outline"
                     onClick={togglePause}
@@ -602,6 +681,13 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                         <Play className="w-4 h-4" /> Resume
                       </>
                     )}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={handleStopTest}
+                    className="flex items-center gap-2 min-w-[120px]"
+                  >
+                    <X className="w-4 h-4" /> Stop
                   </Button>
                 </div>
               ) : null}
