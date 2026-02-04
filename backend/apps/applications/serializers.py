@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Application, TestRun, Screenshot, TestArtifact
+from .models import Application, TestRun, Screenshot, TestArtifact, GeneratedTestCase
 
 
 class ApplicationSerializer(serializers.ModelSerializer):
@@ -90,3 +90,57 @@ class TestArtifactSerializer(serializers.ModelSerializer):
         model = TestArtifact
         fields = ('id', 'kind', 'url', 'step_name', 'created_at')
         read_only_fields = ('id', 'created_at')
+
+
+class GeneratedTestCaseSerializer(serializers.ModelSerializer):
+    """Serializer for GeneratedTestCase model."""
+    
+    application_name = serializers.CharField(source='application.name', read_only=True)
+    application_url = serializers.URLField(source='application.url', read_only=True)
+    steps = serializers.JSONField(source='steps_json')
+    
+    class Meta:
+        model = GeneratedTestCase
+        fields = (
+            'id', 'application', 'application_name', 'application_url',
+            'name', 'description', 'test_type', 'steps',
+            'expected_results', 'tags', 'estimated_duration',
+            'is_ai_generated', 'created_at', 'updated_at'
+        )
+        read_only_fields = ('id', 'created_at', 'updated_at')
+    
+    def validate_application(self, value):
+        """Ensure user owns the application."""
+        request = self.context.get('request')
+        if request and value.owner != request.user:
+            raise serializers.ValidationError("You don't have permission to access this application.")
+        return value
+
+
+class GeneratedTestCaseCreateSerializer(serializers.Serializer):
+    """Serializer for creating a test case via AI generation."""
+    
+    prompt = serializers.CharField(help_text="Natural language description of what to test")
+    application_id = serializers.IntegerField(help_text="ID of the application to test")
+    test_type = serializers.ChoiceField(
+        choices=['functional', 'regression', 'performance', 'accessibility', 'broken_links', 'authentication'],
+        default='functional'
+    )
+    
+    def validate_application_id(self, value):
+        """Ensure application exists and user owns it."""
+        request = self.context.get('request')
+        try:
+            application = Application.objects.get(pk=value)  # type: ignore[attr-defined]
+            if request and application.owner != request.user:
+                raise serializers.ValidationError("You don't have permission to access this application.")
+            return value
+        except Application.DoesNotExist:  # type: ignore[attr-defined]
+            raise serializers.ValidationError("Application not found.")
+
+
+class TestCaseRefineSerializer(serializers.Serializer):
+    """Serializer for refining an existing test case."""
+    
+    test_case = serializers.JSONField(help_text="Existing test case to refine")
+    refinement_prompt = serializers.CharField(help_text="Refinement request")
