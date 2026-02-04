@@ -109,6 +109,9 @@ export default function Dashboard() {
             const allRuns = await testRunsApi.list()
             const allHistory = allRuns.map(convertTestRunToHistory)
             setHistory(allHistory)
+            
+            // Also refresh stats to update the statistics modal
+            await loadStats()
 
             // Stop polling if no running tests
             const stillRunning = allRuns.filter(tr => tr.status === 'running' || tr.status === 'pending')
@@ -167,15 +170,14 @@ export default function Dashboard() {
     }
   }, [loadApplications, loadTestRuns, loadStats])
 
-  const handleNewTestComplete = (newTest: TestHistory) => {
+  const handleNewTestComplete = async (newTest: TestHistory) => {
     setHistory([newTest, ...history])
     setSelectedTest(newTest)
-    // Reload test runs to get latest data
-    loadTestRuns()
+    // Reload test runs to get latest data, then refresh stats
+    await loadTestRuns()
+    await loadStats()
     // Reload applications after creating a new one
     loadApplications()
-    // Reload stats to update dashboard
-    loadStats()
   }
 
   const handleDeleteTest = async (testId: string) => {
