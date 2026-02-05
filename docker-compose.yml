@@ -12,18 +12,19 @@ services:
       - /app/.next
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000/api
+    command: pnpm dev
     depends_on:
       - backend
     networks:
       - app-network
- 
+
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: ai_app_tester_backend
     env_file:
-      - ./backend/.env  # Add this line - loads environment variables from backend/.env
+      - ./backend/.env # Add this line - loads environment variables from backend/.env
     ports:
       - "8000:8000"
     volumes:
@@ -52,14 +53,14 @@ services:
       - redis
     networks:
       - app-network
- 
+
   celery_worker:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: ai_app_tester_celery
     env_file:
-      - ./backend/.env  # Add this line - loads environment variables from backend/.env
+      - ./backend/.env # Add this line - loads environment variables from backend/.env
     volumes:
       - ./backend:/app
       - backend_media:/app/media
@@ -88,7 +89,7 @@ services:
       - backend
     networks:
       - app-network
- 
+
   redis:
     image: redis:7-alpine
     container_name: ai_app_tester_redis
@@ -98,12 +99,13 @@ services:
       - redis_data:/data
     networks:
       - app-network
- 
+
 volumes:
   backend_media:
   backend_static:
   redis_data:
- 
+
+
 networks:
   app-network:
     driver: bridge

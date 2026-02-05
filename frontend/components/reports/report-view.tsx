@@ -1,6 +1,8 @@
 "use client"
 
 import { motion, AnimatePresence } from "framer-motion"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import {
   ArrowLeft,
   ExternalLink,
@@ -42,6 +44,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
 
 interface ReportViewProps {
   test: TestHistory
@@ -552,14 +560,14 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
     try {
       setIsExportingToJira(true)
       const result = await reportsApi.exportToJira(parseInt(test.id))
-      
+
       if (result.error) {
         toast.error("Export Failed", {
           description: result.error,
         })
         return
       }
-      
+
       // Build success message with ticket links
       const messages: string[] = []
       if (result.error_ticket) {
@@ -568,7 +576,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
       if (result.warning_ticket) {
         messages.push(`Warning ticket: ${result.warning_ticket.key} (${result.warnings_exported || 0} warnings)`)
       }
-      
+
       if (messages.length > 0) {
         toast.success("✅ Ticket Created - Check Jira!", {
           description: messages.join(", "),
@@ -644,8 +652,8 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
                   <FileSpreadsheet className="mr-2 h-4 w-4 text-green-400" />
                   <span>Export as Excel</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem 
-                  onClick={() => handleExportToJira()} 
+                <DropdownMenuItem
+                  onClick={() => handleExportToJira()}
                   className="cursor-pointer"
                   disabled={isExportingToJira}
                 >
@@ -776,10 +784,100 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
           >
             <h3 className="text-lg font-semibold text-foreground mb-4">Detailed Report</h3>
             {report?.detailed_report && (
-              <div className="mb-6 p-4 bg-muted/50 rounded-lg">
-                <pre className="whitespace-pre-wrap text-sm font-mono text-foreground">
-                  {report.detailed_report}
-                </pre>
+              <div className="mb-8">
+                {(() => {
+                  // 1. Remove the reference section
+                  const cleanReport = report.detailed_report.split(/={10,}\s*AUTOMATED TEST FINDINGS \(REFERENCE\)/)[0].trim()
+
+                  // 2. Split by "## STEP"
+                  const steps = cleanReport.split(/(?=## STEP \d+:)/)
+
+                  if (steps.length <= 1) {
+                    // Fallback if formatting doesn't match expected STEP structure
+                    return (
+                      <div className="p-6 bg-gradient-to-br from-muted/30 to-muted/50 rounded-xl border border-border/50 shadow-lg">
+                        <div className="prose prose-invert max-w-none prose-p:text-foreground/85 prose-headings:text-foreground prose-strong:text-foreground prose-code:text-primary prose-ul:list-disc prose-ol:list-decimal">
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              h2: ({ ...props }) => <h2 className="text-2xl font-bold mt-8 mb-4 pb-3 border-b-2 border-primary/30" {...props} />,
+                              h3: ({ ...props }) => <h3 className="text-xl font-semibold mt-6 mb-3" {...props} />,
+                              h4: ({ ...props }) => <h4 className="text-lg font-medium mt-5 mb-2" {...props} />,
+                              p: ({ ...props }) => <p className="text-[15px] leading-relaxed mb-4" {...props} />,
+                              ul: ({ ...props }) => <ul className="space-y-2 mb-4 ml-6" {...props} />,
+                              ol: ({ ...props }) => <ol className="space-y-2 mb-4 ml-6" {...props} />,
+                              li: ({ ...props }) => <li className="text-sm leading-relaxed" {...props} />,
+                              code: ({ inline, ...props }: any) =>
+                                inline ? (
+                                  <code className="px-1.5 py-0.5 rounded bg-muted/80 text-xs font-mono" {...props} />
+                                ) : (
+                                  <pre className="bg-[#0f1115] p-4 rounded-lg border border-border/50 my-4 overflow-x-auto">
+                                    <code className="text-sm font-mono text-[#e1e4e8]" {...props} />
+                                  </pre>
+                                ),
+                              hr: () => <hr className="border-t border-border/30 my-6" />,
+                              strong: ({ ...props }) => <strong className="font-semibold" {...props} />,
+                            }}
+                          >
+                            {cleanReport}
+                          </ReactMarkdown>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <Accordion type="multiple" defaultValue={["step-0"]} className="space-y-4">
+                      {steps.map((step, idx) => {
+                        const firstLine = step.split('\n')[0].trim()
+                        const title = firstLine.replace(/^## /, '')
+                        const content = step.split('\n').slice(1).join('\n').trim()
+
+                        if (!title && !content) return null
+
+                        return (
+                          <AccordionItem
+                            key={`step-${idx}`}
+                            value={`step-${idx}`}
+                            className="glass rounded-xl border-border/50 shadow-sm overflow-hidden"
+                          >
+                            <AccordionTrigger className="px-6 py-4 hover:bg-muted/30 no-underline hover:no-underline transition-all">
+                              <span className="text-lg font-bold text-foreground">{title || `Step ${idx + 1}`}</span>
+                            </AccordionTrigger>
+                            <AccordionContent className="px-6 pb-6">
+                              <div className="prose prose-invert max-w-none prose-p:text-foreground/85 prose-headings:text-foreground prose-strong:text-foreground prose-code:text-primary prose-ul:list-disc prose-ol:list-decimal">
+                                <ReactMarkdown
+                                  remarkPlugins={[remarkGfm]}
+                                  components={{
+                                    h2: ({ ...props }) => <h2 className="text-2xl font-bold mt-8 mb-4 pb-3 border-b-2 border-primary/30" {...props} />,
+                                    h3: ({ ...props }) => <h3 className="text-xl font-semibold mt-6 mb-3" {...props} />,
+                                    h4: ({ ...props }) => <h4 className="text-lg font-medium mt-5 mb-2" {...props} />,
+                                    p: ({ ...props }) => <p className="text-[15px] leading-relaxed mb-4" {...props} />,
+                                    ul: ({ ...props }) => <ul className="space-y-2 mb-4 ml-6" {...props} />,
+                                    ol: ({ ...props }) => <ol className="space-y-2 mb-4 ml-6" {...props} />,
+                                    li: ({ ...props }) => <li className="text-sm leading-relaxed" {...props} />,
+                                    code: ({ inline, ...props }: any) =>
+                                      inline ? (
+                                        <code className="px-1.5 py-0.5 rounded bg-muted/80 text-xs font-mono" {...props} />
+                                      ) : (
+                                        <pre className="bg-[#0f1115] p-4 rounded-lg border border-border/50 my-4 overflow-x-auto">
+                                          <code className="text-sm font-mono text-[#e1e4e8]" {...props} />
+                                        </pre>
+                                      ),
+                                    hr: () => <hr className="border-t border-border/30 my-6" />,
+                                    strong: ({ ...props }) => <strong className="font-semibold" {...props} />,
+                                  }}
+                                >
+                                  {content}
+                                </ReactMarkdown>
+                              </div>
+                            </AccordionContent>
+                          </AccordionItem>
+                        )
+                      })}
+                    </Accordion>
+                  )
+                })()}
               </div>
             )}
 
