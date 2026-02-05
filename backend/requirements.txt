@@ -21,7 +21,7 @@ playwright==1.40.0
 requests==2.31.0
 
 # OpenAI for AI-powered features
-openai==1.12.0
+openai>=1.12.0
 
 # Jira for bug tracking integration
 jira>=3.5.0

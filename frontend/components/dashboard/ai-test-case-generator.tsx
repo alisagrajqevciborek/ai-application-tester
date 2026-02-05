@@ -121,10 +121,14 @@ export default function AITestCaseGenerator({
     setError(null)
 
     try {
+      console.log("Starting refine request with prompt:", refinementPrompt)
+      console.log("Current test case:", generatedTestCase)
       const refined = await testCaseApi.refine(generatedTestCase, refinementPrompt)
+      console.log("Refined test case received:", refined)
       setGeneratedTestCase(refined)
       setRefinementPrompt("")
     } catch (err) {
+      console.error("Refine error:", err)
       setError(err instanceof Error ? err.message : "Failed to refine test case")
     } finally {
       setIsRefining(false)

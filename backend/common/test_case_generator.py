@@ -9,8 +9,27 @@ This module provides:
 
 import json
 import logging
+import os
+from pathlib import Path
 from typing import Dict, List, Optional
+from dotenv import load_dotenv
 from .ai_helpers import get_openai_client
+
+# Load environment variables from .env file
+env_path = Path(__file__).resolve().parent.parent / '.env'
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path, override=True)
+    print(f"✓ Loaded .env from: {env_path}")
+else:
+    load_dotenv(override=True)
+    print(f"✗ .env not found at: {env_path}, trying current directory")
+
+# Debug: Check if key is loaded
+api_key = os.getenv('OPENAI_API_KEY')
+if api_key:
+    print(f"✓ OPENAI_API_KEY loaded: {api_key[:20]}...")
+else:
+    print("✗ OPENAI_API_KEY not found in environment")
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +76,10 @@ def generate_test_case_from_prompt(
     client = get_openai_client()
     if not client:
         logger.warning("OpenAI client not available. Cannot generate test case.")
+        print("✗ OpenAI client is None - using fallback")
         return _generate_fallback_test_case(user_prompt, application_url, test_type)
+    
+    print("✓ OpenAI client created successfully")
     
     try:
         # Build system prompt
@@ -331,29 +353,38 @@ def refine_test_case(
     client = get_openai_client()
     if not client:
         logger.warning("OpenAI client not available. Cannot refine test case.")
+        # Return the original test case unchanged if AI is not available
         return existing_test_case
     
     try:
         system_prompt = """You are an expert QA engineer. Your task is to refine existing test cases based on user feedback.
 
-You will receive:
-1. An existing test case (JSON format)
-2. A refinement request from the user
+CRITICAL REQUIREMENTS:
+1. You MUST preserve the entire JSON structure
+2. You MUST include ALL existing steps from the original test case
+3. When adding new steps, INSERT them at the appropriate position (not at the end)
+4. Ensure step order numbers (order field) are sequential from 1 to N
+5. Each step MUST have: order, action, selector, value, description, expected_result
+6. Return ONLY valid JSON - no markdown, no code blocks, no explanations
 
-Apply the refinement and return the updated test case in the same JSON format.
-Maintain all existing steps unless explicitly asked to remove them.
-Add new steps where requested.
-Modify steps if the user asks for changes.
-"""
+Steps actions: navigate, click, fill, select, wait, assert, check, uncheck, hover, scroll, screenshot, press, type
+
+Always maintain the same test type, tags, estimated_duration, and overall structure."""
         
-        user_prompt = f"""Existing Test Case:
+        user_prompt = f"""Original Test Case:
 {json.dumps(existing_test_case, indent=2)}
 
-User Refinement Request: "{refinement_prompt}"
+User Request for Refinement: "{refinement_prompt}"
 
-Apply the refinement and return the complete updated test case as JSON with the same structure.
-Return ONLY the JSON, no markdown, no code blocks, no explanations.
+IMPORTANT:
+- Apply the requested changes
+- Ensure all steps are properly ordered and numbered sequentially
+- Return the COMPLETE updated test case with ALL fields
+- Return ONLY the JSON object, no explanation or markdown
+- Make sure the JSON is valid and can be parsed
 """
+        
+        logger.info(f"Refining test case with prompt: {refinement_prompt}")
         
         response = client.chat.completions.create(
             model="gpt-4o",
@@ -367,19 +398,39 @@ Return ONLY the JSON, no markdown, no code blocks, no explanations.
                     "content": user_prompt
                 }
             ],
-            max_tokens=2000,
+            max_tokens=3000,
             temperature=0.3,
             response_format={"type": "json_object"}
         )
         
         content = response.choices[0].message.content
         if not content:
+            logger.warning("Empty response from OpenAI when refining")
             return existing_test_case
         
+        logger.info(f"Raw response from OpenAI: {content[:200]}...")
+        
         refined = json.loads(content)
-        logger.info("Successfully refined test case")
+        
+        # Validate the refined test case has required fields
+        required_fields = ['name', 'description', 'steps', 'expected_results']
+        for field in required_fields:
+            if field not in refined:
+                logger.warning(f"Missing required field in refined test case: {field}, returning original")
+                return existing_test_case
+        
+        # Ensure steps are properly ordered
+        if 'steps' in refined and isinstance(refined['steps'], list):
+            for idx, step in enumerate(refined['steps'], 1):
+                if 'order' not in step:
+                    step['order'] = idx
+        
+        logger.info(f"Successfully refined test case with {len(refined.get('steps', []))} steps")
         return refined
         
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON parse error when refining: {e}")
+        return existing_test_case
     except Exception as e:
         logger.error(f"Error refining test case: {e}", exc_info=True)
         return existing_test_case

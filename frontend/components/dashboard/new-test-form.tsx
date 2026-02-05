@@ -460,9 +460,9 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                   <Tag className="w-4 h-4" />
                   Select Application
                 </Label>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-[1fr_auto] items-center gap-0 rounded-xl overflow-hidden border border-border/50 bg-input">
                   <Select value={selectedAppId} onValueChange={setSelectedAppId}>
-                    <SelectTrigger className="bg-input border-border/50 focus:border-primary h-12 rounded-xl flex-1">
+                    <SelectTrigger className="bg-transparent border-0 focus:border-primary h-11 rounded-none rounded-l-xl">
                       <SelectValue placeholder="Choose an application" />
                     </SelectTrigger>
                     <SelectContent className="bg-popover border-border">
@@ -480,7 +480,7 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                       setShowNewAppForm(!showNewAppForm)
                       setSelectedAppId("")
                     }}
-                    className="h-12 rounded-xl border-border hover:bg-secondary"
+                    className="h-11 min-w-[96px] px-3 rounded-none rounded-r-xl border-l border-border/50 bg-transparent hover:bg-secondary text-sm font-medium"
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     New
@@ -610,7 +610,7 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                   testState !== "idle" ||
                   (testType === 'authentication' && (selectedApp ? (!selectedApp.login_url || !selectedApp.test_username) : (!loginUrl || !testUsername)))
                 }
-                className="w-full h-14 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-semibold text-lg transition-all duration-200 mt-4"
+                className="w-full h-11 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-semibold text-base transition-all duration-200 mt-4"
               >
                 <Play className="w-5 h-5 mr-2" />
                 {testType === 'authentication' && (selectedApp ? (!selectedApp.login_url || !selectedApp.test_username) : (!loginUrl || !testUsername))

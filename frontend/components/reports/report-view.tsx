@@ -182,14 +182,33 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
   const [activeScreenshotUrl, setActiveScreenshotUrl] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<"findings" | "logs">("findings")
   const [isExportingToJira, setIsExportingToJira] = useState(false)
+  const [refreshAttempts, setRefreshAttempts] = useState(0)
 
   useEffect(() => {
+    setRefreshAttempts(0)
     loadReport()
   }, [test.id])
 
-  const loadReport = async () => {
+  useEffect(() => {
+    if (!report) return
+
+    const hasDetails = Boolean(report.detailed_report) || (report.issues_json?.length ?? 0) > 0 || (report.console_logs_json?.length ?? 0) > 0
+    if (hasDetails) return
+    if (refreshAttempts >= 12) return
+
+    const timer = setTimeout(() => {
+      setRefreshAttempts((prev) => prev + 1)
+      loadReport(true)
+    }, 5000)
+
+    return () => clearTimeout(timer)
+  }, [report, refreshAttempts])
+
+  const loadReport = async (silent = false) => {
     try {
-      setIsLoading(true)
+      if (!silent) {
+        setIsLoading(true)
+      }
       setError(null)
       const reportData = await reportsApi.get(parseInt(test.id))
       setReport(reportData)

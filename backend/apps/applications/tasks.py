@@ -217,6 +217,29 @@ def execute_test_run_task(self, test_run_id):
                 test_run.status = 'failed'
                 test_run.completed_at = timezone.now()
                 test_run.save()
+            try:
+                from apps.reports.models import Report
+
+                Report.objects.update_or_create(
+                    test_run=test_run,
+                    defaults={
+                        'summary': 'Test run failed before results were generated.',
+                        'detailed_report': (
+                            'The test run failed during execution and no results were produced.\n\n'
+                            f'Error: {exc}'
+                        ),
+                        'issues_json': [],
+                        'console_logs_json': [
+                            {
+                                'type': 'error',
+                                'text': f'Test run failed: {exc}',
+                            }
+                        ],
+                    },
+                )
+                logger.info(f"Fallback report generated for failed test run {test_run_id}")
+            except Exception as report_exc:
+                logger.error(f"Failed to create fallback report for test run {test_run_id}: {report_exc}")
         except Exception:
             pass
         
@@ -381,6 +404,29 @@ def execute_generated_test_case_task(self, test_run_id, test_steps):
                 test_run.status = 'failed'
                 test_run.completed_at = timezone.now()
                 test_run.save()
+            try:
+                from apps.reports.models import Report
+
+                Report.objects.update_or_create(
+                    test_run=test_run,
+                    defaults={
+                        'summary': 'Generated test case failed before results were generated.',
+                        'detailed_report': (
+                            'The generated test case failed during execution and no results were produced.\n\n'
+                            f'Error: {exc}'
+                        ),
+                        'issues_json': [],
+                        'console_logs_json': [
+                            {
+                                'type': 'error',
+                                'text': f'Generated test case failed: {exc}',
+                            }
+                        ],
+                    },
+                )
+                logger.info(f"Fallback report generated for failed generated test run {test_run_id}")
+            except Exception as report_exc:
+                logger.error(f"Failed to create fallback report for generated test run {test_run_id}: {report_exc}")
         except Exception:
             pass
         
