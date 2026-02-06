@@ -24,7 +24,7 @@ interface NewTestFormProps {
 }
 
 type TestState = "idle" | "creating" | "running" | "paused" | "completed"
-type TestType = "functional" | "regression" | "performance" | "accessibility" | "broken_links" | "authentication"
+type TestType = "general" | "functional" | "regression" | "performance" | "accessibility" | "broken_links" | "authentication"
 
 export default function NewTestForm({ onTestComplete, applications, initialAppName, initialTestType, autoStart }: NewTestFormProps) {
   // Find initial app if appName is provided
@@ -592,6 +592,7 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                     <SelectValue placeholder="Select test type" />
                   </SelectTrigger>
                   <SelectContent className="bg-popover border-border">
+                    <SelectItem value="general">General (Full Suite)</SelectItem>
                     <SelectItem value="functional">Functional Testing</SelectItem>
                     <SelectItem value="regression">Regression Testing</SelectItem>
                     <SelectItem value="performance">Performance Testing</SelectItem>

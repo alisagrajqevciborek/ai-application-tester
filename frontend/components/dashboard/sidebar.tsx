@@ -45,10 +45,13 @@ const statusOptions = [
 
 const typeOptions = [
   { value: "all", label: "All Types" },
+  { value: "general", label: "General" },
   { value: "functional", label: "Functional" },
   { value: "regression", label: "Regression" },
   { value: "performance", label: "Performance" },
   { value: "accessibility", label: "Accessibility" },
+  { value: "broken_links", label: "Broken Links" },
+  { value: "authentication", label: "Authentication" },
 ]
 
 export default function Sidebar({ collapsed, onToggle, history, applications, selectedId, selectedTestId, activeSection, onSelectApp, onSelectTest, onSelectAIGenerator, onDeleteTest, onDeleteApp, onBackToApps }: SidebarProps) {

@@ -29,7 +29,7 @@ export interface TestRun {
   application: number
   application_name: string
   application_url: string
-  test_type: 'functional' | 'regression' | 'performance' | 'accessibility' | 'broken_links' | 'authentication'
+  test_type: 'general' | 'functional' | 'regression' | 'performance' | 'accessibility' | 'broken_links' | 'authentication'
   status: 'pending' | 'running' | 'success' | 'failed'
   pass_rate: number
   fail_rate: number
@@ -421,7 +421,7 @@ export const testRunsApi = {
   },
 
   async get(id: number): Promise<TestRun> {
-    return apiRequest<TestRun>(`/applications/test-runs/${id}`)
+    return apiRequest<TestRun>(`/applications/test-runs/${id}/`)
   },
 
   async create(applicationId: number, testType: string, options?: { check_broken_links?: boolean; check_auth?: boolean }): Promise<TestRun> {
@@ -436,7 +436,7 @@ export const testRunsApi = {
   },
 
   async delete(id: number): Promise<void> {
-    return apiRequest<void>(`/applications/test-runs/${id}`, {
+    return apiRequest<void>(`/applications/test-runs/${id}/`, {
       method: 'DELETE',
     })
   },

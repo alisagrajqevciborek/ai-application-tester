@@ -42,6 +42,7 @@ class TestRun(models.Model):
     ]
     
     TEST_TYPE_CHOICES = [
+        ('general', 'General (Full Suite)'),
         ('functional', 'Functional'),
         ('regression', 'Regression'),
         ('performance', 'Performance'),

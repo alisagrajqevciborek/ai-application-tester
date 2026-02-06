@@ -200,9 +200,12 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
   useEffect(() => {
     if (!report) return
 
-    const hasDetails = Boolean(report.detailed_report) || (report.issues_json?.length ?? 0) > 0 || (report.console_logs_json?.length ?? 0) > 0
-    if (hasDetails) return
-    if (refreshAttempts >= 12) return
+    const hasMeaningfulContent =
+      (report.detailed_report && report.detailed_report.length > 100) ||
+      (report.issues_json?.length ?? 0) > 0 ||
+      (report.console_logs_json?.length ?? 0) > 0
+    if (hasMeaningfulContent) return
+    if (refreshAttempts >= 24) return
 
     const timer = setTimeout(() => {
       setRefreshAttempts((prev) => prev + 1)
@@ -271,6 +274,13 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
       ? `The test suite completed successfully with a ${test.passRate}% pass rate. All critical user flows were validated, and no blocking issues were found. ${minorCount} minor improvements are suggested for accessibility compliance.`
       : `The test suite encountered ${test.failRate}% failures. ${criticalCount} critical and ${majorCount} major issues were found that require immediate attention. Review the detailed findings below.`
   )
+
+  // Report is still being generated when we have a report row but no meaningful content yet
+  const hasMeaningfulReport =
+    (report?.detailed_report && report.detailed_report.length > 100) ||
+    (report?.issues_json?.length ?? 0) > 0 ||
+    (report?.console_logs_json?.length ?? 0) > 0
+  const isGeneratingReport = Boolean(report && !hasMeaningfulReport)
 
   // Show loading state
   if (isLoading) {
@@ -783,7 +793,12 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
             className="mb-8"
           >
             <h3 className="text-lg font-semibold text-foreground mb-4">Detailed Report</h3>
-            {report?.detailed_report && (
+            {isGeneratingReport ? (
+              <div className="rounded-xl border border-primary/30 bg-primary/10 p-4 flex items-center gap-4 mb-8">
+                <Loader2 className="h-6 w-6 shrink-0 animate-spin text-primary" />
+                <p className="font-medium text-foreground">Generating your report</p>
+              </div>
+            ) : report?.detailed_report && report.detailed_report.length > 100 ? (
               <div className="mb-8">
                 {(() => {
                   // 1. Remove the reference section
@@ -879,7 +894,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
                   )
                 })()}
               </div>
-            )}
+            ) : null}
 
             <h3 className="text-lg font-semibold text-foreground mb-4">Detailed Findings</h3>
             <div className="space-y-4">

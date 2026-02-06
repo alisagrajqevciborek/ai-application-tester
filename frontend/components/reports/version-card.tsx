@@ -67,6 +67,8 @@ export default function VersionCard({ test, onSelect, onDelete, onRunTest, isSel
 
   const getTestTypeColor = (type: string) => {
     switch (type) {
+      case "general":
+        return "bg-cyan-500/10 text-cyan-600 border-cyan-500/20"
       case "functional":
         return "bg-blue-500/10 text-blue-600 border-blue-500/20"
       case "regression":

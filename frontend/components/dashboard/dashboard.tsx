@@ -248,7 +248,7 @@ export default function Dashboard() {
   }
 
   const [initialTestAppName, setInitialTestAppName] = useState<string | undefined>(undefined)
-  const [initialTestType, setInitialTestType] = useState<"functional" | "regression" | "performance" | "accessibility" | "broken_links" | "authentication" | undefined>(undefined)
+  const [initialTestType, setInitialTestType] = useState<"general" | "functional" | "regression" | "performance" | "accessibility" | "broken_links" | "authentication" | undefined>(undefined)
   const [autoStartTest, setAutoStartTest] = useState(false)
 
   const handleRunTestFromCard = (appName: string, testType: string) => {
@@ -261,7 +261,7 @@ export default function Dashboard() {
       setSelectedTest(null)
       // Set initial values for the form
       setInitialTestAppName(appName)
-      setInitialTestType(testType as "functional" | "regression" | "performance" | "accessibility")
+      setInitialTestType(testType as "general" | "functional" | "regression" | "performance" | "accessibility" | "broken_links" | "authentication")
       setAutoStartTest(true)
       // Scroll to the form
       setTimeout(() => {
@@ -518,6 +518,9 @@ function AppVersionsView({ appName, history, selectedTestId, onSelectTest, onDel
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="bg-popover border-border">
+            <DropdownMenuItem onClick={() => onRunTest && onRunTest(appName, "general")}>
+              General (Full Suite)
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onRunTest && onRunTest(appName, "functional")}>
               Functional Testing
             </DropdownMenuItem>
@@ -529,6 +532,12 @@ function AppVersionsView({ appName, history, selectedTestId, onSelectTest, onDel
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onRunTest && onRunTest(appName, "accessibility")}>
               Accessibility Testing
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onRunTest && onRunTest(appName, "broken_links")}>
+              Broken Link Check
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onRunTest && onRunTest(appName, "authentication")}>
+              Authentication Flow
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

@@ -146,8 +146,13 @@ class BrowserAutomationService:
                     results = await tests_accessibility.run_accessibility_tests(
                         page, url, screenshots_dir, console_logs, issue_manager
                     )
-                else:
-                    # Run all tests
+                elif test_type in ('general', 'broken_links', 'authentication'):
+                    # Run the 4 core suites (functional, regression, performance, accessibility).
+                    #
+                    # NOTE: historically, unknown test types fell into "run all" here.
+                    # We now make it explicit for "general" and also keep the legacy
+                    # behavior for "broken_links" and "authentication" (which are
+                    # implemented as add-on checks later in this method).
                     func_results = await tests_functional.run_functional_tests(
                         page, url, screenshots_dir, console_logs, network_failures,
                         main_document_headers or {}, issue_manager
@@ -171,6 +176,12 @@ class BrowserAutomationService:
                         'issues': all_issues,
                         'screenshots': []
                     }
+                else:
+                    logger.warning(f"Unknown test_type={test_type!r}; defaulting to functional suite")
+                    results = await tests_functional.run_functional_tests(
+                        page, url, screenshots_dir, console_logs, network_failures,
+                        main_document_headers or {}, issue_manager
+                    )
                 
                 issues = results.get('issues', [])
                 

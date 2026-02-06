@@ -43,18 +43,33 @@ def execute_test_run_task(self, test_run_id):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
+            is_general = test_type == 'general'
+            app = test_run.application
+            has_auth_creds = bool(app.test_username and app.test_password and app.login_url)
+
+            check_broken_links = bool(test_run.check_broken_links) or (test_type == 'broken_links') or is_general
+
+            # For "general", only run auth flow if credentials are actually configured.
+            auth_requested = bool(test_run.check_auth) or (test_type == 'authentication') or (is_general and has_auth_creds)
+            auth_credentials = (
+                {
+                    'username': app.test_username,
+                    'password': app.test_password,
+                    'login_url': app.login_url,
+                }
+                if auth_requested and has_auth_creds
+                else None
+            )
+            check_auth = auth_requested and auth_credentials is not None
+
             results = loop.run_until_complete(
                 service.run_test(
                     url, 
                     test_type, 
                     screenshots_dir=None,
-                    check_broken_links=test_run.check_broken_links or (test_type == 'broken_links'),
-                    check_auth=test_run.check_auth or (test_type == 'authentication'),
-                    auth_credentials={
-                        'username': test_run.application.test_username,
-                        'password': test_run.application.test_password,
-                        'login_url': test_run.application.login_url,
-                    } if (test_run.check_auth or test_type == 'authentication') else None
+                    check_broken_links=check_broken_links,
+                    check_auth=check_auth,
+                    auth_credentials=auth_credentials,
                 )
             )
         finally:
@@ -151,7 +166,7 @@ def execute_test_run_task(self, test_run_id):
             # Artifacts are stored separately in TestArtifact model and accessible via API
             # No need to include them in the detailed_report text
 
-            Report.objects.update_or_create(
+            Report.objects.update_or_create(  # type: ignore[attr-defined]
                 test_run=test_run,
                 defaults={
                     'summary': summary,
@@ -186,13 +201,16 @@ def execute_test_run_task(self, test_run_id):
             logger.info(f"Found {len(artifacts)} artifacts to save")
             if artifacts:
                 for idx, artifact in enumerate(artifacts):
-                    if isinstance(artifact, dict) and artifact.get('url'):
+                    if isinstance(artifact, dict):
+                        url = artifact.get('url')
+                        if not isinstance(url, str) or not url:
+                            continue
                         try:
-                            logger.info(f"Saving artifact {idx+1}/{len(artifacts)}: kind={artifact.get('kind')}, url={artifact.get('url')[:50]}...")
+                            logger.info(f"Saving artifact {idx+1}/{len(artifacts)}: kind={artifact.get('kind')}, url={url[:50]}...")
                             TestArtifact.objects.create(  # type: ignore[attr-defined]
                                 test_run=test_run,
                                 kind=artifact.get('kind', 'playwright_trace'),
-                                url=artifact['url'],
+                                url=url,
                                 step_name=artifact.get('note'),
                             )
                             logger.info(f"Successfully saved artifact {idx+1}")
@@ -220,7 +238,7 @@ def execute_test_run_task(self, test_run_id):
             try:
                 from apps.reports.models import Report
 
-                Report.objects.update_or_create(
+                Report.objects.update_or_create(  # type: ignore[attr-defined]
                     test_run=test_run,
                     defaults={
                         'summary': 'Test run failed before results were generated.',
@@ -359,7 +377,7 @@ def execute_generated_test_case_task(self, test_run_id, test_steps):
                     detailed_report += f"\n{idx}. [{issue.get('severity', 'unknown').upper()}] {issue.get('title', 'Unknown issue')}{freq_text}\n"
                     detailed_report += f"   Description: {issue.get('description', 'No description')}\n"
 
-            Report.objects.update_or_create(
+            Report.objects.update_or_create(  # type: ignore[attr-defined]
                 test_run=test_run,
                 defaults={
                     'summary': summary,
@@ -407,7 +425,7 @@ def execute_generated_test_case_task(self, test_run_id, test_steps):
             try:
                 from apps.reports.models import Report
 
-                Report.objects.update_or_create(
+                Report.objects.update_or_create(  # type: ignore[attr-defined]
                     test_run=test_run,
                     defaults={
                         'summary': 'Generated test case failed before results were generated.',
