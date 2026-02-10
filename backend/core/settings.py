@@ -100,17 +100,31 @@ WSGI_APPLICATION = 'core.wsgi.application'
  
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
- 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME', 'ai_app_tester'),
-        'USER': os.getenv('DB_USER', 'postgres'),
-        'PASSWORD': os.getenv('DB_PASSWORD'),
-        'HOST': os.getenv('DB_HOST', 'localhost'),
-        'PORT': os.getenv('DB_PORT', '5432'),
+#
+# Dev-friendly default:
+# - If `DB_PASSWORD` is not provided and DEBUG is enabled, fall back to SQLite so the app can run out-of-the-box.
+# - To use Postgres, set `DB_PASSWORD` (and related DB_* env vars).
+
+DB_PASSWORD = os.getenv('DB_PASSWORD', '')
+
+if DEBUG and not DB_PASSWORD:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DB_NAME', 'ai_app_tester'),
+            'USER': os.getenv('DB_USER', 'postgres'),
+            'PASSWORD': DB_PASSWORD,
+            'HOST': os.getenv('DB_HOST', 'localhost'),
+            'PORT': os.getenv('DB_PORT', '5432'),
+        }
+    }
  
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'

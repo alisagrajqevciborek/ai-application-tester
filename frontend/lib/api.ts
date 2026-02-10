@@ -1,4 +1,8 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
+// Always use localhost in the browser (browser can't resolve Docker service names)
+// Server-side can use the env variable for internal Docker network calls
+const API_BASE_URL = typeof window !== 'undefined' 
+  ? 'http://localhost:8000/api'  // Browser/client-side
+  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api')  // Server-side/SSR
 
 // Types
 export interface User {
@@ -239,7 +243,7 @@ async function apiRequest<T>(
 // Auth API
 export const authApi = {
   async register(email: string, password: string, passwordConfirm: string, firstName: string, lastName: string): Promise<{ message: string; email: string }> {
-    return apiRequest<{ message: string; email: string }>('/auth/register', {
+    return apiRequest<{ message: string; email: string }>('/auth/register/', {
       method: 'POST',
       body: JSON.stringify({
         email,
@@ -252,7 +256,7 @@ export const authApi = {
   },
 
   async verifyEmail(email: string, code: string): Promise<LoginResponse> {
-    const response = await apiRequest<LoginResponse>('/auth/verify-email', {
+    const response = await apiRequest<LoginResponse>('/auth/verify-email/', {
       method: 'POST',
       body: JSON.stringify({ email, code }),
     })
@@ -260,14 +264,14 @@ export const authApi = {
   },
 
   async resendCode(email: string): Promise<{ message: string }> {
-    return apiRequest<{ message: string }>('/auth/resend-code', {
+    return apiRequest<{ message: string }>('/auth/resend-code/', {
       method: 'POST',
       body: JSON.stringify({ email }),
     })
   },
 
   async login(email: string, password: string): Promise<LoginResponse> {
-    const response = await apiRequest<LoginResponse>('/auth/login', {
+    const response = await apiRequest<LoginResponse>('/auth/login/', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     })
@@ -278,7 +282,7 @@ export const authApi = {
     const refresh = getRefreshToken()
     if (refresh) {
       try {
-        await apiRequest('/auth/logout', {
+        await apiRequest('/auth/logout/', {
           method: 'POST',
           body: JSON.stringify({ refresh }),
         })
@@ -291,11 +295,11 @@ export const authApi = {
   },
 
   async getMe(): Promise<User> {
-    return apiRequest<User>('/auth/me')
+    return apiRequest<User>('/auth/me/')
   },
 
   async updateProfile(firstName: string, lastName: string, email: string): Promise<{ message: string; user: User }> {
-    return apiRequest<{ message: string; user: User }>('/auth/me', {
+    return apiRequest<{ message: string; user: User }>('/auth/me/', {
       method: 'PUT',
       body: JSON.stringify({
         first_name: firstName,
@@ -306,7 +310,7 @@ export const authApi = {
   },
 
   async changePassword(oldPassword: string, newPassword: string, newPasswordConfirm: string): Promise<{ message: string }> {
-    return apiRequest<{ message: string }>('/auth/change-password', {
+    return apiRequest<{ message: string }>('/auth/change-password/', {
       method: 'POST',
       body: JSON.stringify({
         old_password: oldPassword,
@@ -317,7 +321,7 @@ export const authApi = {
   },
 
   async refreshToken(refresh: string): Promise<{ access: string }> {
-    return apiRequest<{ access: string }>('/auth/refresh', {
+    return apiRequest<{ access: string }>('/auth/refresh/', {
       method: 'POST',
       body: JSON.stringify({ refresh }),
     })
