@@ -8,10 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import TopNav from "@/components/dashboard/top-nav"
-import ProfilePage from "@/components/profile/profile-page"
 import { adminApi, type User } from "@/lib/api"
-
-type View = "admin" | "profile"
 
 export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([])
@@ -19,7 +16,6 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [updatingUserId, setUpdatingUserId] = useState<number | null>(null)
-  const [currentView, setCurrentView] = useState<View>("admin")
   const { toast } = useToast()
 
   useEffect(() => {
@@ -82,14 +78,9 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <TopNav onNavigateToProfile={() => setCurrentView("profile")} />
+      <TopNav />
 
-      {currentView === "profile" ? (
-        <main className="flex-1 overflow-auto p-6 lg:p-8">
-          <ProfilePage onBack={() => setCurrentView("admin")} />
-        </main>
-      ) : (
-        <main className="flex-1 overflow-auto p-6 lg:p-8">
+      <main className="flex-1 overflow-auto p-6 lg:p-8">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <motion.div
@@ -294,7 +285,6 @@ export default function AdminDashboard() {
           </motion.div>
         </div>
       </main>
-      )}
     </div>
   )
 }

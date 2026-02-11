@@ -23,10 +23,6 @@ const ReportView = dynamic(() => import("@/components/reports/report-view"), {
   loading: () => <div className="flex items-center justify-center min-h-[400px]"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
 })
 
-const ProfilePage = dynamic(() => import("@/components/profile/profile-page"), {
-  loading: () => <div className="flex items-center justify-center min-h-[400px]"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
-})
-
 const StatisticsModal = dynamic(() => import("@/components/charts/statistics-modal"), {
   ssr: false,
 })
@@ -50,7 +46,6 @@ const convertTestRunToHistory = (testRun: TestRun): TestHistory => {
   }
 }
 
-type View = "dashboard" | "profile"
 type SidebarSection = "tests" | "ai"
 
 export default function Dashboard() {
@@ -61,7 +56,6 @@ export default function Dashboard() {
   const [applications, setApplications] = useState<Application[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [currentView, setCurrentView] = useState<View>("dashboard")
   const [activeSidebarSection, setActiveSidebarSection] = useState<SidebarSection>("tests")
   const [stats, setStats] = useState<TestRunStats | null>(null)
   const [statsModalOpen, setStatsModalOpen] = useState(false)
@@ -272,14 +266,9 @@ export default function Dashboard() {
 
   return (
     <div className="h-screen bg-background flex flex-col overflow-hidden">
-      <TopNav onNavigateToProfile={() => setCurrentView("profile")} />
+      <TopNav />
 
-      {currentView === "profile" ? (
-        <main className="flex-1 overflow-auto p-6 lg:p-8">
-          <ProfilePage onBack={() => setCurrentView("dashboard")} />
-        </main>
-      ) : (
-        <div className="flex flex-1 overflow-hidden min-h-0">
+      <div className="flex flex-1 overflow-hidden min-h-0">
           <Sidebar
             collapsed={sidebarCollapsed}
             onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -461,7 +450,6 @@ export default function Dashboard() {
             )}
           </main>
         </div>
-      )}
 
       {/* Statistics Modal */}
       <StatisticsModal

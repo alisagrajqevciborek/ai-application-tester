@@ -14,11 +14,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext"
 import { useRouter } from "next/navigation"
 
-interface TopNavProps {
-  onNavigateToProfile?: () => void
-}
-
-export default function TopNav({ onNavigateToProfile }: TopNavProps) {
+export default function TopNav() {
   const { user, logout } = useAuth()
   const router = useRouter()
 
@@ -31,12 +27,11 @@ export default function TopNav({ onNavigateToProfile }: TopNavProps) {
 
   const handleLogout = async () => {
     await logout()
+    router.push('/login')
   }
 
   const handleProfileClick = () => {
-    if (onNavigateToProfile) {
-      onNavigateToProfile()
-    }
+    router.push('/profile')
   }
 
   return (

@@ -1,6 +1,7 @@
 "use client"
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { authApi, saveTokens, saveUser, clearTokens, getUser, type User } from "@/lib/api"
 
 interface AuthContextType {
@@ -17,6 +18,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const router = useRouter()
 
   // Load user from localStorage on mount
   useEffect(() => {
@@ -49,10 +51,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       saveTokens(response.access, response.refresh)
       saveUser(response.user)
       setUser(response.user)
+      
+      // Redirect to appropriate dashboard after login
+      if (response.user.role === 'admin') {
+        router.push('/admin')
+      } else {
+        router.push('/dashboard')
+      }
     } catch (error) {
       throw error
     }
-  }, [])
+  }, [router])
 
   const logout = useCallback(async () => {
     try {
@@ -62,8 +71,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       clearTokens()
       setUser(null)
+      router.push('/login')
     }
-  }, [])
+  }, [router])
 
   const refreshUser = useCallback(async () => {
     try {

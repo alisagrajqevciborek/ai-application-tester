@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
 import { ArrowLeft, User, Mail, Lock, Save, Loader2, CheckCircle, AlertCircle, Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -13,11 +14,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface ProfilePageProps {
-  onBack: () => void
+  onBack?: () => void
 }
 
 export default function ProfilePage({ onBack }: ProfilePageProps) {
   const { user, refreshUser } = useAuth()
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState("profile")
   
   // Profile form state
@@ -99,6 +101,18 @@ export default function ProfilePage({ onBack }: ProfilePageProps) {
     }
   }
 
+  const handleBack = () => {
+    if (onBack) {
+      onBack()
+    } else {
+      // Navigate back to appropriate dashboard
+      if (user?.role === 'admin') {
+        router.push('/admin')
+      } else {
+        router.push('/dashboard')
+      }
+    }
+  }
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -108,7 +122,7 @@ export default function ProfilePage({ onBack }: ProfilePageProps) {
         animate={{ opacity: 1, y: 0 }}
         className="flex items-center justify-between mb-6"
       >
-        <Button variant="ghost" onClick={onBack} className="text-muted-foreground hover:text-orange-500 transition-colors">
+        <Button variant="ghost" onClick={handleBack} className="text-muted-foreground hover:text-orange-500 transition-colors">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Dashboard
         </Button>
