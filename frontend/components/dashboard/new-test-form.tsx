@@ -14,6 +14,16 @@ import { applicationsApi, testRunsApi, type Application, type TestRun } from "@/
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Link as LinkIcon, Lock } from "lucide-react"
 import { TestProgressIndicator, type TestProgressData } from "./test-progress-indicator"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface NewTestFormProps {
   onTestComplete: (test: TestHistory) => void
@@ -58,6 +68,7 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
   const [showContinueButton, setShowContinueButton] = useState(false)
   const [completedTestHistory, setCompletedTestHistory] = useState<TestHistory | null>(null)
   const [hasAutoStarted, setHasAutoStarted] = useState(false)
+  const [stopDialogOpen, setStopDialogOpen] = useState(false)
   const isPausedRef = useRef(false)
   const testRunIdRef = useRef<number | null>(null)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -94,11 +105,6 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
 
   const handleStopTest = async () => {
     if (!testRunIdRef.current) return
-
-    // Show confirmation dialog
-    if (!confirm("Are you sure you want to stop this test? The test run will be deleted and cannot be recovered.")) {
-      return
-    }
 
     try {
       // Delete the test run from the database
@@ -685,7 +691,7 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                   </Button>
                   <Button
                     variant="destructive"
-                    onClick={handleStopTest}
+                    onClick={() => setStopDialogOpen(true)}
                     className="flex items-center gap-2 min-w-[120px]"
                   >
                     <X className="w-4 h-4" /> Stop
@@ -720,6 +726,27 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
           )}
         </AnimatePresence>
       </motion.div >
+
+      <AlertDialog open={stopDialogOpen} onOpenChange={setStopDialogOpen}>
+        <AlertDialogContent className="bg-popover border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Stop Current Test?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will stop the running test and permanently delete this test run.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleStopTest}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Stop and Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div >
   )
 }

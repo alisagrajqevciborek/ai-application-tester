@@ -508,7 +508,7 @@ export interface GeneratedTestCase {
 // Test Case Generator API
 export const testCaseApi = {
   async generate(prompt: string, applicationId: number, testType: string = 'functional'): Promise<GeneratedTestCase> {
-    return apiRequest<GeneratedTestCase>('/applications/test-cases/generate', {
+    return apiRequest<GeneratedTestCase>('/applications/test-cases/generate/', {
       method: 'POST',
       body: JSON.stringify({
         prompt,
@@ -519,7 +519,7 @@ export const testCaseApi = {
   },
 
   async refine(testCase: GeneratedTestCase, refinementPrompt: string): Promise<GeneratedTestCase> {
-    return apiRequest<GeneratedTestCase>('/applications/test-cases/refine', {
+    return apiRequest<GeneratedTestCase>('/applications/test-cases/refine/', {
       method: 'POST',
       body: JSON.stringify({
         test_case: testCase,
@@ -529,7 +529,7 @@ export const testCaseApi = {
   },
 
   async save(applicationId: number, testCase: GeneratedTestCase): Promise<GeneratedTestCase> {
-    return apiRequest<GeneratedTestCase>('/applications/test-cases/save', {
+    return apiRequest<GeneratedTestCase>('/applications/test-cases/save/', {
       method: 'POST',
       body: JSON.stringify({
         application_id: applicationId,
@@ -539,17 +539,17 @@ export const testCaseApi = {
   },
 
   async list(applicationId: number): Promise<GeneratedTestCase[]> {
-    return apiRequest<GeneratedTestCase[]>(`/applications/${applicationId}/test-cases`)
+    return apiRequest<GeneratedTestCase[]>(`/applications/${applicationId}/test-cases/`)
   },
 
   async delete(testCaseId: number): Promise<void> {
-    return apiRequest<void>(`/applications/test-cases/${testCaseId}`, {
+    return apiRequest<void>(`/applications/test-cases/${testCaseId}/`, {
       method: 'DELETE',
     })
   },
 
   async run(testCaseId: number): Promise<TestRun> {
-    return apiRequest<TestRun>(`/applications/test-cases/${testCaseId}/run`, {
+    return apiRequest<TestRun>(`/applications/test-cases/${testCaseId}/run/`, {
       method: 'POST',
     })
   },
