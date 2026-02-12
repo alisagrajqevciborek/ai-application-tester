@@ -125,14 +125,6 @@ export default function NewTestPage() {
               </Button>
             </div>
 
-            {/* Page Title */}
-            <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">Create New Test</h1>
-              <p className="text-muted-foreground">
-                Configure and run automated tests for your applications
-              </p>
-            </div>
-
             {/* New Test Form */}
             {isLoadingApps ? (
               <div className="flex items-center justify-center min-h-[400px]">

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Application, TestRun, Screenshot, TestArtifact, GeneratedTestCase
+from .models import Application, TestRun, Screenshot, TestArtifact, GeneratedTestCase, TestRunStepResult
 
 
 class ApplicationSerializer(serializers.ModelSerializer):
@@ -43,6 +43,7 @@ class TestRunSerializer(serializers.ModelSerializer):
     application_url = serializers.URLField(source='application.url', read_only=True)
     version = serializers.SerializerMethodField()
     version_name = serializers.SerializerMethodField()
+    step_results = serializers.SerializerMethodField()
     
     class Meta:
         model = TestRun
@@ -50,7 +51,7 @@ class TestRunSerializer(serializers.ModelSerializer):
             'id', 'application', 'application_name', 'application_url',
             'test_type', 'status', 'pass_rate', 'fail_rate',
             'check_broken_links', 'check_auth',
-            'started_at', 'completed_at', 'version', 'version_name'
+            'started_at', 'completed_at', 'version', 'version_name', 'step_results'
         )
         read_only_fields = ('id', 'status', 'pass_rate', 'fail_rate', 'started_at', 'completed_at', 'version', 'version_name')
     
@@ -67,6 +68,10 @@ class TestRunSerializer(serializers.ModelSerializer):
         if value.owner != self.context['request'].user:
             raise serializers.ValidationError("You don't have permission to run tests on this application.")
         return value
+
+    def get_step_results(self, obj):
+        step_results = obj.step_results.all().order_by('created_at')  # type: ignore[attr-defined]
+        return TestRunStepResultSerializer(step_results, many=True).data
 
 
 class TestRunCreateSerializer(serializers.ModelSerializer):
@@ -90,6 +95,28 @@ class TestArtifactSerializer(serializers.ModelSerializer):
         model = TestArtifact
         fields = ('id', 'kind', 'url', 'step_name', 'created_at')
         read_only_fields = ('id', 'created_at')
+
+
+class TestRunStepResultSerializer(serializers.ModelSerializer):
+    """Serializer for per-step test execution results."""
+
+    class Meta:
+        model = TestRunStepResult
+        fields = (
+            'id',
+            'step_key',
+            'step_label',
+            'status',
+            'pass_rate',
+            'fail_rate',
+            'error_message',
+            'started_at',
+            'completed_at',
+            'details_json',
+            'created_at',
+            'updated_at',
+        )
+        read_only_fields = fields
 
 
 class GeneratedTestCaseSerializer(serializers.ModelSerializer):

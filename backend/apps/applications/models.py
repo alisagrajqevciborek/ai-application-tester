@@ -99,6 +99,45 @@ class TestRun(models.Model):
         return f"{self.application.name} - {self.test_type} ({self.status})"
 
 
+class TestRunStepResult(models.Model):
+    """Per-step execution status for parallel test runs."""
+
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('running', 'Running'),
+        ('success', 'Success'),
+        ('failed', 'Failed'),
+    ]
+
+    test_run = models.ForeignKey(
+        TestRun,
+        on_delete=models.CASCADE,
+        related_name='step_results',
+        help_text="Parent test run for this step result",
+    )
+    step_key = models.CharField(max_length=50, help_text="Stable identifier for the step")
+    step_label = models.CharField(max_length=100, help_text="Human-readable step label")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    pass_rate = models.IntegerField(default=0)  # type: ignore[arg-type]
+    fail_rate = models.IntegerField(default=0)  # type: ignore[arg-type]
+    error_message = models.TextField(blank=True, default='')
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    details_json = models.JSONField(default=dict, help_text="Raw details for this step")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'test_run_step_results'
+        ordering = ['created_at']
+        verbose_name = 'Test Run Step Result'
+        verbose_name_plural = 'Test Run Step Results'
+        unique_together = ('test_run', 'step_key')
+
+    def __str__(self):
+        return f"{self.test_run_id}:{self.step_key} ({self.status})"
+
+
 class Screenshot(models.Model):
     """Model storing screenshots from test runs."""
     

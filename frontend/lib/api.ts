@@ -28,6 +28,20 @@ export interface Application {
   updated_at: string
 }
 
+export interface TestRunStepResult {
+  id: number
+  step_type: string
+  status: 'pending' | 'running' | 'success' | 'failed' | 'skipped' | 'canceled'
+  pass_rate: number
+  fail_rate: number
+  issues_json: unknown[]
+  screenshots_json: unknown[]
+  artifacts_json: unknown[]
+  started_at: string | null
+  completed_at: string | null
+  message: string | null
+}
+
 export interface TestRun {
   id: number
   application: number
@@ -43,6 +57,7 @@ export interface TestRun {
   completed_at: string | null
   version: number
   version_name: string
+  step_results?: TestRunStepResult[]
 }
 
 export interface Report {
