@@ -6,7 +6,7 @@ import { Users, Shield, ToggleLeft, ToggleRight, Loader2, AlertCircle, CheckCirc
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import TopNav from "@/components/dashboard/top-nav"
 import { adminApi, type User } from "@/lib/api"
 
@@ -16,7 +16,7 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [updatingUserId, setUpdatingUserId] = useState<number | null>(null)
-  const { toast } = useToast()
+
 
   useEffect(() => {
     loadUsers()
@@ -51,21 +51,19 @@ export default function AdminDashboard() {
       ))
       
       // Show toast notification
-      toast({
-        title: newStatus === 'active' ? "User Enabled" : "User Disabled",
-        description: `${user?.email || 'User'} has been ${newStatus === 'active' ? 'enabled' : 'disabled'} successfully.`,
-        variant: "default",
-      })
+      toast.success(
+        newStatus === 'active' ? "User Enabled" : "User Disabled",
+        { description: `${user?.email || 'User'} has been ${newStatus === 'active' ? 'enabled' : 'disabled'} successfully.` }
+      )
       
       setSuccess(response.message)
       setTimeout(() => setSuccess(null), 3000)
     } catch (err: any) {
       const user = users.find(u => u.id === userId)
-      toast({
-        title: "Error",
-        description: err.message || `Failed to update status for ${user?.email || 'user'}`,
-        variant: "destructive",
-      })
+      toast.error(
+        "Error",
+        { description: err.message || `Failed to update status for ${user?.email || 'user'}` }
+      )
       setError(err.message || "Failed to update user status")
     } finally {
       setUpdatingUserId(null)
