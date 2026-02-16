@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Application, TestRun, Screenshot, TestArtifact
+from .models import Application, TestRun, Screenshot, TestArtifact, TestRunStepResult
 
 
 @admin.register(Application)
@@ -64,4 +64,15 @@ class TestArtifactAdmin(admin.ModelAdmin):
     list_filter = ('kind', 'created_at')
     search_fields = ('test_run__application__name', 'step_name')
     readonly_fields = ('created_at',)
+    ordering = ('-created_at',)
+
+
+@admin.register(TestRunStepResult)
+class TestRunStepResultAdmin(admin.ModelAdmin):
+    """Admin interface for TestRunStepResult model."""
+
+    list_display = ('test_run', 'step_key', 'step_label', 'status', 'pass_rate', 'fail_rate', 'started_at', 'completed_at')
+    list_filter = ('status', 'step_key')
+    search_fields = ('test_run__application__name', 'step_key', 'step_label')
+    readonly_fields = ('created_at', 'updated_at')
     ordering = ('-created_at',)

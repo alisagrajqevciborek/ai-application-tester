@@ -146,36 +146,18 @@ class BrowserAutomationService:
                     results = await tests_accessibility.run_accessibility_tests(
                         page, url, screenshots_dir, console_logs, issue_manager
                     )
-                elif test_type in ('general', 'broken_links', 'authentication'):
-                    # Run the 4 core suites (functional, regression, performance, accessibility).
+                elif test_type in ('broken_links', 'authentication'):
+                    # broken_links / authentication are add-on checks that run on
+                    # top of a functional baseline.  The runner executes functional
+                    # tests and the add-on flags (check_broken_links / check_auth)
+                    # are handled further below.
                     #
-                    # NOTE: historically, unknown test types fell into "run all" here.
-                    # We now make it explicit for "general" and also keep the legacy
-                    # behavior for "broken_links" and "authentication" (which are
-                    # implemented as add-on checks later in this method).
-                    func_results = await tests_functional.run_functional_tests(
+                    # NOTE: "general" is no longer handled here — it is dispatched
+                    # as parallel Celery steps in execute_test_run_task().
+                    results = await tests_functional.run_functional_tests(
                         page, url, screenshots_dir, console_logs, network_failures,
                         main_document_headers or {}, issue_manager
                     )
-                    reg_results = await tests_regression.run_regression_tests(
-                        page, url, screenshots_dir, console_logs, network_failures, issue_manager
-                    )
-                    perf_results = await tests_performance.run_performance_tests(
-                        page, url, screenshots_dir, console_logs, network_requests, issue_manager
-                    )
-                    acc_results = await tests_accessibility.run_accessibility_tests(
-                        page, url, screenshots_dir, console_logs, issue_manager
-                    )
-                    
-                    all_issues = func_results['issues'] + reg_results['issues'] + perf_results['issues'] + acc_results['issues']
-                    avg_pass_rate = round((func_results['pass_rate'] + reg_results['pass_rate'] + perf_results['pass_rate'] + acc_results['pass_rate']) / 4)
-                    results = {
-                        'pass_rate': avg_pass_rate,
-                        'fail_rate': 100 - avg_pass_rate,
-                        'status': 'success' if (100 - avg_pass_rate) < 30 else 'failed',
-                        'issues': all_issues,
-                        'screenshots': []
-                    }
                 else:
                     logger.warning(f"Unknown test_type={test_type!r}; defaulting to functional suite")
                     results = await tests_functional.run_functional_tests(

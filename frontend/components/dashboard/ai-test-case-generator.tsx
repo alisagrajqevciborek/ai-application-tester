@@ -229,19 +229,7 @@ export default function AITestCaseGenerator({
       setTestProgressData(prev => ({ ...prev, progress: 20, currentStep: "Starting test execution..." }))
       const testRun = await testCaseApi.run(savedTestCase.id)
       
-      // Define test steps for progress tracking
-      const testSteps = [
-        { progress: 30, step: "Loading application...", warnings: 0, errors: 0 },
-        { progress: 40, step: "Executing test steps...", warnings: 0, errors: 0 },
-        { progress: 55, step: "Running assertions...", warnings: 1, errors: 0 },
-        { progress: 70, step: "Capturing screenshots...", warnings: 1, errors: 0 },
-        { progress: 85, step: "Generating report...", warnings: 1, errors: 0 },
-        { progress: 95, step: "Finalizing results...", warnings: 1, errors: 0 }
-      ]
-      
-      let currentStepIndex = 0
-      
-      // Poll for test completion
+      // Poll for test completion using real step_results from API
       let pollAttempts = 0
       const maxPollAttempts = 600 // 10 minutes max
       
@@ -254,34 +242,57 @@ export default function AITestCaseGenerator({
           
           // Update progress based on status
           if (updatedTestRun.status === 'running' || updatedTestRun.status === 'pending') {
-            // Simulate progressive steps
-            if (currentStepIndex < testSteps.length - 1) {
-              const stepDuration = 3 // seconds per step
-              if (pollAttempts % stepDuration === 0) {
-                currentStepIndex++
-              }
+            // Use real step_results from API when available (parallel general runs)
+            const steps = updatedTestRun.step_results
+            if (steps && steps.length > 0) {
+              const completedSteps = steps.filter(
+                (s) => s.status === 'success' || s.status === 'failed'
+              )
+              const runningStep = steps.find((s) => s.status === 'running')
+              const realProgress = Math.max(5, Math.min(95, Math.round((completedSteps.length / steps.length) * 100)))
+              const currentStepLabel = runningStep
+                ? `Running ${runningStep.step_label}...`
+                : completedSteps.length === steps.length
+                  ? "Finalizing results..."
+                  : `Waiting for step ${completedSteps.length + 1}/${steps.length}...`
+              const errorCount = steps.filter((s) => s.status === 'failed').length
+
+              setTestProgressData({
+                progress: realProgress,
+                currentStep: currentStepLabel,
+                warnings: 0,
+                errors: errorCount,
+                elapsedTime: elapsedSeconds,
+                estimatedTime: 300,
+                status: "running"
+              })
+            } else {
+              // Fallback for non-parallel (single suite / generated test) runs
+              const estimatedDuration = 120
+              const timeProgress = Math.max(5, Math.min(90, Math.round((elapsedSeconds / estimatedDuration) * 100)))
+
+              setTestProgressData({
+                progress: timeProgress,
+                currentStep: updatedTestRun.status === 'pending' ? "Queued, waiting for worker..." : "Running tests...",
+                warnings: 0,
+                errors: 0,
+                elapsedTime: elapsedSeconds,
+                estimatedTime: estimatedDuration,
+                status: "running"
+              })
             }
-            
-            const currentStep = testSteps[Math.min(currentStepIndex, testSteps.length - 1)]
-            
-            setTestProgressData({
-              progress: currentStep.progress,
-              currentStep: currentStep.step,
-              warnings: currentStep.warnings,
-              errors: currentStep.errors,
-              elapsedTime: elapsedSeconds,
-              estimatedTime: 120,
-              status: "running"
-            })
           } else if (updatedTestRun.status === 'success' || updatedTestRun.status === 'failed') {
             clearInterval(pollInterval)
             clearInterval(timeTracker)
             
+            const finalSteps = updatedTestRun.step_results
+            const failedStepCount = finalSteps ? finalSteps.filter((s) => s.status === 'failed').length : 0
+
             setTestProgressData({
               progress: 100,
               currentStep: updatedTestRun.status === 'success' ? "Test completed successfully!" : "Test completed with failures",
-              warnings: 1,
-              errors: updatedTestRun.status === 'failed' ? 2 : 0,
+              warnings: 0,
+              errors: failedStepCount || (updatedTestRun.status === 'failed' ? 1 : 0),
               elapsedTime: elapsedSeconds,
               estimatedTime: elapsedSeconds,
               status: updatedTestRun.status === 'success' ? "completed" : "failed"

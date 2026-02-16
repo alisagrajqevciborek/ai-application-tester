@@ -30,16 +30,17 @@ export interface Application {
 
 export interface TestRunStepResult {
   id: number
-  step_type: string
-  status: 'pending' | 'running' | 'success' | 'failed' | 'skipped' | 'canceled'
+  step_key: string
+  step_label: string
+  status: 'pending' | 'running' | 'success' | 'failed'
   pass_rate: number
   fail_rate: number
-  issues_json: unknown[]
-  screenshots_json: unknown[]
-  artifacts_json: unknown[]
+  error_message: string
   started_at: string | null
   completed_at: string | null
-  message: string | null
+  details_json: Record<string, unknown>
+  created_at: string
+  updated_at: string
 }
 
 export interface TestRun {

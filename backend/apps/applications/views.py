@@ -121,7 +121,13 @@ def testrun_list_create(request):
     
     if request.method == 'GET':
         # Get test runs for applications owned by the user
-        test_runs = TestRun.objects.filter(application__owner=request.user)  # type: ignore[attr-defined]
+        # Use select_related for FK and prefetch_related for reverse FK to avoid N+1 queries
+        test_runs = (
+            TestRun.objects  # type: ignore[attr-defined]
+            .filter(application__owner=request.user)
+            .select_related('application')
+            .prefetch_related('step_results')
+        )
         
         # Apply pagination
         paginator = TestRunPagination()
@@ -176,7 +182,12 @@ def testrun_detail(request, pk):
         }, status=status.HTTP_403_FORBIDDEN)
     
     try:
-        test_run = TestRun.objects.get(pk=pk, application__owner=request.user)  # type: ignore[attr-defined]
+        test_run = (
+            TestRun.objects  # type: ignore[attr-defined]
+            .select_related('application')
+            .prefetch_related('step_results')
+            .get(pk=pk, application__owner=request.user)
+        )
     except TestRun.DoesNotExist:  # type: ignore[attr-defined]
         return Response({
             'error': 'Test run not found or you do not have permission to access it'

@@ -514,14 +514,14 @@ def execute_test_run_task(self, test_run_id):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            is_general = test_type == 'general'
+            # "general" test_type is handled by the parallel branch above (which
+            # returns early), so we only reach here for single-suite runs.
             app = test_run.application
             has_auth_creds = bool(app.test_username and app.test_password and app.login_url)
 
-            check_broken_links = bool(test_run.check_broken_links) or (test_type == 'broken_links') or is_general
+            check_broken_links = bool(test_run.check_broken_links) or (test_type == 'broken_links')
 
-            # For "general", only run auth flow if credentials are actually configured.
-            auth_requested = bool(test_run.check_auth) or (test_type == 'authentication') or (is_general and has_auth_creds)
+            auth_requested = bool(test_run.check_auth) or (test_type == 'authentication')
             auth_credentials = (
                 {
                     'username': app.test_username,

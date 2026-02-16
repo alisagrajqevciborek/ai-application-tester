@@ -260,20 +260,6 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
       const testRun = await testRunsApi.create(appToTest.id, testType as string)
       testRunIdRef.current = testRun.id // Store the test run ID
 
-      // Define test steps for progress tracking
-      const testSteps = [
-        { progress: 10, step: "Loading application...", warnings: 0, errors: 0 },
-        { progress: 20, step: "Analyzing page structure...", warnings: 1, errors: 0 },
-        { progress: 35, step: "Running functional tests...", warnings: 1, errors: 0 },
-        { progress: 50, step: "Checking responsive design...", warnings: 2, errors: 0 },
-        { progress: 65, step: "Testing user interactions...", warnings: 2, errors: 1 },
-        { progress: 80, step: "Checking accessibility...", warnings: 3, errors: 1 },
-        { progress: 90, step: "Generating test report...", warnings: 3, errors: 1 },
-        { progress: 100, step: "Finalizing results...", warnings: 3, errors: 1 }
-      ]
-
-      let currentStepIndex = 0
-
       // Poll for test completion
       let pollAttempts = 0
       const maxPollAttempts = 600 // 10 minutes max (600 seconds = 10 minutes, polling every second)
@@ -289,26 +275,47 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
 
           // Update progress based on status
           if (updatedTestRun.status === 'running' || updatedTestRun.status === 'pending') {
-            // Simulate progressive steps
-            if (currentStepIndex < testSteps.length - 1) {
-              const stepDuration = 3 // seconds per step
-              if (pollAttempts % stepDuration === 0) {
-                currentStepIndex++
-              }
+            // Use real step_results from API when available (parallel general runs)
+            const steps = updatedTestRun.step_results
+            if (steps && steps.length > 0) {
+              const completedSteps = steps.filter(
+                (s) => s.status === 'success' || s.status === 'failed'
+              )
+              const runningStep = steps.find((s) => s.status === 'running')
+              const realProgress = Math.max(5, Math.min(95, Math.round((completedSteps.length / steps.length) * 100)))
+              const currentStepLabel = runningStep
+                ? `Running ${runningStep.step_label}...`
+                : completedSteps.length === steps.length
+                  ? "Finalizing results..."
+                  : `Waiting for step ${completedSteps.length + 1}/${steps.length}...`
+              const errorCount = steps.filter((s) => s.status === 'failed').length
+
+              setProgress(realProgress)
+              setTestProgressData({
+                progress: realProgress,
+                currentStep: currentStepLabel,
+                warnings: 0,
+                errors: errorCount,
+                elapsedTime: elapsedSeconds,
+                estimatedTime: 300,
+                status: "running"
+              })
+            } else {
+              // Fallback for non-parallel (single suite) runs: estimate from elapsed time
+              const estimatedDuration = 120 // ~2 minutes for a single suite
+              const timeProgress = Math.max(5, Math.min(90, Math.round((elapsedSeconds / estimatedDuration) * 100)))
+
+              setProgress(timeProgress)
+              setTestProgressData({
+                progress: timeProgress,
+                currentStep: updatedTestRun.status === 'pending' ? "Queued, waiting for worker..." : "Running tests...",
+                warnings: 0,
+                errors: 0,
+                elapsedTime: elapsedSeconds,
+                estimatedTime: estimatedDuration,
+                status: "running"
+              })
             }
-
-            const currentStep = testSteps[Math.min(currentStepIndex, testSteps.length - 1)]
-            setProgress(currentStep.progress)
-
-            setTestProgressData({
-              progress: currentStep.progress,
-              currentStep: currentStep.step,
-              warnings: currentStep.warnings,
-              errors: currentStep.errors,
-              elapsedTime: elapsedSeconds,
-              estimatedTime: 300, // 5 minutes estimate
-              status: "running"
-            })
           } else if (updatedTestRun.status === 'success' || updatedTestRun.status === 'failed') {
             if (pollIntervalRef.current) {
               clearInterval(pollIntervalRef.current)
@@ -321,11 +328,14 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
             testRunIdRef.current = null
             setProgress(100)
 
+            const finalSteps = updatedTestRun.step_results
+            const failedStepCount = finalSteps ? finalSteps.filter((s) => s.status === 'failed').length : 0
+
             setTestProgressData({
               progress: 100,
               currentStep: updatedTestRun.status === 'success' ? "Test completed successfully!" : "Test completed with failures",
-              warnings: 3,
-              errors: updatedTestRun.status === 'failed' ? 2 : 1,
+              warnings: 0,
+              errors: failedStepCount || (updatedTestRun.status === 'failed' ? 1 : 0),
               elapsedTime: elapsedSeconds,
               estimatedTime: elapsedSeconds,
               status: updatedTestRun.status === 'success' ? "completed" : "failed"
