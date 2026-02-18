@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
 import { ArrowLeft, BarChart3, Home } from "lucide-react"
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import NewTestForm from "@/components/dashboard/new-test-form"
 import TopNav from "@/components/dashboard/top-nav"
 import { useAuth } from "@/contexts/AuthContext"
-import { applicationsApi, testRunsApi, type Application, type TestRunStats } from "@/lib/api"
+import { useData } from "@/contexts/DataContext"
 import { Loader2 } from "lucide-react"
 import type { TestHistory } from "@/lib/types"
 import dynamic from "next/dynamic"
@@ -19,12 +19,10 @@ const StatisticsModal = dynamic(() => import("@/components/charts/statistics-mod
 
 export default function NewTestPage() {
   const { isAuthenticated, isLoading, user } = useAuth()
+  const { applications, stats, isLoading: isLoadingData, forceRefresh } = useData()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [applications, setApplications] = useState<Application[]>([])
-  const [stats, setStats] = useState<TestRunStats | null>(null)
   const [statsModalOpen, setStatsModalOpen] = useState(false)
-  const [isLoadingApps, setIsLoadingApps] = useState(true)
 
   // Get URL params for pre-filling the form
   const initialAppName = searchParams.get('app')
@@ -40,35 +38,6 @@ export default function NewTestPage() {
     }
   }, [isAuthenticated, isLoading, user, router])
 
-  const loadApplications = useCallback(async () => {
-    try {
-      setIsLoadingApps(true)
-      const apps = await applicationsApi.list()
-      setApplications(apps || [])
-    } catch (err) {
-      console.error("Error loading applications:", err)
-      setApplications([])
-    } finally {
-      setIsLoadingApps(false)
-    }
-  }, [])
-
-  const loadStats = useCallback(async () => {
-    try {
-      const statsData = await testRunsApi.stats()
-      setStats(statsData)
-    } catch (err) {
-      console.error("Error loading stats:", err)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadApplications()
-      loadStats()
-    }
-  }, [isAuthenticated, loadApplications, loadStats])
-
   if (isLoading || !isAuthenticated || user?.role === 'admin') {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -78,7 +47,8 @@ export default function NewTestPage() {
   }
 
   const handleTestComplete = async (test: TestHistory) => {
-    // Navigate to the test report
+    // Force refresh so dashboard shows the new test immediately
+    await forceRefresh()
     router.push(`/dashboard/reports/${test.id}`)
   }
 
@@ -126,7 +96,7 @@ export default function NewTestPage() {
             </div>
 
             {/* New Test Form */}
-            {isLoadingApps ? (
+            {isLoadingData ? (
               <div className="flex items-center justify-center min-h-[400px]">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>

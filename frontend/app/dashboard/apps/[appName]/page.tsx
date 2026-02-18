@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback, useMemo } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { motion } from "framer-motion"
 import { ArrowLeft, Package, Play, ChevronDown, BarChart3, Home } from "lucide-react"
@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button"
 import TopNav from "@/components/dashboard/top-nav"
 import VersionCard from "@/components/reports/version-card"
 import { useAuth } from "@/contexts/AuthContext"
-import { applicationsApi, testRunsApi, type Application, type TestRun, type TestRunStats } from "@/lib/api"
+import { useData } from "@/contexts/DataContext"
+import { testRunsApi } from "@/lib/api"
 import { Loader2 } from "lucide-react"
-import type { TestHistory } from "@/lib/types"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,31 +23,13 @@ const StatisticsModal = dynamic(() => import("@/components/charts/statistics-mod
   ssr: false,
 })
 
-// Helper to convert TestRun to TestHistory
-const convertTestRunToHistory = (testRun: TestRun): TestHistory => {
-  return {
-    id: testRun.id.toString(),
-    appName: testRun.application_name,
-    versionName: testRun.version_name,
-    version: testRun.version,
-    status: testRun.status === 'success' ? 'success' : testRun.status === 'failed' ? 'failed' : 'running',
-    testType: testRun.test_type,
-    date: new Date(testRun.started_at).toISOString().split("T")[0],
-    passRate: testRun.pass_rate,
-    failRate: testRun.fail_rate,
-  }
-}
-
 export default function AppVersionsPage() {
   const { isAuthenticated, isLoading, user } = useAuth()
+  const { testHistory, stats, isLoading: isLoadingData, forceRefresh } = useData()
   const router = useRouter()
   const params = useParams()
   const appName = decodeURIComponent(params.appName as string)
-  
-  const [history, setHistory] = useState<TestHistory[]>([])
-  const [stats, setStats] = useState<TestRunStats | null>(null)
   const [statsModalOpen, setStatsModalOpen] = useState(false)
-  const [isLoadingTests, setIsLoadingTests] = useState(true)
 
   useEffect(() => {
     if (!isLoading) {
@@ -59,41 +41,12 @@ export default function AppVersionsPage() {
     }
   }, [isAuthenticated, isLoading, user, router])
 
-  const loadTestRuns = useCallback(async () => {
-    try {
-      setIsLoadingTests(true)
-      const testRuns = await testRunsApi.list()
-      const testHistory = testRuns.map(convertTestRunToHistory)
-      setHistory(testHistory)
-    } catch (err) {
-      console.error("Failed to load test runs:", err)
-    } finally {
-      setIsLoadingTests(false)
-    }
-  }, [])
-
-  const loadStats = useCallback(async () => {
-    try {
-      const statsData = await testRunsApi.stats()
-      setStats(statsData)
-    } catch (err) {
-      console.error("Error loading stats:", err)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadTestRuns()
-      loadStats()
-    }
-  }, [isAuthenticated, loadTestRuns, loadStats])
-
   // Filter versions for this app and sort by version number (newest first)
   const versions = useMemo(() => {
-    return history
+    return testHistory
       .filter((test) => test.appName === appName)
       .sort((a, b) => b.version - a.version)
-  }, [history, appName])
+  }, [testHistory, appName])
 
   if (isLoading || !isAuthenticated || user?.role === 'admin') {
     return (
@@ -103,16 +56,14 @@ export default function AppVersionsPage() {
     )
   }
 
-  const handleSelectTest = (test: TestHistory) => {
+  const handleSelectTest = (test: typeof testHistory[0]) => {
     router.push(`/dashboard/reports/${test.id}`)
   }
 
   const handleDeleteTest = async (testId: string) => {
     try {
       await testRunsApi.delete(parseInt(testId))
-      // Reload test runs
-      await loadTestRuns()
-      await loadStats()
+      await forceRefresh()
     } catch (err) {
       console.error("Failed to delete test run:", err)
     }
@@ -210,7 +161,7 @@ export default function AppVersionsPage() {
             </div>
 
             {/* Version Cards Grid */}
-            {isLoadingTests ? (
+            {isLoadingData ? (
               <div className="flex items-center justify-center min-h-[400px]">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>

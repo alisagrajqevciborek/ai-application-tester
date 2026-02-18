@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback, useMemo } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
 import { Package, Sparkles, Plus, BarChart3, Play, ChevronDown, Search, Filter, X } from "lucide-react"
@@ -8,9 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import TopNav from "@/components/dashboard/top-nav"
 import { useAuth } from "@/contexts/AuthContext"
-import { applicationsApi, testRunsApi, type Application, type TestRun, type TestRunStats } from "@/lib/api"
+import { useData } from "@/contexts/DataContext"
 import { Loader2 } from "lucide-react"
-import type { TestHistory } from "@/lib/types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import dynamic from "next/dynamic"
@@ -25,29 +24,11 @@ const StatisticsModal = dynamic(() => import("@/components/charts/statistics-mod
   ssr: false,
 })
 
-// Helper to convert TestRun to TestHistory
-const convertTestRunToHistory = (testRun: TestRun): TestHistory => {
-  return {
-    id: testRun.id.toString(),
-    appName: testRun.application_name,
-    versionName: testRun.version_name,
-    version: testRun.version,
-    status: testRun.status === 'success' ? 'success' : testRun.status === 'failed' ? 'failed' : 'running',
-    testType: testRun.test_type,
-    date: new Date(testRun.started_at).toISOString().split("T")[0],
-    passRate: testRun.pass_rate,
-    failRate: testRun.fail_rate,
-  }
-}
-
 export default function DashboardPage() {
   const { isAuthenticated, isLoading, user } = useAuth()
+  const { applications, testHistory, stats, isLoading: isLoadingData } = useData()
   const router = useRouter()
-  const [applications, setApplications] = useState<Application[]>([])
-  const [history, setHistory] = useState<TestHistory[]>([])
-  const [stats, setStats] = useState<TestRunStats | null>(null)
   const [statsModalOpen, setStatsModalOpen] = useState(false)
-  const [isLoadingData, setIsLoadingData] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<"all" | "success" | "failed" | "running">("all")
   const [testTypeFilter, setTestTypeFilter] = useState<"all" | "general" | "functional" | "regression" | "performance" | "accessibility" | "broken_links" | "authentication">("all")
@@ -63,50 +44,10 @@ export default function DashboardPage() {
     }
   }, [isAuthenticated, isLoading, user, router])
 
-  const loadApplications = useCallback(async () => {
-    try {
-      const apps = await applicationsApi.list()
-      setApplications(apps || [])
-    } catch (err) {
-      console.error("Error loading applications:", err)
-      setApplications([])
-    }
-  }, [])
-
-  const loadTestRuns = useCallback(async () => {
-    try {
-      const testRuns = await testRunsApi.list()
-      const testHistory = testRuns.map(convertTestRunToHistory)
-      setHistory(testHistory)
-    } catch (err) {
-      console.error("Failed to load test runs:", err)
-    }
-  }, [])
-
-  const loadStats = useCallback(async () => {
-    try {
-      const statsData = await testRunsApi.stats()
-      setStats(statsData)
-    } catch (err) {
-      console.error("Error loading stats:", err)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      const loadData = async () => {
-        setIsLoadingData(true)
-        await Promise.all([loadApplications(), loadTestRuns(), loadStats()])
-        setIsLoadingData(false)
-      }
-      loadData()
-    }
-  }, [isAuthenticated, loadApplications, loadTestRuns, loadStats])
-
   // Group tests by app name
   const appsWithVersions = useMemo(() => {
-    const groups: Record<string, TestHistory[]> = {}
-    history.forEach((test) => {
+    const groups: Record<string, typeof testHistory> = {}
+    testHistory.forEach((test) => {
       const appName = test.appName
       if (!groups[appName]) {
         groups[appName] = []
@@ -114,7 +55,7 @@ export default function DashboardPage() {
       groups[appName].push(test)
     })
     return groups
-  }, [history])
+  }, [testHistory])
 
   const appNames = Object.keys(appsWithVersions).sort()
 
