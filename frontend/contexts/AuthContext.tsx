@@ -45,6 +45,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  // React to forced logout events dispatched by apiRequest when a token
+  // refresh attempt fails mid-session (e.g. refresh token expired).
+  useEffect(() => {
+    const handler = () => {
+      clearTokens()
+      setUser(null)
+      router.push('/login')
+    }
+    window.addEventListener('auth:logout', handler)
+    return () => window.removeEventListener('auth:logout', handler)
+  }, [router])
+
   const login = useCallback(async (email: string, password: string) => {
     try {
       const response = await authApi.login(email, password)

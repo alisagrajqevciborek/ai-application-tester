@@ -440,19 +440,6 @@ export default function DashboardPage() {
                                   <Play className="w-4 h-4 mr-2" />
                                   Run General Test
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleRunTest(appName, "functional")
-                                }}>
-                                  <Play className="w-4 h-4 mr-2" />
-                                  Run Functional Test
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={(e) => {
-                                  e.stopPropagation()
-                                  router.push(`/dashboard/apps/${encodeURIComponent(appName)}`)
-                                }}>
-                                  View All Versions
-                                </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>

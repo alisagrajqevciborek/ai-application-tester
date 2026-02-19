@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from "react"
 import { applicationsApi, testRunsApi, type Application, type TestRun, type TestRunStats } from "@/lib/api"
+import { useAuth } from "@/contexts/AuthContext"
 import type { TestHistory } from "@/lib/types"
 
 const convertTestRunToHistory = (testRun: TestRun): TestHistory => ({
@@ -31,6 +32,8 @@ const DataContext = createContext<DataContextType | undefined>(undefined)
 const CACHE_DURATION = 60000
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
+
   const [applications, setApplications] = useState<Application[]>([])
   const [testHistory, setTestHistory] = useState<TestHistory[]>([])
   const [stats, setStats] = useState<TestRunStats | null>(null)
@@ -42,7 +45,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const isFetchingRef = useRef(false)
   const hasDataRef = useRef(false)
 
+  const clearData = useCallback(() => {
+    setApplications([])
+    setTestHistory([])
+    setStats(null)
+    setIsLoading(true)
+    lastFetchRef.current = 0
+    isFetchingRef.current = false
+    hasDataRef.current = false
+  }, [])
+
   const fetchAll = useCallback(async (force = false) => {
+    // Never fetch if not authenticated
+    if (!isAuthenticated) return
+
     // Prevent concurrent fetches
     if (isFetchingRef.current) return
 
@@ -78,12 +94,26 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setIsRefreshing(false)
       isFetchingRef.current = false
     }
-  }, []) // No dependencies — uses only refs and setters (both stable)
+  }, [isAuthenticated]) // Re-create when auth state changes
 
-  // Initial fetch on mount
+  // Fetch once auth is confirmed; clear data when user logs out
   useEffect(() => {
-    fetchAll(true)
-  }, [fetchAll])
+    if (authLoading) return // Wait for auth check to complete first
+
+    if (isAuthenticated) {
+      fetchAll(true)
+    } else {
+      clearData()
+    }
+  }, [isAuthenticated, authLoading, fetchAll, clearData])
+
+  // Listen for the auth:logout event dispatched by apiRequest when a token
+  // refresh fails mid-session, so we clear stale data immediately.
+  useEffect(() => {
+    const handler = () => clearData()
+    window.addEventListener('auth:logout', handler)
+    return () => window.removeEventListener('auth:logout', handler)
+  }, [clearData])
 
   // Stable forceRefresh for use after create/delete actions
   const forceRefresh = useCallback(async () => {
