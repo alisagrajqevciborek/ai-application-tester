@@ -6,7 +6,8 @@ import { AuthProvider } from "@/contexts/AuthContext"
 import { DataProvider } from "@/contexts/DataContext"
 import { ActiveTestsProvider } from "@/contexts/ActiveTestsContext"
 import ActiveTestsWidget from "@/components/active-tests-widget"
-import { Toaster } from "@/components/ui/sonner"
+import { Toaster as SonnerToaster } from "@/components/ui/sonner"
+import { Toaster } from "@/components/ui/toaster"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
@@ -35,6 +36,7 @@ export default function RootLayout({
           </DataProvider>
         </AuthProvider>
         <Toaster />
+        <SonnerToaster />
         <Analytics />
       </body>
     </html>

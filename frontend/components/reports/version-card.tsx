@@ -1,7 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { Clock, Trash2, Play } from "lucide-react"
+import { Clock, Trash2, Play, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { TestHistory } from "@/lib/types"
@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useState } from "react"
+import { useState, memo } from "react"
 
 interface VersionCardProps {
   test: TestHistory
@@ -41,21 +41,28 @@ interface VersionCardProps {
   isSelected?: boolean
 }
 
-export default function VersionCard({ test, onSelect, onDelete, onRunTest, isSelected }: VersionCardProps) {
+function VersionCard({ test, onSelect, onDelete, onRunTest, isSelected }: VersionCardProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [runTestDialogOpen, setRunTestDialogOpen] = useState(false)
   const [selectedTestType, setSelectedTestType] = useState<string>("")
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation()
+    if (isDeleting) return
     setDeleteDialogOpen(true)
   }
 
-  const handleDeleteConfirm = () => {
-    if (onDelete) {
-      onDelete(test.id)
+  const handleDeleteConfirm = async () => {
+    if (onDelete && !isDeleting) {
+      setIsDeleting(true)
+      try {
+        await onDelete(test.id)
+      } finally {
+        setIsDeleting(false)
+        setDeleteDialogOpen(false)
+      }
     }
-    setDeleteDialogOpen(false)
   }
 
   const handleRunTestClick = (e: React.MouseEvent) => {
@@ -121,9 +128,14 @@ export default function VersionCard({ test, onSelect, onDelete, onRunTest, isSel
                 variant="ghost"
                 size="sm"
                 onClick={handleDeleteClick}
-                className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10 flex-shrink-0"
+                disabled={isDeleting}
+                className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10 flex-shrink-0 disabled:opacity-50"
               >
-                <Trash2 className="h-4 w-4" />
+                {isDeleting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
               </Button>
             )}
           </div>
@@ -161,7 +173,7 @@ export default function VersionCard({ test, onSelect, onDelete, onRunTest, isSel
       </motion.div>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialog open={deleteDialogOpen} onOpenChange={isDeleting ? undefined : setDeleteDialogOpen}>
         <AlertDialogContent className="bg-popover border-border">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Test Version</AlertDialogTitle>
@@ -170,12 +182,20 @@ export default function VersionCard({ test, onSelect, onDelete, onRunTest, isSel
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
             >
-              Delete
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -183,3 +203,6 @@ export default function VersionCard({ test, onSelect, onDelete, onRunTest, isSel
     </>
   )
 }
+
+// Memoize to prevent unnecessary re-renders
+export default memo(VersionCard)

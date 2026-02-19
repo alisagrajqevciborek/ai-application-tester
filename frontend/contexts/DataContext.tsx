@@ -28,8 +28,8 @@ interface DataContextType {
 
 const DataContext = createContext<DataContextType | undefined>(undefined)
 
-// Cache duration: 60 seconds - data older than this triggers a background refresh
-const CACHE_DURATION = 60000
+// Cache duration: 5 minutes - data older than this triggers a background refresh
+const CACHE_DURATION = 300000
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading: authLoading } = useAuth()
@@ -84,7 +84,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       ])
 
       setApplications(apps || [])
-      setTestHistory((testRuns || []).map(convertTestRunToHistory))
+      // Memoize conversion to avoid recalculating on every render
+      const convertedHistory = (testRuns || []).map(convertTestRunToHistory)
+      setTestHistory(convertedHistory)
       setStats(statsData)
 
       lastFetchRef.current = Date.now()

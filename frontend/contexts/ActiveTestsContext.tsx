@@ -13,7 +13,9 @@ interface ActiveTestsContextType {
 
 const ActiveTestsContext = createContext<ActiveTestsContextType | undefined>(undefined)
 
-const POLL_INTERVAL_MS = 3000
+// Start with 5 second polling, increase to 15 seconds when no active tests
+const POLL_INTERVAL_ACTIVE = 5000
+const POLL_INTERVAL_IDLE = 15000
 
 export function ActiveTestsProvider({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth()
@@ -21,6 +23,7 @@ export function ActiveTestsProvider({ children }: { children: React.ReactNode })
   const [isLoading, setIsLoading] = useState(true)
   const pollRef = useRef<NodeJS.Timeout | null>(null)
   const isMountedRef = useRef(true)
+  const pollIntervalRef = useRef(POLL_INTERVAL_ACTIVE)
 
   const fetchActiveTests = useCallback(async () => {
     if (!isAuthenticated) {
@@ -29,12 +32,22 @@ export function ActiveTestsProvider({ children }: { children: React.ReactNode })
       return
     }
     try {
+      // Fetch all test runs (backend will handle pagination efficiently)
       const allRuns = await testRunsApi.list()
       if (!isMountedRef.current) return
+      
       const running = allRuns.filter(
         (tr) => tr.status === "running" || tr.status === "pending"
       )
       setActiveTests(running)
+      
+      // Adjust polling interval based on whether there are active tests
+      if (running.length > 0) {
+        pollIntervalRef.current = POLL_INTERVAL_ACTIVE
+      } else {
+        // Slow down polling when there are no active tests
+        pollIntervalRef.current = POLL_INTERVAL_IDLE
+      }
     } catch {
       // Silently ignore – widget is non-critical
     } finally {
@@ -55,8 +68,16 @@ export function ActiveTestsProvider({ children }: { children: React.ReactNode })
     // Fetch immediately
     fetchActiveTests()
 
-    // Start polling
-    pollRef.current = setInterval(fetchActiveTests, POLL_INTERVAL_MS)
+    // Start polling with dynamic interval
+    const startPolling = () => {
+      if (pollRef.current) clearInterval(pollRef.current)
+      pollRef.current = setInterval(() => {
+        fetchActiveTests()
+        // Restart polling with potentially new interval
+        startPolling()
+      }, pollIntervalRef.current)
+    }
+    startPolling()
 
     return () => {
       isMountedRef.current = false

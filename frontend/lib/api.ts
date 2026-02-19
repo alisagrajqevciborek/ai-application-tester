@@ -240,7 +240,7 @@ async function apiRequest<T>(
 
   const url = `${API_BASE_URL}${endpoint}`
 
-  const { timeout = 60000, ...fetchOptions } = options
+  const { timeout = 15000, ...fetchOptions } = options
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -329,36 +329,47 @@ async function apiRequest<T>(
 
 // ---------------------------------------------------------------------------
 // Pagination helper — fetches ALL pages for list endpoints that paginate
+// Optimized to fetch pages in parallel for better performance
 // ---------------------------------------------------------------------------
 async function fetchAllPages<T>(endpoint: string): Promise<T[]> {
-  const all: T[] = []
-  let currentEndpoint: string | null = endpoint
+  // Fetch first page to get total count
+  const firstResponse = await apiRequest<{
+    results: T[]
+    next: string | null
+    count: number
+  } | T[]>(endpoint)
 
-  while (currentEndpoint) {
-    const response = await apiRequest<{
-      results: T[]
-      next: string | null
-      count: number
-    } | T[]>(currentEndpoint)
+  if (Array.isArray(firstResponse)) {
+    // Non-paginated response — return as-is
+    return firstResponse
+  }
 
-    if (Array.isArray(response)) {
-      // Non-paginated response — return as-is
-      return response
-    }
+  const all: T[] = [...firstResponse.results]
+  
+  // If there's no next page, return what we have
+  if (!firstResponse.next) {
+    return all
+  }
 
-    all.push(...response.results)
+  // Calculate how many pages we need to fetch
+  const pageSize = firstResponse.results.length
+  const totalPages = Math.ceil(firstResponse.count / pageSize)
+  
+  // Fetch remaining pages in parallel (limit to 5 concurrent requests)
+  const pagePromises: Promise<T[]>[] = []
+  for (let page = 2; page <= totalPages; page++) {
+    const pageEndpoint = `${endpoint}${endpoint.includes('?') ? '&' : '?'}page=${page}`
+    pagePromises.push(
+      apiRequest<{ results: T[] }>(pageEndpoint).then(response => response.results)
+    )
+  }
 
-    if (response.next) {
-      // Django returns an absolute URL; extract just the path + query
-      try {
-        const parsed = new URL(response.next)
-        currentEndpoint = parsed.pathname.replace(/^\/api/, '') + parsed.search
-      } catch {
-        currentEndpoint = null
-      }
-    } else {
-      currentEndpoint = null
-    }
+  // Wait for all pages (in batches of 5 to avoid overwhelming the server)
+  const batchSize = 5
+  for (let i = 0; i < pagePromises.length; i += batchSize) {
+    const batch = pagePromises.slice(i, i + batchSize)
+    const results = await Promise.all(batch)
+    results.forEach(pageResults => all.push(...pageResults))
   }
 
   return all

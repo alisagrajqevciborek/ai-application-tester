@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
 import { ArrowLeft, BarChart3, Home } from "lucide-react"
@@ -17,7 +17,7 @@ const StatisticsModal = dynamic(() => import("@/components/charts/statistics-mod
   ssr: false,
 })
 
-export default function NewTestPage() {
+function NewTestContent() {
   const { isAuthenticated, isLoading, user } = useAuth()
   const { applications, stats, isLoading: isLoadingData, forceRefresh } = useData()
   const router = useRouter()
@@ -120,5 +120,17 @@ export default function NewTestPage() {
         stats={stats}
       />
     </div>
+  )
+}
+
+export default function NewTestPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    }>
+      <NewTestContent />
+    </Suspense>
   )
 }

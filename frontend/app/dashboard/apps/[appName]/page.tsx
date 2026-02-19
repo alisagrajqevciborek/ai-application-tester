@@ -17,6 +17,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useToast } from "@/components/ui/use-toast"
 import dynamic from "next/dynamic"
 
 const StatisticsModal = dynamic(() => import("@/components/charts/statistics-modal"), {
@@ -30,6 +31,7 @@ export default function AppVersionsPage() {
   const params = useParams()
   const appName = decodeURIComponent(params.appName as string)
   const [statsModalOpen, setStatsModalOpen] = useState(false)
+  const { toast } = useToast()
 
   useEffect(() => {
     if (!isLoading) {
@@ -61,11 +63,36 @@ export default function AppVersionsPage() {
   }
 
   const handleDeleteTest = async (testId: string) => {
+    const isLastVersion = versions.length === 1
+    
+    // Show loading toast
+    toast({
+      title: "Deleting test run...",
+      description: "Please wait while we delete the test run.",
+    })
+    
     try {
       await testRunsApi.delete(parseInt(testId))
+      
+      // Force refresh to update the list
       await forceRefresh()
+      
+      toast({
+        title: "Test run deleted",
+        description: "The test run has been successfully deleted.",
+      })
+      
+      // If this was the last version, the app is now empty — go to the dashboard
+      if (isLastVersion) {
+        router.push('/dashboard')
+      }
     } catch (err) {
       console.error("Failed to delete test run:", err)
+      toast({
+        title: "Failed to delete test run",
+        description: err instanceof Error ? err.message : "An error occurred while deleting the test run.",
+        variant: "destructive",
+      })
     }
   }
 

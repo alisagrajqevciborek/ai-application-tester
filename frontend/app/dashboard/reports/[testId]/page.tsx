@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import TopNav from "@/components/dashboard/top-nav"
 import ReportView from "@/components/reports/report-view"
 import { useAuth } from "@/contexts/AuthContext"
+import { useData } from "@/contexts/DataContext"
 import { testRunsApi, type TestRun } from "@/lib/api"
 import { Loader2 } from "lucide-react"
 import type { TestHistory } from "@/lib/types"
@@ -29,6 +30,7 @@ const convertTestRunToHistory = (testRun: TestRun): TestHistory => {
 
 export default function ReportPage() {
   const { isAuthenticated, isLoading, user } = useAuth()
+  const { forceRefresh } = useData()
   const router = useRouter()
   const params = useParams()
   const testId = params.testId as string
@@ -88,8 +90,14 @@ export default function ReportPage() {
   const handleDelete = async (testId: string) => {
     try {
       await testRunsApi.delete(parseInt(testId))
-      // Navigate back to dashboard after deletion
-      router.push('/dashboard')
+      await forceRefresh()
+      // Go back to the app's versions page so the user sees the updated list;
+      // if we don't have app info, fall back to the dashboard.
+      if (test) {
+        router.push(`/dashboard/apps/${encodeURIComponent(test.appName)}`)
+      } else {
+        router.push('/dashboard')
+      }
     } catch (err) {
       console.error("Failed to delete test:", err)
     }
