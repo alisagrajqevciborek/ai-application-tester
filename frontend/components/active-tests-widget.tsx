@@ -44,11 +44,14 @@ export default function ActiveTestsWidget() {
   // Don't render anything while loading or when there are no active tests
   if (isLoading || activeTests.length === 0) return null
 
-  // Don't show the widget if the user is already on the new-test page
-  if (pathname === "/dashboard/new-test") return null
+  // Don't show the widget on pages that already show test progress
+  if (
+    pathname === "/dashboard/new-test" ||
+    pathname.startsWith("/dashboard/test-progress/")
+  ) return null
 
   const handleNavigate = (testId: number) => {
-    router.push(`/dashboard/reports/${testId}`)
+    router.push(`/dashboard/test-progress/${testId}`)
   }
 
   return (

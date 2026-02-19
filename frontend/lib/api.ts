@@ -127,6 +127,64 @@ function getRefreshToken(): string | null {
   return localStorage.getItem('refresh_token')
 }
 
+// ---------------------------------------------------------------------------
+// Token auto-refresh queue
+// Multiple concurrent requests hitting 401 at the same time will all queue
+// up behind a single refresh attempt, then retry with the new token.
+// ---------------------------------------------------------------------------
+let isRefreshingToken = false
+let tokenRefreshSubscribers: Array<(token: string | null) => void> = []
+
+function addRefreshSubscriber(cb: (token: string | null) => void) {
+  tokenRefreshSubscribers.push(cb)
+}
+
+function notifyRefreshSubscribers(token: string | null) {
+  tokenRefreshSubscribers.forEach(cb => cb(token))
+  tokenRefreshSubscribers = []
+}
+
+async function doTokenRefresh(): Promise<string | null> {
+  const refresh = getRefreshToken()
+  if (!refresh) { clearTokens(); return null }
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/auth/refresh/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh }),
+    })
+    if (!res.ok) { clearTokens(); return null }
+    const data = await res.json()
+    saveTokens(data.access, refresh)
+    return data.access as string
+  } catch {
+    clearTokens()
+    return null
+  }
+}
+
+async function ensureTokenRefreshed(): Promise<string | null> {
+  if (!isRefreshingToken) {
+    isRefreshingToken = true
+    const newToken = await doTokenRefresh()
+    isRefreshingToken = false
+    notifyRefreshSubscribers(newToken)
+    return newToken
+  }
+  // Another request is already refreshing — wait for it to finish
+  return new Promise<string | null>(resolve => addRefreshSubscriber(resolve))
+}
+
+function isAuthEndpoint(endpoint: string): boolean {
+  return (
+    endpoint.includes('/auth/login') ||
+    endpoint.includes('/auth/refresh') ||
+    endpoint.includes('/auth/register') ||
+    endpoint.includes('/auth/logout')
+  )
+}
+
 // Helper function to save tokens
 export function saveTokens(access: string, refresh: string): void {
   if (typeof window === 'undefined') return
@@ -166,9 +224,11 @@ interface ApiRequestOptions extends RequestInit {
 }
 
 // Generic API request function
+// _isRetry is an internal flag — prevents infinite refresh loops on a single call
 async function apiRequest<T>(
   endpoint: string,
-  options: ApiRequestOptions = {}
+  options: ApiRequestOptions = {},
+  _isRetry = false
 ): Promise<T> {
   const token = getAuthToken()
 
@@ -180,7 +240,7 @@ async function apiRequest<T>(
 
   const url = `${API_BASE_URL}${endpoint}`
 
-  const { timeout = 60000, ...fetchOptions } = options // Default 60 second timeout (increased from 30s)
+  const { timeout = 60000, ...fetchOptions } = options
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -191,7 +251,6 @@ async function apiRequest<T>(
     headers['Authorization'] = `Bearer ${token}`
   }
 
-  // Add timeout to prevent hanging requests
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeout)
 
@@ -204,6 +263,20 @@ async function apiRequest<T>(
 
     clearTimeout(timeoutId)
 
+    // --- Token auto-refresh on 401 ---
+    if (response.status === 401 && !_isRetry && !isAuthEndpoint(endpoint)) {
+      const newToken = await ensureTokenRefreshed()
+      if (newToken) {
+        // Retry the original request once with the fresh token
+        return apiRequest<T>(endpoint, options, true)
+      }
+      // Refresh failed — notify the app so it can redirect to login
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('auth:logout'))
+      }
+      throw new Error('Session expired. Please log in again.')
+    }
+
     // Handle 204 No Content
     if (response.status === 204) {
       return {} as T
@@ -212,8 +285,6 @@ async function apiRequest<T>(
     // Check if response is JSON
     const contentType = response.headers.get('content-type')
     if (!contentType || !contentType.includes('application/json')) {
-      // If not JSON, it's likely an HTML error page
-      const text = await response.text()
       throw new Error(
         response.status === 404
           ? 'API endpoint not found. Please check if the backend server is running.'
@@ -226,12 +297,12 @@ async function apiRequest<T>(
     let data
     try {
       data = await response.json()
-    } catch (error) {
+    } catch {
       throw new Error('Failed to parse response as JSON. The server may be returning an error page.')
     }
 
     if (!response.ok) {
-      // Handle validation errors
+      // Handle validation errors (field-level)
       if (data.email || data.password || data.code) {
         const errorMessages = Object.entries(data)
           .map(([key, value]) => {
@@ -254,6 +325,43 @@ async function apiRequest<T>(
     }
     throw error
   }
+}
+
+// ---------------------------------------------------------------------------
+// Pagination helper — fetches ALL pages for list endpoints that paginate
+// ---------------------------------------------------------------------------
+async function fetchAllPages<T>(endpoint: string): Promise<T[]> {
+  const all: T[] = []
+  let currentEndpoint: string | null = endpoint
+
+  while (currentEndpoint) {
+    const response = await apiRequest<{
+      results: T[]
+      next: string | null
+      count: number
+    } | T[]>(currentEndpoint)
+
+    if (Array.isArray(response)) {
+      // Non-paginated response — return as-is
+      return response
+    }
+
+    all.push(...response.results)
+
+    if (response.next) {
+      // Django returns an absolute URL; extract just the path + query
+      try {
+        const parsed = new URL(response.next)
+        currentEndpoint = parsed.pathname.replace(/^\/api/, '') + parsed.search
+      } catch {
+        currentEndpoint = null
+      }
+    } else {
+      currentEndpoint = null
+    }
+  }
+
+  return all
 }
 
 // Auth API
@@ -361,19 +469,7 @@ export const adminApi = {
 // Applications API
 export const applicationsApi = {
   async list(): Promise<Application[]> {
-    const response = await apiRequest<{
-      results?: Application[]
-      count?: number
-      next?: string | null
-      previous?: string | null
-    }>('/applications/')
-
-    // Handle paginated response
-    if (response.results) {
-      return response.results
-    }
-    // Handle non-paginated response
-    return response as unknown as Application[]
+    return fetchAllPages<Application>('/applications/')
   },
 
   async get(id: number): Promise<Application> {
@@ -425,19 +521,7 @@ export const applicationsApi = {
 // Test Runs API
 export const testRunsApi = {
   async list(): Promise<TestRun[]> {
-    const response = await apiRequest<{
-      results?: TestRun[]
-      count?: number
-      next?: string | null
-      previous?: string | null
-    }>('/applications/test-runs/')
-
-    // Handle paginated response
-    if (response.results) {
-      return response.results
-    }
-    // Handle non-paginated response
-    return response as unknown as TestRun[]
+    return fetchAllPages<TestRun>('/applications/test-runs/')
   },
 
   async get(id: number): Promise<TestRun> {
