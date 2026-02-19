@@ -1,5 +1,5 @@
 services:
-  frontend:project
+  frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -12,7 +12,7 @@ services:
       - /app/.next
     environment:
       # Use the backend service name inside Docker network
-        - NEXT_PUBLIC_API_URL=http://localhost:8000/api
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api
     # Install deps into the (mounted) /app/node_modules volume, then start Next dev server.
     # (Port is already set in package.json: `next dev -p 3000`)
     command: sh -c "npm install && npm run dev"
@@ -34,7 +34,7 @@ services:
       - backend_media:/app/media
       - backend_static:/app/staticfiles
     environment:
-      - DEBUG=True
+      - DEBUG=${DEBUG:-False}
       - SECRET_KEY=${SECRET_KEY:-django-insecure-vr4g-p&0a$%!0kk032q$-o6%16h_=-zggep3+o=09gpn2yu=!j}
       - ALLOWED_HOSTS=localhost,127.0.0.1,backend
       - DB_NAME=postgres
@@ -68,7 +68,7 @@ services:
       - backend_media:/app/media
       - backend_static:/app/staticfiles
     environment:
-      - DEBUG=True
+      - DEBUG=${DEBUG:-False}
       - SECRET_KEY=${SECRET_KEY:-django-insecure-vr4g-p&0a$%!0kk032q$-o6%16h_=-zggep3+o=09gpn2yu=!j}
       - ALLOWED_HOSTS=localhost,127.0.0.1
       - DB_NAME=${DB_NAME:-ai_app_tester}
