@@ -25,3 +25,6 @@ openai>=1.12.0
 
 # Jira for bug tracking integration
 jira>=3.5.0
+
+# Cryptography for encrypting sensitive credentials
+cryptography>=41.0.0

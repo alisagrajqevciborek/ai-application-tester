@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from .fields import EncryptedCharField, EncryptedURLField
 
 
 class Application(models.Model):
@@ -14,10 +15,10 @@ class Application(models.Model):
         help_text="User who owns this application"
     )
     
-    # Testing credentials and URLs
-    test_username = models.CharField(max_length=255, null=True, blank=True, help_text="Username for automated testing")
-    test_password = models.CharField(max_length=255, null=True, blank=True, help_text="Password for automated testing")
-    login_url = models.URLField(max_length=500, null=True, blank=True, help_text="Login URL for auth testing")
+    # Testing credentials and URLs (encrypted at rest)
+    test_username = EncryptedCharField(max_length=255, null=True, blank=True, help_text="Username for automated testing")
+    test_password = EncryptedCharField(max_length=255, null=True, blank=True, help_text="Password for automated testing")
+    login_url = EncryptedURLField(max_length=500, null=True, blank=True, help_text="Login URL for auth testing")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

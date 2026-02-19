@@ -6,6 +6,7 @@ from pathlib import Path
 from datetime import timedelta
 import os
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
  
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -29,7 +30,9 @@ if not env_loaded:
     load_dotenv(override=True)
  
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-vr4g-p&0a$%!0kk032q$-o6%16h_=-zggep3+o=09gpn2yu=!j')
+SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY:
+    raise ImproperlyConfigured("SECRET_KEY environment variable must be set")
  
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
@@ -185,6 +188,14 @@ REST_FRAMEWORK = {
     'DEFAULT_PARSER_CLASSES': (
         'rest_framework.parsers.JSONParser',
     ),
+    'DEFAULT_THROTTLE_RATES': {
+        'auth_register': os.getenv('THROTTLE_AUTH_REGISTER', '5/hour'),
+        'auth_verify_email': os.getenv('THROTTLE_AUTH_VERIFY_EMAIL', '10/hour'),
+        'auth_resend_code': os.getenv('THROTTLE_AUTH_RESEND_CODE', '5/hour'),
+        'auth_login': os.getenv('THROTTLE_AUTH_LOGIN', '10/minute'),
+        'auth_refresh': os.getenv('THROTTLE_AUTH_REFRESH', '30/minute'),
+        'auth_change_password': os.getenv('THROTTLE_AUTH_CHANGE_PASSWORD', '5/hour'),
+    },
 }
  
 # JWT Configuration
@@ -202,12 +213,12 @@ SIMPLE_JWT = {
 }
  
 # CORS Configuration
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
- 
-CORS_ALLOW_CREDENTIALS = True
+cors_allowed_origins = os.getenv(
+    'CORS_ALLOWED_ORIGINS',
+    'http://localhost:3000,http://127.0.0.1:3000',
+)
+CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_allowed_origins.split(',') if origin.strip()]
+CORS_ALLOW_CREDENTIALS = os.getenv('CORS_ALLOW_CREDENTIALS', 'True') == 'True'
  
 CORS_ALLOW_METHODS = [
     'DELETE',

@@ -1,11 +1,11 @@
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from rest_framework.throttling import SimpleRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.contrib.auth import get_user_model
-from common.permissions import IsAdmin, IsActiveUser
 from .serializers import (
     LoginSerializer, UserSerializer, UserRegistrationSerializer,
     EmailVerificationSerializer, ResendCodeSerializer,
@@ -16,8 +16,44 @@ from .utils import send_verification_email
 User = get_user_model()
 
 
+class UserOrIPRateThrottle(SimpleRateThrottle):
+    """Throttle by user id when authenticated, otherwise by client IP."""
+
+    def get_cache_key(self, request, view):
+        if request.user and request.user.is_authenticated:
+            ident = f"user:{request.user.pk}"
+        else:
+            ident = self.get_ident(request)
+        return self.cache_format % {'scope': self.scope, 'ident': ident}
+
+
+class AuthRegisterRateThrottle(UserOrIPRateThrottle):
+    scope = 'auth_register'
+
+
+class AuthVerifyEmailRateThrottle(UserOrIPRateThrottle):
+    scope = 'auth_verify_email'
+
+
+class AuthResendCodeRateThrottle(UserOrIPRateThrottle):
+    scope = 'auth_resend_code'
+
+
+class AuthLoginRateThrottle(UserOrIPRateThrottle):
+    scope = 'auth_login'
+
+
+class AuthRefreshRateThrottle(UserOrIPRateThrottle):
+    scope = 'auth_refresh'
+
+
+class AuthChangePasswordRateThrottle(UserOrIPRateThrottle):
+    scope = 'auth_change_password'
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([AuthRegisterRateThrottle])
 def register_view(request):
     """
     POST /api/auth/register
@@ -31,7 +67,7 @@ def register_view(request):
             # If email fails, user is still created but we should log it
             return Response({
                 'message': 'Registration successful. Please check your email for the verification code.',
-                'email': user.email
+                'email': user.email if hasattr(user, 'email') else ''  # type: ignore[attr-defined]
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
@@ -45,6 +81,7 @@ def register_view(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([AuthVerifyEmailRateThrottle])
 def verify_email_view(request):
     """
     POST /api/auth/verify-email
@@ -52,8 +89,12 @@ def verify_email_view(request):
     """
     serializer = EmailVerificationSerializer(data=request.data)
     if serializer.is_valid():
-        user = serializer.validated_data['user']
-        code = serializer.validated_data['code']
+        validated_data = serializer.validated_data  # type: ignore[assignment]
+        user = validated_data.get('user')  # type: ignore[union-attr]
+        code = validated_data.get('code')  # type: ignore[union-attr]
+        
+        if not user or not code:
+            return Response({'error': 'Invalid data'}, status=status.HTTP_400_BAD_REQUEST)
         
         if user.verify_code(code):
             # Generate JWT tokens after successful verification
@@ -63,7 +104,7 @@ def verify_email_view(request):
             return Response({
                 'message': 'Email verified successfully',
                 'user': user_data,
-                'access': str(refresh.access_token),
+                'access': str(refresh.access_token),  # type: ignore[attr-defined]
                 'refresh': str(refresh),
             }, status=status.HTTP_200_OK)
         else:
@@ -75,6 +116,7 @@ def verify_email_view(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([AuthResendCodeRateThrottle])
 def resend_code_view(request):
     """
     POST /api/auth/resend-code
@@ -82,7 +124,10 @@ def resend_code_view(request):
     """
     serializer = ResendCodeSerializer(data=request.data)
     if serializer.is_valid():
-        email = serializer.validated_data['email']
+        validated_data = serializer.validated_data  # type: ignore[assignment]
+        email = validated_data.get('email')  # type: ignore[union-attr]
+        if not email:
+            return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
         user = User.objects.get(email=email)
         
         # Generate new code
@@ -97,6 +142,7 @@ def resend_code_view(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([AuthLoginRateThrottle])
 def login_view(request):
     """
     POST /api/auth/login
@@ -105,8 +151,9 @@ def login_view(request):
     serializer = LoginSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     
-    email = serializer.validated_data['email']
-    password = serializer.validated_data['password']
+    validated_data = serializer.validated_data  # type: ignore[assignment]
+    email = validated_data.get('email', '')  # type: ignore[union-attr]
+    password = validated_data.get('password', '')  # type: ignore[union-attr]
     
     user = authenticate(request, username=email, password=password)
     
@@ -131,7 +178,7 @@ def login_view(request):
         
         return Response({
             'user': user_data,
-            'access': str(refresh.access_token),
+            'access': str(refresh.access_token),  # type: ignore[attr-defined]
             'refresh': str(refresh),
         }, status=status.HTTP_200_OK)
     else:
@@ -141,6 +188,7 @@ def login_view(request):
 
 
 @api_view(['POST'])
+@throttle_classes([AuthRefreshRateThrottle])
 def logout_view(request):
     """
     POST /api/auth/logout
@@ -155,7 +203,7 @@ def logout_view(request):
         return Response({
             'message': 'Successfully logged out'
         }, status=status.HTTP_200_OK)
-    except Exception as e:
+    except Exception:
         return Response({
             'error': 'Invalid token or already blacklisted'
         }, status=status.HTTP_400_BAD_REQUEST)
@@ -191,6 +239,7 @@ def me_view(request):
 
 
 @api_view(['POST'])
+@throttle_classes([AuthChangePasswordRateThrottle])
 def change_password_view(request):
     """
     POST /api/auth/change-password
@@ -199,7 +248,11 @@ def change_password_view(request):
     serializer = PasswordChangeSerializer(data=request.data, context={'request': request})
     if serializer.is_valid():
         user = request.user
-        user.set_password(serializer.validated_data['new_password'])
+        validated_data = serializer.validated_data  # type: ignore[assignment]
+        new_password = validated_data.get('new_password')  # type: ignore[union-attr]
+        if not new_password:
+            return Response({'error': 'New password is required'}, status=status.HTTP_400_BAD_REQUEST)
+        user.set_password(new_password)
         user.save()
         return Response({
             'message': 'Password changed successfully'
@@ -208,6 +261,7 @@ def change_password_view(request):
 
 
 @api_view(['POST'])
+@throttle_classes([AuthRefreshRateThrottle])
 def refresh_token_view(request):
     """
     POST /api/auth/refresh
@@ -222,9 +276,9 @@ def refresh_token_view(request):
         
         refresh = RefreshToken(refresh_token)
         return Response({
-            'access': str(refresh.access_token),
+            'access': str(refresh.access_token),  # type: ignore[attr-defined]
         }, status=status.HTTP_200_OK)
-    except Exception as e:
+    except Exception:
         return Response({
             'error': 'Invalid or expired refresh token'
         }, status=status.HTTP_401_UNAUTHORIZED)
