@@ -13,6 +13,13 @@ import { Loader2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import dynamic from "next/dynamic"
+import { useDebounce } from "@/lib/hooks/useDebounce"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 const StatisticsModal = dynamic(() => import("@/components/charts/statistics-modal"), {
   ssr: false,
@@ -27,6 +34,9 @@ export default function DashboardPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "success" | "failed" | "running">("all")
   const [testTypeFilter, setTestTypeFilter] = useState<"all" | "general" | "functional" | "regression" | "performance" | "accessibility" | "broken_links" | "authentication">("all")
   const [showFilters, setShowFilters] = useState(false)
+
+  // Debounce search query to avoid filtering on every keystroke
+  const debouncedSearch = useDebounce(searchQuery, 300)
 
   useEffect(() => {
     if (!isLoading) {
@@ -53,17 +63,14 @@ export default function DashboardPage() {
 
   const appNames = Object.keys(appsWithVersions).sort()
 
-  // Check if filters are active
-  const hasActiveFilters = statusFilter !== "all" || testTypeFilter !== "all" || searchQuery !== ""
-
-  // Filter apps based on search query and filters
+  // Check if filters are debounced search query and filters
   const filteredAppNames = useMemo(() => {
     let filtered = appNames
 
-    // Apply search filter
-    if (searchQuery.trim()) {
+    // Apply search filter with debounced value
+    if (debouncedSearch.trim()) {
       filtered = filtered.filter((appName) =>
-        appName.toLowerCase().includes(searchQuery.toLowerCase())
+        appName.toLowerCase().includes(debouncedSearch.toLowerCase())
       )
     }
 
@@ -81,7 +88,9 @@ export default function DashboardPage() {
     }
 
     return filtered
-  }, [appNames, searchQuery, statusFilter, testTypeFilter, appsWithVersions])
+  }, [appNames, debouncedSearch, statusFilter, testTypeFilter, appsWithVersions])
+
+  const hasActiveFilters = searchQuery.trim() !== "" || statusFilter !== "all" || testTypeFilter !== "all"
 
   const clearFilters = () => {
     setSearchQuery("")

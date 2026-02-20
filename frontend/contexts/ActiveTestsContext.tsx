@@ -32,13 +32,10 @@ export function ActiveTestsProvider({ children }: { children: React.ReactNode })
       return
     }
     try {
-      // Fetch all test runs (backend will handle pagination efficiently)
-      const allRuns = await testRunsApi.list()
+      // Use optimized endpoint that only returns active tests
+      const running = await testRunsApi.listActive()
       if (!isMountedRef.current) return
       
-      const running = allRuns.filter(
-        (tr) => tr.status === "running" || tr.status === "pending"
-      )
       setActiveTests(running)
       
       // Adjust polling interval based on whether there are active tests

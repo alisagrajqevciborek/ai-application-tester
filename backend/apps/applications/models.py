@@ -80,6 +80,11 @@ class TestRun(models.Model):
         ordering = ['-started_at']
         verbose_name = 'Test Run'
         verbose_name_plural = 'Test Runs'
+        indexes = [
+            models.Index(fields=['application', 'status']),
+            models.Index(fields=['application', '-started_at']),
+            models.Index(fields=['status', '-started_at']),
+        ]
     
     def get_version_number(self) -> int:
         """Calculate version number based on test runs for the same application, ordered by creation date."""

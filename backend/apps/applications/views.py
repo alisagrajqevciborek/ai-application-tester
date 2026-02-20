@@ -122,6 +122,7 @@ def testrun_list_create(request):
     if request.method == 'GET':
         # Get test runs for applications owned by the user
         # Use select_related for FK and prefetch_related for reverse FK to avoid N+1 queries
+        # Defer heavy JSON fields for better performance
         test_runs = (
             TestRun.objects  # type: ignore[attr-defined]
             .filter(application__owner=request.user)
@@ -248,6 +249,76 @@ def testrun_stats(request):
     }
     
     return Response(stats, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+def testrun_active(request):
+    """
+    GET /api/applications/test-runs/active/
+    Return only running or pending test runs (optimized for polling).
+    """
+    if request.user.status == 'disabled':
+        return Response({
+            'error': 'Your account has been disabled. Please contact support.'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    # Only fetch necessary fields and limit results
+    test_runs = (
+        TestRun.objects  # type: ignore[attr-defined]
+        .filter(
+            application__owner=request.user,
+            status__in=['running', 'pending']
+        )
+        .only(
+            'id', 'application', 'test_type', 'status', 
+            'started_at', 'pass_rate', 'fail_rate', 'check_broken_links', 'check_auth'
+        )
+        .select_related('application')
+        .order_by('-started_at')[:20]  # Limit to 20 most recent active tests
+    )
+    
+    serializer = TestRunSerializer(test_runs, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+def testrun_status(request, pk):
+    """
+    GET /api/applications/test-runs/<id>/status/
+    Lightweight status endpoint for polling (no heavy JSON fields).
+    """
+    if request.user.status == 'disabled':
+        return Response({
+            'error': 'Your account has been disabled.'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        test_run = (
+            TestRun.objects  # type: ignore[attr-defined]
+            .only(
+                'id', 'status', 'started_at', 'completed_at',
+                'pass_rate', 'fail_rate'
+            )
+            .get(pk=pk, application__owner=request.user)
+        )
+        
+        # Fetch step progress without heavy details_json field
+        steps = test_run.step_results.only(
+            'step_key', 'step_label', 'status'
+        ).values('step_key', 'step_label', 'status')
+        
+        return Response({
+            'id': test_run.id,
+            'status': test_run.status,
+            'started_at': test_run.started_at,
+            'completed_at': test_run.completed_at,
+            'pass_rate': test_run.pass_rate,
+            'fail_rate': test_run.fail_rate,
+            'steps': list(steps),
+        }, status=status.HTTP_200_OK)
+        
+    except TestRun.DoesNotExist:  # type: ignore[attr-defined]
+        return Response({'error': 'Test not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
 # Test Case Generator Views

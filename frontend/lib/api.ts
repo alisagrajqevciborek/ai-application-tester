@@ -535,8 +535,28 @@ export const testRunsApi = {
     return fetchAllPages<TestRun>('/applications/test-runs/')
   },
 
+  async listActive(): Promise<TestRun[]> {
+    return apiRequest<TestRun[]>('/applications/test-runs/active/')
+  },
+
   async get(id: number): Promise<TestRun> {
     return apiRequest<TestRun>(`/applications/test-runs/${id}/`)
+  },
+
+  async getStatus(id: number): Promise<{
+    id: number
+    status: 'pending' | 'running' | 'success' | 'failed'
+    started_at: string
+    completed_at: string | null
+    pass_rate: number
+    fail_rate: number
+    steps: Array<{
+      step_key: string
+      step_label: string
+      status: 'pending' | 'running' | 'success' | 'failed'
+    }>
+  }> {
+    return apiRequest(`/applications/test-runs/${id}/status/`)
   },
 
   async create(applicationId: number, testType: string, options?: { check_broken_links?: boolean; check_auth?: boolean }): Promise<TestRun> {
