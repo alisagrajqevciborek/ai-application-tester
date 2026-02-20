@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { Package, Sparkles, Plus, BarChart3, Play, ChevronDown, Search, Filter, X } from "lucide-react"
+import { Package, Sparkles, Plus, BarChart3, Search, Filter, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import TopNav from "@/components/dashboard/top-nav"
@@ -104,10 +104,6 @@ export default function DashboardPage() {
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     )
-  }
-
-  const handleRunTest = (appName: string, testType: string) => {
-    router.push(`/dashboard/new-test?app=${encodeURIComponent(appName)}&testType=${testType}`)
   }
 
   return (
@@ -429,22 +425,6 @@ export default function DashboardPage() {
                               <Package className="h-5 w-5 text-orange-600 flex-shrink-0" />
                               <CardTitle className="text-lg truncate">{appName}</CardTitle>
                             </div>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                  <ChevronDown className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="bg-popover border-border">
-                                <DropdownMenuItem onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleRunTest(appName, "general")
-                                }}>
-                                  <Play className="w-4 h-4 mr-2" />
-                                  Run General Test
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
                           </div>
                           <CardDescription className="line-clamp-1">
                             {app?.url || 'No URL'}

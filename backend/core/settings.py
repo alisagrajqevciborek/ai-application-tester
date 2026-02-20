@@ -105,12 +105,12 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 #
 # Dev-friendly default:
-# - If `DB_PASSWORD` is not provided and DEBUG is enabled, fall back to SQLite so the app can run out-of-the-box.
+# - If `DB_PASSWORD` is not provided, fall back to SQLite so the app can run out-of-the-box.
 # - To use Postgres, set `DB_PASSWORD` (and related DB_* env vars).
 
 DB_PASSWORD = os.getenv('DB_PASSWORD', '')
 
-if DEBUG and not DB_PASSWORD:
+if not DB_PASSWORD:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
