@@ -33,6 +33,9 @@ export default function AppVersionsPage() {
   const [statsModalOpen, setStatsModalOpen] = useState(false)
   const { toast } = useToast()
 
+  // Local state for optimistic updates
+  const [localVersions, setLocalVersions] = useState<typeof testHistory>([])
+
   useEffect(() => {
     if (!isLoading) {
       if (!isAuthenticated) {
@@ -45,10 +48,17 @@ export default function AppVersionsPage() {
 
   // Filter versions for this app and sort by version number (newest first)
   const versions = useMemo(() => {
-    return testHistory
+    const filtered = testHistory
       .filter((test) => test.appName === appName)
       .sort((a, b) => b.version - a.version)
+    
+    // Update local versions when test history changes
+    setLocalVersions(filtered)
+    return filtered
   }, [testHistory, appName])
+
+  // Use local versions for rendering (allows optimistic updates)
+  const displayVersions = localVersions.length > 0 ? localVersions : versions
 
   if (isLoading || !isAuthenticated || user?.role === 'admin') {
     return (
@@ -63,31 +73,39 @@ export default function AppVersionsPage() {
   }
 
   const handleDeleteTest = async (testId: string) => {
-    const isLastVersion = versions.length === 1
+    const isLastVersion = displayVersions.length === 1
     
-    // Show loading toast
+    // Optimistic update: Remove from UI immediately
+    setLocalVersions(prev => prev.filter(v => v.id !== testId))
+    
     toast({
       title: "Deleting test run...",
-      description: "Please wait while we delete the test run.",
+      description: "Test run is being deleted.",
     })
     
     try {
+      // Delete in background
       await testRunsApi.delete(parseInt(testId))
-      
-      // Force refresh to update the list
-      await forceRefresh()
       
       toast({
         title: "Test run deleted",
         description: "The test run has been successfully deleted.",
       })
       
-      // If this was the last version, the app is now empty — go to the dashboard
+      // Navigate immediately if last version
       if (isLastVersion) {
         router.push('/dashboard')
       }
+      
+      // Background refresh (non-blocking)
+      forceRefresh().catch(console.error)
+      
     } catch (err) {
       console.error("Failed to delete test run:", err)
+      
+      // Revert optimistic update on error
+      await forceRefresh()
+      
       toast({
         title: "Failed to delete test run",
         description: err instanceof Error ? err.message : "An error occurred while deleting the test run.",
@@ -192,13 +210,13 @@ export default function AppVersionsPage() {
               <div className="flex items-center justify-center min-h-[400px]">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
-            ) : versions.length === 0 ? (
+            ) : displayVersions.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-muted-foreground">No test versions found for {appName}</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {versions.map((test) => (
+                {displayVersions.map((test) => (
                   <VersionCard
                     key={test.id}
                     test={test}

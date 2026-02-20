@@ -88,13 +88,14 @@ export default function TestProgressPage() {
       if (isPausedRef.current || !isMountedRef.current) return
 
       try {
-        const run = await testRunsApi.get(testRunId)
+        // Use lightweight status endpoint for polling
+        const statusData = await testRunsApi.getStatus(testRunId)
         if (!isMountedRef.current) return
 
         const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000)
 
-        if (run.status === "running" || run.status === "pending") {
-          const steps = run.step_results
+        if (statusData.status === "running" || statusData.status === "pending") {
+          const steps = statusData.steps
           if (steps && steps.length > 0) {
             const done = steps.filter(s => s.status === "success" || s.status === "failed")
             const running = steps.find(s => s.status === "running")
@@ -119,7 +120,7 @@ export default function TestProgressPage() {
             const pct = Math.max(5, Math.min(90, Math.round((elapsed / estimatedDuration) * 100)))
             setTestProgressData({
               progress: pct,
-              currentStep: run.status === "pending" ? "Queued, waiting for worker..." : "Running tests...",
+              currentStep: statusData.status === "pending" ? "Queued, waiting for worker..." : "Running tests...",
               warnings: 0,
               errors: 0,
               elapsedTime: elapsed,
@@ -127,19 +128,22 @@ export default function TestProgressPage() {
               status: "running",
             })
           }
-        } else if (run.status === "success" || run.status === "failed") {
+        } else if (statusData.status === "success" || statusData.status === "failed") {
           stopPolling()
-          const finalSteps = run.step_results
+          
+          // Fetch full data only when completed
+          const fullRun = await testRunsApi.get(testRunId)
+          const finalSteps = fullRun.step_results
           const failedCount = finalSteps ? finalSteps.filter(s => s.status === "failed").length : 0
 
           setTestProgressData({
             progress: 100,
-            currentStep: run.status === "success" ? "Test completed successfully!" : "Test completed with failures",
+            currentStep: statusData.status === "success" ? "Test completed successfully!" : "Test completed with failures",
             warnings: 0,
-            errors: failedCount || (run.status === "failed" ? 1 : 0),
+            errors: failedCount || (statusData.status === "failed" ? 1 : 0),
             elapsedTime: elapsed,
             estimatedTime: elapsed,
-            status: run.status === "success" ? "completed" : "failed",
+            status: statusData.status === "success" ? "completed" : "failed",
           })
           setViewState("completed")
 
