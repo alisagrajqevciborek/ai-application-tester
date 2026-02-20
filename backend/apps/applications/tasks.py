@@ -532,7 +532,7 @@ def execute_test_run_task(self, test_run_id):
                 )
 
             signatures = [
-                execute_test_run_step_task.s(
+                execute_test_run_step_task.s(  # pyright: ignore[reportCallIssue]
                     test_run_id,
                     step["step_key"],
                     step["step_label"],
@@ -543,7 +543,7 @@ def execute_test_run_task(self, test_run_id):
                 )
                 for step in step_configs
             ]
-            chord(signatures)(aggregate_general_test_run_results.s(test_run_id))
+            chord(signatures, aggregate_general_test_run_results.s(test_run_id)).apply_async()  # pyright: ignore[reportCallIssue]
             logger.info(
                 "Queued parallel general execution for test run %s with %s steps",
                 test_run_id,

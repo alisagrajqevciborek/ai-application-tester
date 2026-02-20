@@ -97,6 +97,8 @@ class User(AbstractBaseUser, PermissionsMixin):
         """Verify the provided code."""
         if not self.verification_code:
             return False
+        if self.code_expires_at is None:
+            return False
         if timezone.now() > self.code_expires_at:
             return False
         if self.verification_code != code:

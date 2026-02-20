@@ -2,7 +2,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
-from typing import cast
+from typing import Any, Dict, cast
 from datetime import timedelta
 from django.utils import timezone
 from django.db.models import Avg
@@ -303,12 +303,18 @@ def testrun_status(request, pk):
         )
         
         # Fetch step progress without heavy details_json field
-        steps = test_run.step_results.only(
-            'step_key', 'step_label', 'status'
-        ).values('step_key', 'step_label', 'status')
+        step_results_manager = getattr(test_run, 'step_results', None)
+        if step_results_manager is not None:
+            steps = step_results_manager.only(
+                'step_key', 'step_label', 'status'
+            ).values('step_key', 'step_label', 'status')
+        else:
+            steps = []
+
+        test_run_id = getattr(test_run, 'id', None) or getattr(test_run, 'pk', None)
         
         return Response({
-            'id': test_run.id,
+            'id': test_run_id,
             'status': test_run.status,
             'started_at': test_run.started_at,
             'completed_at': test_run.completed_at,
@@ -338,10 +344,14 @@ def generate_test_case(request):
     serializer = GeneratedTestCaseCreateSerializer(data=request.data, context={'request': request})
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-    prompt = serializer.validated_data['prompt']
-    application_id = serializer.validated_data['application_id']
-    test_type = serializer.validated_data['test_type']
+
+    validated_data = cast(Dict[str, Any], serializer.validated_data)
+    prompt = str(validated_data.get('prompt', ''))
+    application_id = validated_data.get('application_id')
+    test_type = str(validated_data.get('test_type', 'functional'))
+
+    if not isinstance(application_id, int):
+        return Response({'error': 'Invalid application_id'}, status=status.HTTP_400_BAD_REQUEST)
     
     try:
         application = Application.objects.get(pk=application_id, owner=request.user)  # type: ignore[attr-defined]
@@ -382,9 +392,10 @@ def refine_test_case(request):
     serializer = TestCaseRefineSerializer(data=request.data)
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-    test_case = serializer.validated_data['test_case']
-    refinement_prompt = serializer.validated_data['refinement_prompt']
+
+    validated_data = cast(Dict[str, Any], serializer.validated_data)
+    test_case = validated_data.get('test_case', {})
+    refinement_prompt = str(validated_data.get('refinement_prompt', ''))
     
     # Refine test case using AI
     from common.test_case_generator import refine_test_case as refine_test_case_func

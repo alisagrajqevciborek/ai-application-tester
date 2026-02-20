@@ -121,6 +121,7 @@ class TestRunStepResult(models.Model):
         related_name='step_results',
         help_text="Parent test run for this step result",
     )
+    test_run_id: int
     step_key = models.CharField(max_length=50, help_text="Stable identifier for the step")
     step_label = models.CharField(max_length=100, help_text="Human-readable step label")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')

@@ -2,6 +2,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
+from typing import Any, Dict, cast
 from common.permissions import IsAdmin
 from .admin_serializers import AdminUserSerializer, UserStatusUpdateSerializer
 
@@ -39,15 +40,20 @@ def admin_toggle_user_status_view(request, user_id):
         }, status=status.HTTP_404_NOT_FOUND)
     
     # Prevent admin from disabling themselves (shouldn't happen since they're excluded from list, but keep as safety check)
-    if user.id == request.user.id:
+    user_id_value = getattr(user, 'id', None)
+    request_user_id = getattr(request.user, 'id', None)
+    if user_id_value == request_user_id:
         return Response({
             'error': 'You cannot disable your own account'
         }, status=status.HTTP_400_BAD_REQUEST)
     
     serializer = UserStatusUpdateSerializer(data=request.data)
     if serializer.is_valid():
-        new_status = serializer.validated_data['status']
-        user.status = new_status
+        validated_data = cast(Dict[str, Any], serializer.validated_data)
+        new_status = validated_data.get('status')
+        if not isinstance(new_status, str):
+            return Response({'error': 'Invalid status value'}, status=status.HTTP_400_BAD_REQUEST)
+        setattr(user, 'status', new_status)
         user.save()
         
         return Response({

@@ -6,6 +6,7 @@ from rest_framework.throttling import SimpleRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.contrib.auth import get_user_model
+from typing import Any, cast
 from .serializers import (
     LoginSerializer, UserSerializer, UserRegistrationSerializer,
     EmailVerificationSerializer, ResendCodeSerializer,
@@ -129,10 +130,11 @@ def resend_code_view(request):
         if not email:
             return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
         user = User.objects.get(email=email)
+        typed_user = cast(Any, user)
         
         # Generate new code
-        code = user.generate_verification_code()
-        send_verification_email(user.email, code)
+        code = typed_user.generate_verification_code()
+        send_verification_email(typed_user.email, code)
         
         return Response({
             'message': 'Verification code has been resent to your email.'
@@ -158,16 +160,17 @@ def login_view(request):
     user = authenticate(request, username=email, password=password)
     
     if user is not None:
+        typed_user = cast(Any, user)
         # Check if email is verified
-        if not user.email_verified:
+        if not typed_user.email_verified:
             return Response({
                 'error': 'Please verify your email before logging in. Check your email for the verification code.',
-                'email': user.email,
+                'email': typed_user.email,
                 'requires_verification': True
             }, status=status.HTTP_403_FORBIDDEN)
         
         # Check if account is disabled
-        if user.status == 'disabled':
+        if typed_user.status == 'disabled':
             return Response({
                 'error': 'Your account has been disabled. Please contact support.',
             }, status=status.HTTP_403_FORBIDDEN)

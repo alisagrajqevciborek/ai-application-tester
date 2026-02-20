@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from typing import Any, cast
 
 User = get_user_model()
 
@@ -34,7 +35,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         validated_data.pop('password_confirm')
         user = User.objects.create_user(**validated_data)
         # Generate verification code
-        code = user.generate_verification_code()
+        code = cast(Any, user).generate_verification_code()
         # Send verification email
         from .utils import send_verification_email
         email_sent = send_verification_email(user.email, code)
@@ -56,17 +57,18 @@ class EmailVerificationSerializer(serializers.Serializer):
     def validate(self, attrs):
         """Validate email and code."""
         email = attrs.get('email')
-        code = attrs.get('code')
         
         try:
             user = User.objects.get(email=email)
         except User.DoesNotExist:
             raise serializers.ValidationError({"email": "User with this email does not exist."})
-        
-        if user.email_verified:
+
+        typed_user = cast(Any, user)
+
+        if typed_user.email_verified:
             raise serializers.ValidationError({"email": "Email is already verified."})
-        
-        if not user.verification_code:
+
+        if not typed_user.verification_code:
             raise serializers.ValidationError({"code": "No verification code found. Please register again."})
         
         attrs['user'] = user
@@ -84,8 +86,8 @@ class ResendCodeSerializer(serializers.Serializer):
             user = User.objects.get(email=value)
         except User.DoesNotExist:
             raise serializers.ValidationError("User with this email does not exist.")
-        
-        if user.email_verified:
+
+        if cast(Any, user).email_verified:
             raise serializers.ValidationError("Email is already verified.")
         
         return value
@@ -108,7 +110,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
     def validate_email(self, value):
         """Ensure email is unique if changed."""
         user = self.instance
-        if User.objects.filter(email=value).exclude(pk=user.pk).exists():
+        if user is not None and User.objects.filter(email=value).exclude(pk=getattr(user, 'pk', None)).exists():
             raise serializers.ValidationError("A user with this email already exists.")
         return value
 
