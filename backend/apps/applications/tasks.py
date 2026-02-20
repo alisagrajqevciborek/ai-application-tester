@@ -119,6 +119,16 @@ def execute_test_run_step_task(
     Execute one test step (suite) for a parallelized general run.
     Returns a JSON-serializable result payload for chord aggregation.
     """
+    logger.info(
+        "Parallel step task started: run_id=%s step_key=%s label=%s type=%s "
+        "check_broken_links=%s check_auth=%s",
+        test_run_id,
+        step_key,
+        step_label,
+        step_test_type,
+        check_broken_links,
+        check_auth,
+    )
     try:
         test_run = TestRun.objects.get(pk=test_run_id)  # type: ignore[attr-defined]
         _upsert_step_result(
@@ -164,6 +174,18 @@ def execute_test_run_step_task(
                 "test_type": step_test_type,
             },
             mark_completed=True,
+        )
+
+        logger.info(
+            "Parallel step task completed: run_id=%s step_key=%s status=%s "
+            "pass_rate=%s fail_rate=%s issues=%s screenshots=%s",
+            test_run_id,
+            step_key,
+            status_value,
+            pass_rate,
+            fail_rate,
+            len(results.get("issues", [])),
+            len(results.get("screenshots", [])),
         )
 
         return {
@@ -216,6 +238,11 @@ def execute_test_run_step_task(
 @shared_task(bind=True, max_retries=1)
 def aggregate_general_test_run_results(self, step_results, test_run_id: int):
     """Aggregate parallel suite results for a general test run."""
+    logger.info(
+        "Aggregation task started for run_id=%s with %s raw step_results entries",
+        test_run_id,
+        len(step_results or []),
+    )
     try:
         test_run = TestRun.objects.get(pk=test_run_id)  # type: ignore[attr-defined]
     except TestRun.DoesNotExist:  # type: ignore[attr-defined]
@@ -223,6 +250,11 @@ def aggregate_general_test_run_results(self, step_results, test_run_id: int):
         return
 
     valid_results = [r for r in (step_results or []) if isinstance(r, dict)]
+    logger.info(
+        "Aggregation task: run_id=%s has %s valid step results",
+        test_run_id,
+        len(valid_results),
+    )
     if not valid_results:
         valid_results = [
             {
@@ -426,7 +458,17 @@ def aggregate_general_test_run_results(self, step_results, test_run_id: int):
             issues_json=final_issues,
             console_logs_json=all_console_logs,
         )
-        logger.info(f"Full detailed report persisted for parallel test run {test_run_id}")
+        logger.info(
+            "Full detailed report persisted for parallel test run %s with overall_status=%s "
+            "avg_pass_rate=%s fail_rate=%s issues=%s screenshots=%s artifacts=%s",
+            test_run_id,
+            overall_status,
+            avg_pass_rate,
+            fail_rate,
+            len(all_issues),
+            len(all_screenshots),
+            len(all_artifacts),
+        )
     except Exception:
         logger.exception("Failed to persist aggregated report")
 
