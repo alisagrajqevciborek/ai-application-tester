@@ -6,34 +6,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Activity, ChevronDown, ChevronUp, ExternalLink, Loader2 } from "lucide-react"
 import { useActiveTests } from "@/contexts/ActiveTestsContext"
 import type { TestRun } from "@/lib/api"
-
-/** Human-readable label for a test type */
-function testTypeLabel(t: string): string {
-  const labels: Record<string, string> = {
-    general: "General",
-    functional: "Functional",
-    regression: "Regression",
-    performance: "Performance",
-    accessibility: "Accessibility",
-    broken_links: "Broken Links",
-    authentication: "Authentication",
-  }
-  return labels[t] ?? t
-}
-
-/** Estimate overall progress from step_results when available */
-function estimateProgress(tr: TestRun): number {
-  const steps = tr.step_results
-  if (!steps || steps.length === 0) {
-    // Fallback: pending → 5%, running → 50%
-    return tr.status === "pending" ? 5 : 50
-  }
-  const done = steps.filter(
-    (s) => s.status === "success" || s.status === "failed" || s.status === "skipped" || s.status === "canceled"
-  ).length
-  // Clamp between 5 and 95 so it never looks "done" while still running
-  return Math.max(5, Math.min(95, Math.round((done / steps.length) * 100)))
-}
+import { calculateTestProgress, getTestTypeLabel } from "@/lib/test-progress-utils"
 
 export default function ActiveTestsWidget() {
   const { activeTests, isLoading } = useActiveTests()
@@ -82,7 +55,7 @@ export default function ActiveTestsWidget() {
             {/* Test list */}
             <div className="max-h-72 overflow-y-auto divide-y divide-border">
               {activeTests.map((tr) => {
-                const progress = estimateProgress(tr)
+                const progress = calculateTestProgress(tr)
                 return (
                   <button
                     key={tr.id}
@@ -101,7 +74,7 @@ export default function ActiveTestsWidget() {
 
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className="text-xs text-muted-foreground">
-                        {testTypeLabel(tr.test_type)}
+                        {getTestTypeLabel(tr.test_type)}
                       </span>
                       <span className="text-xs px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
                         {tr.status === "pending" ? "Queued" : "Running"}

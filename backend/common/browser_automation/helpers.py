@@ -1,6 +1,7 @@
 """
 Helper functions for additional test checks.
 """
+import asyncio
 import logging
 from typing import List, Dict
 from playwright.async_api import Page
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 async def check_broken_links(page: Page, url: str, issues: List[Dict]) -> None:
-    """Scan page for broken internal links."""
+    """Scan page for broken internal links with concurrent checking."""
     logger.info(f"Checking for broken links on {url}")
     
     links = await page.evaluate('''() => {
@@ -28,20 +29,28 @@ async def check_broken_links(page: Page, url: str, issues: List[Dict]) -> None:
     base_domain = urlparse(url).netloc
     internal_links = [l for l in links if urlparse(l['href']).netloc == base_domain][:20]
     
-    for link in internal_links:
-        try:
-            response = await page.context.request.get(link['href'], timeout=5000)
-            if response.status >= 400:
-                issues.append({
-                    'severity': 'major',
-                    'title': 'Broken Link Found',
-                    'description': f"Link to '{link['href']}' with text '{link['text']}' returned status {response.status}.",
-                    'location': url,
-                    'type': 'broken_link'
-                })
-            await response.dispose()
-        except Exception as e:
-            logger.debug(f"Failed to check link {link['href']}: {e}")
+    # Concurrent link checking with semaphore to limit concurrent requests
+    semaphore = asyncio.Semaphore(5)  # Check up to 5 links at a time
+    
+    async def check_single_link(link: Dict) -> None:
+        """Check a single link and add to issues if broken."""
+        async with semaphore:
+            try:
+                response = await page.context.request.get(link['href'], timeout=5000)
+                if response.status >= 400:
+                    issues.append({
+                        'severity': 'major',
+                        'title': 'Broken Link Found',
+                        'description': f"Link to '{link['href']}' with text '{link['text']}' returned status {response.status}.",
+                        'location': url,
+                        'type': 'broken_link'
+                    })
+                await response.dispose()
+            except Exception as e:
+                logger.debug(f"Failed to check link {link['href']}: {e}")
+    
+    # Check all links concurrently
+    await asyncio.gather(*[check_single_link(link) for link in internal_links], return_exceptions=True)
 
 
 async def test_authentication(page: Page, url: str, issues: List[Dict], credentials: Dict) -> None:

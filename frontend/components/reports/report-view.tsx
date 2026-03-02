@@ -804,11 +804,75 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
                   // 1. Remove the reference section
                   const cleanReport = report.detailed_report.split(/={10,}\s*AUTOMATED TEST FINDINGS \(REFERENCE\)/)[0].trim()
 
-                  // 2. Split by "## STEP"
-                  const steps = cleanReport.split(/(?=## STEP \d+:)/)
+                  // 2. Split by ## headings first (main sections)
+                  const mainSections = cleanReport.split(/(?=^## )/m)
+                  
+                  // Function to create nested accordion for subsections
+                  const parseSubsections = (content: string) => {
+                    const subsections = content.split(/(?=^### )/m)
+                    if (subsections.length <= 1) {
+                      return { hasSubsections: false, content }
+                    }
+                    
+                    const parsed = subsections
+                      .map((sub, idx) => {
+                        const trimmed = sub.trim()
+                        if (!trimmed) return null
+                        
+                        if (trimmed.startsWith('### ')) {
+                          const firstLineEnd = trimmed.indexOf('\n')
+                          const title = firstLineEnd > 0 
+                            ? trimmed.substring(4, firstLineEnd).trim() 
+                            : trimmed.substring(4).trim()
+                          const content = firstLineEnd > 0 
+                            ? trimmed.substring(firstLineEnd + 1).trim() 
+                            : ''
+                          return { title, content, idx }
+                        } else {
+                          return { title: null, content: trimmed, idx }
+                        }
+                      })
+                      .filter(Boolean) as Array<{ title: string | null; content: string; idx: number }>
+                    
+                    return { hasSubsections: true, intro: parsed[0]?.title ? null : parsed[0], subsections: parsed.filter(s => s.title) }
+                  }
+                  
+                  // Parse main sections
+                  const parsedSections = mainSections
+                    .map((section, idx) => {
+                      const trimmed = section.trim()
+                      if (!trimmed) return null
+                      
+                      if (trimmed.startsWith('## ')) {
+                        const firstLineEnd = trimmed.indexOf('\n')
+                        const title = firstLineEnd > 0 
+                          ? trimmed.substring(3, firstLineEnd).trim() 
+                          : trimmed.substring(3).trim()
+                        const content = firstLineEnd > 0 
+                          ? trimmed.substring(firstLineEnd + 1).trim() 
+                          : ''
+                        
+                        const subsectionData = parseSubsections(content)
+                        return { title, ...subsectionData, idx }
+                      } else {
+                        return { title: null, content: trimmed, hasSubsections: false, idx }
+                      }
+                    })
+                    .filter(Boolean) as Array<{ 
+                      title: string | null; 
+                      content?: string; 
+                      hasSubsections: boolean;
+                      intro?: any;
+                      subsections?: Array<{ title: string; content: string; idx: number }>;
+                      idx: number 
+                    }>
 
-                  if (steps.length <= 1) {
-                    // Fallback if formatting doesn't match expected STEP structure
+                  if (parsedSections.length === 0) {
+                    return null
+                  }
+
+                  // If no sections with headings found, show as single block
+                  if (parsedSections.every(s => !s.title)) {
                     return (
                       <div className="p-6 bg-gradient-to-br from-muted/30 to-muted/50 rounded-xl border border-border/50 shadow-lg">
                         <div className="prose prose-invert max-w-none prose-p:text-foreground/85 prose-headings:text-foreground prose-strong:text-foreground prose-code:text-primary prose-ul:list-disc prose-ol:list-decimal">
@@ -841,56 +905,97 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
                     )
                   }
 
+                  // Extract intro and main sections
+                  const intro = parsedSections[0]?.title ? null : parsedSections[0]
+                  const sectionsWithHeadings = parsedSections.filter(s => s.title)
+                  
+                  const defaultExpanded = sectionsWithHeadings.length > 0 ? [`section-0`] : []
+
+                  const markdownComponents = {
+                    h2: ({ ...props }: any) => <h2 className="text-2xl font-bold mt-8 mb-4 pb-3 border-b-2 border-primary/30" {...props} />,
+                    h3: ({ ...props }: any) => <h3 className="text-xl font-semibold mt-6 mb-3" {...props} />,
+                    h4: ({ ...props }: any) => <h4 className="text-lg font-medium mt-5 mb-2" {...props} />,
+                    p: ({ ...props }: any) => <p className="text-[15px] leading-relaxed mb-4" {...props} />,
+                    ul: ({ ...props }: any) => <ul className="space-y-2 mb-4 ml-6" {...props} />,
+                    ol: ({ ...props }: any) => <ol className="space-y-2 mb-4 ml-6" {...props} />,
+                    li: ({ ...props }: any) => <li className="text-sm leading-relaxed" {...props} />,
+                    code: ({ inline, ...props }: any) =>
+                      inline ? (
+                        <code className="px-1.5 py-0.5 rounded bg-muted/80 text-xs font-mono" {...props} />
+                      ) : (
+                        <pre className="bg-[#0f1115] p-4 rounded-lg border border-border/50 my-4 overflow-x-auto">
+                          <code className="text-sm font-mono text-[#e1e4e8]" {...props} />
+                        </pre>
+                      ),
+                    hr: () => <hr className="border-t border-border/30 my-6" />,
+                    strong: ({ ...props }: any) => <strong className="font-semibold" {...props} />,
+                  }
+
                   return (
-                    <Accordion type="multiple" defaultValue={["step-0"]} className="space-y-4">
-                      {steps.map((step, idx) => {
-                        const firstLine = step.split('\n')[0].trim()
-                        const title = firstLine.replace(/^## /, '')
-                        const content = step.split('\n').slice(1).join('\n').trim()
-
-                        if (!title && !content) return null
-
-                        return (
+                    <div className="space-y-4">
+                      {intro && intro.content && (
+                        <div className="p-6 bg-gradient-to-br from-muted/30 to-muted/50 rounded-xl border border-border/50 shadow-lg mb-4">
+                          <div className="prose prose-invert max-w-none prose-p:text-foreground/85 prose-headings:text-foreground prose-strong:text-foreground prose-code:text-primary">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                              {intro.content}
+                            </ReactMarkdown>
+                          </div>
+                        </div>
+                      )}
+                      
+                      <Accordion type="multiple" defaultValue={defaultExpanded} className="space-y-4">
+                        {sectionsWithHeadings.map((section, idx) => (
                           <AccordionItem
-                            key={`step-${idx}`}
-                            value={`step-${idx}`}
+                            key={`section-${idx}`}
+                            value={`section-${idx}`}
                             className="glass rounded-xl border-border/50 shadow-sm overflow-hidden"
                           >
                             <AccordionTrigger className="px-6 py-4 hover:bg-muted/30 no-underline hover:no-underline transition-all">
-                              <span className="text-lg font-bold text-foreground">{title || `Step ${idx + 1}`}</span>
+                              <span className="text-lg font-bold text-foreground">{section.title}</span>
                             </AccordionTrigger>
                             <AccordionContent className="px-6 pb-6">
-                              <div className="prose prose-invert max-w-none prose-p:text-foreground/85 prose-headings:text-foreground prose-strong:text-foreground prose-code:text-primary prose-ul:list-disc prose-ol:list-decimal">
-                                <ReactMarkdown
-                                  remarkPlugins={[remarkGfm]}
-                                  components={{
-                                    h2: ({ ...props }) => <h2 className="text-2xl font-bold mt-8 mb-4 pb-3 border-b-2 border-primary/30" {...props} />,
-                                    h3: ({ ...props }) => <h3 className="text-xl font-semibold mt-6 mb-3" {...props} />,
-                                    h4: ({ ...props }) => <h4 className="text-lg font-medium mt-5 mb-2" {...props} />,
-                                    p: ({ ...props }) => <p className="text-[15px] leading-relaxed mb-4" {...props} />,
-                                    ul: ({ ...props }) => <ul className="space-y-2 mb-4 ml-6" {...props} />,
-                                    ol: ({ ...props }) => <ol className="space-y-2 mb-4 ml-6" {...props} />,
-                                    li: ({ ...props }) => <li className="text-sm leading-relaxed" {...props} />,
-                                    code: ({ inline, ...props }: any) =>
-                                      inline ? (
-                                        <code className="px-1.5 py-0.5 rounded bg-muted/80 text-xs font-mono" {...props} />
-                                      ) : (
-                                        <pre className="bg-[#0f1115] p-4 rounded-lg border border-border/50 my-4 overflow-x-auto">
-                                          <code className="text-sm font-mono text-[#e1e4e8]" {...props} />
-                                        </pre>
-                                      ),
-                                    hr: () => <hr className="border-t border-border/30 my-6" />,
-                                    strong: ({ ...props }) => <strong className="font-semibold" {...props} />,
-                                  }}
-                                >
-                                  {content}
-                                </ReactMarkdown>
-                              </div>
+                              {section.hasSubsections ? (
+                                <div className="space-y-3">
+                                  {section.intro && section.intro.content && (
+                                    <div className="prose prose-invert max-w-none prose-p:text-foreground/85 prose-headings:text-foreground prose-strong:text-foreground prose-code:text-primary mb-4">
+                                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                                        {section.intro.content}
+                                      </ReactMarkdown>
+                                    </div>
+                                  )}
+                                  <Accordion type="multiple" defaultValue={[]} className="space-y-2">
+                                    {section.subsections?.map((subsection, subIdx) => (
+                                      <AccordionItem
+                                        key={`subsection-${idx}-${subIdx}`}
+                                        value={`subsection-${idx}-${subIdx}`}
+                                        className="glass rounded-lg border-border/30 shadow-sm overflow-hidden"
+                                      >
+                                        <AccordionTrigger className="px-4 py-3 hover:bg-muted/20 no-underline hover:no-underline transition-all text-sm">
+                                          <span className="font-semibold text-foreground">{subsection.title}</span>
+                                        </AccordionTrigger>
+                                        <AccordionContent className="px-4 pb-4">
+                                          <div className="prose prose-invert max-w-none prose-p:text-foreground/85 prose-headings:text-foreground prose-strong:text-foreground prose-code:text-primary prose-ul:list-disc prose-ol:list-decimal">
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                                              {subsection.content}
+                                            </ReactMarkdown>
+                                          </div>
+                                        </AccordionContent>
+                                      </AccordionItem>
+                                    ))}
+                                  </Accordion>
+                                </div>
+                              ) : (
+                                <div className="prose prose-invert max-w-none prose-p:text-foreground/85 prose-headings:text-foreground prose-strong:text-foreground prose-code:text-primary prose-ul:list-disc prose-ol:list-decimal">
+                                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                                    {section.content || ''}
+                                  </ReactMarkdown>
+                                </div>
+                              )}
                             </AccordionContent>
                           </AccordionItem>
-                        )
-                      })}
-                    </Accordion>
+                        ))}
+                      </Accordion>
+                    </div>
                   )
                 })()}
               </div>

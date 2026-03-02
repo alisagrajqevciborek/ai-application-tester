@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from dotenv import load_dotenv
 from .ai_helpers import get_openai_client
+from .ai_prompts import AIPrompts
 
 # Load environment variables from .env file
 env_path = Path(__file__).resolve().parent.parent / '.env'
@@ -82,36 +83,8 @@ def generate_test_case_from_prompt(
     print("✓ OpenAI client created successfully")
     
     try:
-        # Build system prompt
-        system_prompt = """You are an expert QA engineer specializing in automated web testing with Playwright.
-
-Your task is to convert natural language test descriptions into structured, executable test cases.
-
-Test actions you can use:
-- navigate: Go to a URL
-- click: Click on an element (button, link, etc.)
-- fill: Fill an input field
-- select: Select an option from a dropdown
-- wait: Wait for an element or condition
-- assert: Verify something is true (element visible, text matches, etc.)
-- check: Check a checkbox or radio button
-- hover: Hover over an element
-- scroll: Scroll to an element or position
-- screenshot: Take a screenshot at this point
-
-For selectors, prefer:
-1. Data attributes (data-testid, data-cy)
-2. IDs (#id)
-3. CSS classes (.class)
-4. Text content (text="Button text")
-5. Role-based selectors (role="button")
-
-Always provide:
-- Clear, specific selectors
-- Expected results for each step
-- Error handling considerations
-- Realistic test data
-"""
+        # Use centralized system prompt
+        system_prompt = AIPrompts.test_case_generation_system_prompt()
         
         # Build user prompt with context
         user_prompt_full = f"""Generate a test case for the following request:
@@ -356,20 +329,14 @@ def refine_test_case(
         # Return the original test case unchanged if AI is not available
         return existing_test_case
     
+    # Validate input test case
+    if not _validate_test_case_schema(existing_test_case):
+        logger.error("Invalid test case schema provided for refinement")
+        return existing_test_case
+    
     try:
-        system_prompt = """You are an expert QA engineer. Your task is to refine existing test cases based on user feedback.
-
-CRITICAL REQUIREMENTS:
-1. You MUST preserve the entire JSON structure
-2. You MUST include ALL existing steps from the original test case
-3. When adding new steps, INSERT them at the appropriate position (not at the end)
-4. Ensure step order numbers (order field) are sequential from 1 to N
-5. Each step MUST have: order, action, selector, value, description, expected_result
-6. Return ONLY valid JSON - no markdown, no code blocks, no explanations
-
-Steps actions: navigate, click, fill, select, wait, assert, check, uncheck, hover, scroll, screenshot, press, type
-
-Always maintain the same test type, tags, estimated_duration, and overall structure."""
+        # Use centralized system prompt
+        system_prompt = AIPrompts.test_case_refinement_system_prompt()
         
         user_prompt = f"""Original Test Case:
 {json.dumps(existing_test_case, indent=2)}
@@ -413,17 +380,19 @@ IMPORTANT:
         refined = json.loads(content)
         
         # Validate the refined test case has required fields
-        required_fields = ['name', 'description', 'steps', 'expected_results']
-        for field in required_fields:
-            if field not in refined:
-                logger.warning(f"Missing required field in refined test case: {field}, returning original")
-                return existing_test_case
+        if not _validate_test_case_schema(refined):
+            logger.warning("Refined test case failed validation, returning original")
+            return existing_test_case
         
         # Ensure steps are properly ordered
         if 'steps' in refined and isinstance(refined['steps'], list):
             for idx, step in enumerate(refined['steps'], 1):
                 if 'order' not in step:
                     step['order'] = idx
+                # Validate each step has required fields
+                if not _validate_step_schema(step):
+                    logger.warning(f"Step {idx} failed validation, returning original test case")
+                    return existing_test_case
         
         logger.info(f"Successfully refined test case with {len(refined.get('steps', []))} steps")
         return refined
@@ -434,3 +403,76 @@ IMPORTANT:
     except Exception as e:
         logger.error(f"Error refining test case: {e}", exc_info=True)
         return existing_test_case
+
+
+def _validate_test_case_schema(test_case: Dict) -> bool:
+    """
+    Validate that a test case has all required fields and correct structure.
+    
+    Args:
+        test_case: Test case dictionary to validate
+        
+    Returns:
+        True if valid, False otherwise
+    """
+    required_fields = ['name', 'description', 'steps', 'expected_results']
+    
+    # Check required fields exist
+    for field in required_fields:
+        if field not in test_case:
+            logger.warning(f"Missing required field in test case: {field}")
+            return False
+    
+    # Validate steps is a list
+    if not isinstance(test_case['steps'], list):
+        logger.warning("'steps' field must be a list")
+        return False
+    
+    # Validate steps are not empty
+    if len(test_case['steps']) == 0:
+        logger.warning("Test case must have at least one step")
+        return False
+    
+    # Validate each step
+    for idx, step in enumerate(test_case['steps']):
+        if not _validate_step_schema(step):
+            logger.warning(f"Step {idx + 1} failed validation")
+            return False
+    
+    return True
+
+
+def _validate_step_schema(step: Dict) -> bool:
+    """
+    Validate that a test step has all required fields.
+    
+    Args:
+        step: Step dictionary to validate
+        
+    Returns:
+        True if valid, False otherwise
+    """
+    required_fields = ['order', 'action', 'description', 'expected_result']
+    
+    # Check required fields exist
+    for field in required_fields:
+        if field not in step:
+            logger.warning(f"Missing required field in step: {field}")
+            return False
+    
+    # Validate action is one of the allowed actions
+    allowed_actions = [
+        'navigate', 'click', 'fill', 'select', 'wait', 'assert', 
+        'check', 'uncheck', 'hover', 'scroll', 'screenshot', 'press', 'type'
+    ]
+    
+    if step['action'] not in allowed_actions:
+        logger.warning(f"Invalid action in step: {step['action']}")
+        return False
+    
+    # Validate order is a positive integer
+    if not isinstance(step['order'], int) or step['order'] < 1:
+        logger.warning(f"Invalid order in step: {step['order']}")
+        return False
+    
+    return True

@@ -235,9 +235,9 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
     const startTime = Date.now()
     setTestStartTime(startTime)
 
-    // Initialize progress data
+    // Initialize progress data with a small initial progress
     setTestProgressData({
-      progress: 0,
+      progress: 5, // Start with 5% to show something immediately
       currentStep: "Initializing test environment...",
       warnings: 0,
       errors: 0,
@@ -282,33 +282,59 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                 (s) => s.status === 'success' || s.status === 'failed'
               )
               const runningStep = steps.find((s) => s.status === 'running')
-              const realProgress = Math.max(5, Math.min(95, Math.round((completedSteps.length / steps.length) * 100)))
-              const currentStepLabel = runningStep
-                ? `Running ${runningStep.step_label}...`
-                : completedSteps.length === steps.length
-                  ? "Finalizing results..."
-                  : `Waiting for step ${completedSteps.length + 1}/${steps.length}...`
-              const errorCount = steps.filter((s) => s.status === 'failed').length
+              
+              // If we have completed steps, use real progress
+              if (completedSteps.length > 0) {
+                const realProgress = Math.max(5, Math.min(95, Math.round((completedSteps.length / steps.length) * 100)))
+                const currentStepLabel = runningStep
+                  ? `Running ${runningStep.step_label}...`
+                  : completedSteps.length === steps.length
+                    ? "Finalizing results..."
+                    : `Waiting for step ${completedSteps.length + 1}/${steps.length}...`
+                const errorCount = steps.filter((s) => s.status === 'failed').length
 
-              setProgress(realProgress)
-              setTestProgressData({
-                progress: realProgress,
-                currentStep: currentStepLabel,
-                warnings: 0,
-                errors: errorCount,
-                elapsedTime: elapsedSeconds,
-                estimatedTime: 300,
-                status: "running"
-              })
+                setProgress(realProgress)
+                setTestProgressData({
+                  progress: realProgress,
+                  currentStep: currentStepLabel,
+                  warnings: 0,
+                  errors: errorCount,
+                  elapsedTime: elapsedSeconds,
+                  estimatedTime: 300,
+                  status: "running"
+                })
+              } else {
+                // If no steps completed yet, use time-based estimate to show progress
+                const estimatedDuration = 180
+                const timeProgress = Math.max(10, Math.min(50, Math.round((elapsedSeconds / estimatedDuration) * 100)))
+                const currentStepLabel = runningStep
+                  ? `Running ${runningStep.step_label}...`
+                  : updatedTestRun.status === 'pending'
+                    ? "Queued, waiting for worker..."
+                    : `Initializing ${testType} tests... (${elapsedSeconds}s elapsed)`
+
+                setProgress(timeProgress)
+                setTestProgressData({
+                  progress: timeProgress,
+                  currentStep: currentStepLabel,
+                  warnings: 0,
+                  errors: 0,
+                  elapsedTime: elapsedSeconds,
+                  estimatedTime: estimatedDuration,
+                  status: "running"
+                })
+              }
             } else {
               // Fallback for non-parallel (single suite) runs: estimate from elapsed time
-              const estimatedDuration = 120 // ~2 minutes for a single suite
-              const timeProgress = Math.max(5, Math.min(90, Math.round((elapsedSeconds / estimatedDuration) * 100)))
+              const estimatedDuration = 180 // ~3 minutes for a single suite
+              const timeProgress = Math.max(10, Math.min(90, Math.round((elapsedSeconds / estimatedDuration) * 100)))
 
               setProgress(timeProgress)
               setTestProgressData({
                 progress: timeProgress,
-                currentStep: updatedTestRun.status === 'pending' ? "Queued, waiting for worker..." : "Running tests...",
+                currentStep: updatedTestRun.status === 'pending' 
+                  ? "Queued, waiting for worker..." 
+                  : `Running ${testType} tests... (${elapsedSeconds}s elapsed)`,
                 warnings: 0,
                 errors: 0,
                 elapsedTime: elapsedSeconds,
@@ -343,12 +369,12 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
 
             setTestState("completed")
 
-            // Convert to TestHistory format and complete
+            // Convert to TestHistory format and auto-redirect to report
             const testHistory = convertTestRunToHistory(updatedTestRun)
             setCompletedTestHistory(testHistory)
             setTimeout(() => {
-              setShowContinueButton(true)
-            }, 3000)
+              onTestComplete(testHistory)
+            }, 2000)
 
             // Important: avoid falling through to max-attempt logic
             // on the same tick that we detect completion.
@@ -660,23 +686,25 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                   )}
                 </motion.div>
 
-                <p className="text-muted-foreground mb-1">
+                <h2 className="text-xl font-semibold text-foreground mb-2">
                   {testState === "running" || testState === "paused"
                     ? `Testing ${selectedApp?.name || appName || "application"}`
+                    : testState === "completed"
+                    ? "Test Completed!"
                     : "Generating report..."}
-                </p>
-                <h2 className="text-xl font-semibold text-foreground flex items-center justify-center min-h-[2rem]">
-                  {testState === "running" ? (
-                    <span>
-                      {loadingText}
-                      <span className="inline-block w-[24px] text-left">{loadingDots}</span>
-                    </span>
-                  ) : testState === "paused" ? (
-                    "Test Paused"
-                  ) : (
-                    "Test Completed!"
-                  )}
                 </h2>
+                
+                {/* Progress percentage display - large and visible */}
+                {(testState === "running" || testState === "paused") && (
+                  <div className="mt-4 mb-6">
+                    <div className="text-5xl font-bold text-primary mb-2">
+                      {Math.round(testProgressData.progress)}%
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {testProgressData.currentStep}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Detailed Progress Indicator */}
@@ -711,25 +739,7 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
 
               {testState === "completed" && (
                 <div className="flex justify-center">
-                  {showContinueButton ? (
-                    <Button
-                      onClick={() => {
-                        if (!completedTestHistory) return
-                        onTestComplete(completedTestHistory)
-                        setSelectedAppId("")
-                        setTestType("")
-                        setTestState("idle")
-                        setProgress(0)
-                        setShowContinueButton(false)
-                        setCompletedTestHistory(null)
-                      }}
-                      className="h-12 px-8 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
-                    >
-                      Continue
-                    </Button>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Generating report...</p>
-                  )}
+                  <p className="text-sm text-muted-foreground">Redirecting to report...</p>
                 </div>
               )}
             </motion.div>

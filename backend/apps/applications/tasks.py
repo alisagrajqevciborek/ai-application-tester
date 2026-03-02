@@ -157,8 +157,8 @@ def execute_test_run_step_task(
         finally:
             loop.close()
 
-        pass_rate = int(results.get('pass_rate', 0) or 0)
-        fail_rate = int(results.get('fail_rate', 100) or 100)
+        pass_rate = int(results.get('pass_rate', 0))
+        fail_rate = int(results.get('fail_rate', 100))
         status_value = str(results.get('status', 'failed'))
 
         _upsert_step_result(

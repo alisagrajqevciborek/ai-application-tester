@@ -72,7 +72,7 @@ export function TestProgressIndicator({ data, className }: TestProgressIndicator
                     className="space-y-2 text-sm font-mono text-foreground/80"
                 >
                     {[
-                        `${Math.round(data.progress)}% Test Progress: ${textProgressBar}`,
+                        `Test Progress: ${textProgressBar}`,
                         `Current: ${data.currentStep}`,
                         `Console: ${consoleSummary}`,
                     ].map((line) => (

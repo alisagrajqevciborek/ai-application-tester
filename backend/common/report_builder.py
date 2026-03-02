@@ -178,8 +178,8 @@ def build_single_suite_report_payload(
             application_url=test_run.application.url,
             test_type=test_type,
             status_result=str(results.get("status", "failed")),
-            pass_rate=int(results.get("pass_rate", 0) or 0),
-            fail_rate=int(results.get("fail_rate", 100) or 100),
+            pass_rate=int(results.get("pass_rate", 0)),
+            fail_rate=int(results.get("fail_rate", 100)),
             issues=enhanced_issues,
         )
 
@@ -199,8 +199,8 @@ def build_generated_test_case_report_payload(
     issues = results.get("issues", []) or []
     grouped_issues = group_similar_issues(issues)
 
-    pass_rate = int(results.get("pass_rate", 0) or 0)
-    fail_rate = int(results.get("fail_rate", 100) or 100)
+    pass_rate = int(results.get("pass_rate", 0))
+    fail_rate = int(results.get("fail_rate", 100))
     status_result = str(results.get("status", "failed"))
     console_error_count = int(results.get("console_error_count", 0) or 0)
     console_warning_count = int(results.get("console_warning_count", 0) or 0)
