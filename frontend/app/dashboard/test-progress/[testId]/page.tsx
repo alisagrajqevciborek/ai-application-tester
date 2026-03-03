@@ -155,6 +155,19 @@ export default function TestProgressPage() {
         }
       } catch (err) {
         console.error("Error polling test run:", err)
+        
+        // If test not found (deleted or no permission), stop polling and redirect
+        const errorMessage = err instanceof Error ? err.message : String(err)
+        if (errorMessage.includes("not found") || errorMessage.includes("not have permission")) {
+          stopPolling()
+          if (isMountedRef.current) {
+            router.push("/dashboard")
+          }
+          return
+        }
+        
+        // For other errors, stop polling after a few attempts to avoid spam
+        stopPolling()
       }
     }, 1000)
   }, [stopPolling, forceRefresh, router])
@@ -213,12 +226,23 @@ export default function TestProgressPage() {
 
   const handleStopTest = async () => {
     const id = parseInt(testId, 10)
+    
+    // Mark component as unmounted to prevent further state updates
+    isMountedRef.current = false
+    
+    // Stop all polling before deletion
     stopPolling()
+    
+    // Close the dialog
+    setStopDialogOpen(false)
+    
     try {
       await testRunsApi.delete(id)
     } catch (err) {
       console.error("Failed to stop test:", err)
+      // Continue with navigation even if delete fails
     }
+    
     await forceRefresh()
     router.push("/dashboard")
   }
@@ -320,20 +344,25 @@ export default function TestProgressPage() {
                       )}
                     </motion.div>
 
-                    <p className="text-muted-foreground mb-1">
-                      {viewState !== "completed"
+                    <h2 className="text-xl font-semibold text-foreground mb-2">
+                      {viewState === "running" || viewState === "paused"
                         ? `Testing ${appName}${testType ? ` · ${testTypeLabel[testType] ?? testType}` : ""}`
+                        : viewState === "completed"
+                        ? "Test Completed!"
                         : "Generating report..."}
-                    </p>
-                    <h2 className="text-xl font-semibold text-foreground flex items-center justify-center min-h-[2rem]">
-                      {viewState === "running" ? (
-                        <span>Testing<span className="inline-block w-[24px] text-left">{loadingDots}</span></span>
-                      ) : viewState === "paused" ? (
-                        "Test Paused"
-                      ) : (
-                        "Test Completed!"
-                      )}
                     </h2>
+                    
+                    {/* Progress percentage display - large and visible */}
+                    {(viewState === "running" || viewState === "paused") && (
+                      <div className="mt-4 mb-6">
+                        <div className="text-5xl font-bold text-primary mb-2">
+                          {Math.round(testProgressData.progress)}%
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {testProgressData.currentStep}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Detailed progress indicator */}
