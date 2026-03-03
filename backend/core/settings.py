@@ -270,6 +270,13 @@ CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
 CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60  # 25 minutes
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+
+CELERY_BEAT_SCHEDULE = {
+    'cleanup-stalled-tests': {
+        'task': 'applications.cleanup_stalled_tests',
+        'schedule': 900,  # every 15 minutes
+    },
+}
  
 # Cloudinary Configuration
 CLOUDINARY_STORAGE = {

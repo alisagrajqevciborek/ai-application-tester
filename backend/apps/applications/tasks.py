@@ -3,6 +3,7 @@ Celery tasks for test execution.
 """
 import asyncio
 import logging
+from datetime import timedelta
 from typing import Any, Dict, List
 
 from celery import shared_task, chord
@@ -818,3 +819,20 @@ def execute_generated_test_case_task(self, test_run_id, test_steps):
         
         # Retry the task
         raise self.retry(exc=exc, countdown=60)
+
+
+@shared_task(name='applications.cleanup_stalled_tests')
+def cleanup_stalled_tests():
+    """
+    Periodic task: mark tests stuck in 'running' or 'pending' for over 1 hour as failed.
+    Runs every 15 minutes via Celery Beat instead of blocking the stats endpoint.
+    """
+    timeout = timezone.now() - timedelta(hours=1)
+    stalled = TestRun.objects.filter(  # type: ignore[attr-defined]
+        status__in=['running', 'pending'],
+        started_at__lt=timeout,
+    )
+    count = stalled.update(status='failed', pass_rate=0, fail_rate=100, completed_at=timezone.now())
+    if count:
+        logger.info(f"cleanup_stalled_tests: marked {count} stalled test(s) as failed")
+    return count

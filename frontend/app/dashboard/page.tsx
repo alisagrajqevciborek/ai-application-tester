@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import TopNav from "@/components/dashboard/top-nav"
 import { useAuth } from "@/contexts/AuthContext"
 import { useData } from "@/contexts/DataContext"
+import { testRunsApi, type TestRunStats } from "@/lib/api"
 import { Loader2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
@@ -30,6 +31,16 @@ export default function DashboardPage() {
   const { applications, testHistory, stats, isLoading: isLoadingData } = useData()
   const router = useRouter()
   const [statsModalOpen, setStatsModalOpen] = useState(false)
+  const [liveStats, setLiveStats] = useState<TestRunStats | null>(null)
+
+  // Fetch fresh stats every time the modal opens so Running count is always live
+  useEffect(() => {
+    if (statsModalOpen) {
+      setLiveStats(null)
+      testRunsApi.stats().then(setLiveStats).catch(() => setLiveStats(stats))
+    }
+  }, [statsModalOpen, stats])
+
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<"all" | "success" | "failed" | "running">("all")
   const [testTypeFilter, setTestTypeFilter] = useState<"all" | "general" | "functional" | "regression" | "performance" | "accessibility" | "broken_links" | "authentication">("all")
@@ -462,7 +473,7 @@ export default function DashboardPage() {
       <StatisticsModal
         open={statsModalOpen}
         onOpenChange={setStatsModalOpen}
-        stats={stats}
+        stats={liveStats ?? stats}
       />
     </div>
   )
