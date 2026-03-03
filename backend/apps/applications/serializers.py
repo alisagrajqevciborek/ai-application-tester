@@ -56,12 +56,23 @@ class TestRunSerializer(serializers.ModelSerializer):
         read_only_fields = ('id', 'status', 'pass_rate', 'fail_rate', 'started_at', 'completed_at', 'version', 'version_name')
     
     def get_version(self, obj) -> int:
-        """Get version number for this test run."""
-        return obj.get_version_number()
-    
+        """Get version number. Uses annotated value when available to avoid N+1 queries."""
+        v = getattr(obj, 'version_number', None)
+        if v is not None:
+            return v
+        # Fallback for single-object endpoints (detail, create) — cache on instance
+        if not hasattr(obj, '_cached_version'):
+            obj._cached_version = obj.get_version_number()
+        return obj._cached_version
+
     def get_version_name(self, obj) -> str:
-        """Get versioned name like 'app-v1', 'app-v2', etc."""
-        return obj.get_version_name()
+        """Get versioned name. Reuses already-computed version to avoid a second query."""
+        v = getattr(obj, 'version_number', None)
+        if v is None:
+            if not hasattr(obj, '_cached_version'):
+                obj._cached_version = obj.get_version_number()
+            v = obj._cached_version
+        return f"{obj.application.name}-v{v}"
     
     def validate_application(self, value):
         """Ensure user owns the application."""
@@ -70,7 +81,9 @@ class TestRunSerializer(serializers.ModelSerializer):
         return value
 
     def get_step_results(self, obj):
-        step_results = obj.step_results.all().order_by('created_at')  # type: ignore[attr-defined]
+        # Do NOT call .order_by() here — it would bypass the prefetch cache and
+        # fire a new query per test run. The model Meta already orders by created_at.
+        step_results = obj.step_results.all()  # type: ignore[attr-defined]
         return TestRunStepResultSerializer(step_results, many=True).data
 
 
@@ -153,17 +166,21 @@ class GeneratedTestCaseCreateSerializer(serializers.Serializer):
         choices=['functional', 'regression', 'performance', 'accessibility', 'broken_links', 'authentication'],
         default='functional'
     )
-    
-    def validate_application_id(self, value):
-        """Ensure application exists and user owns it."""
+
+    def validate(self, attrs):
+        """Ensure application exists and user owns it; attach object to avoid a second DB lookup."""
         request = self.context.get('request')
+        application_id = attrs.get('application_id')
         try:
-            application = Application.objects.get(pk=value)  # type: ignore[attr-defined]
-            if request and application.owner != request.user:
-                raise serializers.ValidationError("You don't have permission to access this application.")
-            return value
+            application = Application.objects.select_related('owner').get(pk=application_id)  # type: ignore[attr-defined]
         except Application.DoesNotExist:  # type: ignore[attr-defined]
-            raise serializers.ValidationError("Application not found.")
+            raise serializers.ValidationError({"application_id": "Application not found."})
+
+        if request and application.owner != request.user:
+            raise serializers.ValidationError({"application_id": "You don't have permission to access this application."})
+
+        attrs['application'] = application
+        return attrs
 
 
 class TestCaseRefineSerializer(serializers.Serializer):

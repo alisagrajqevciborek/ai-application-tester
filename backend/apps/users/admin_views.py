@@ -19,9 +19,10 @@ def admin_list_users_view(request):
     # Exclude the current admin user from the list
     users = User.objects.exclude(id=request.user.id).order_by('-date_joined')
     serializer = AdminUserSerializer(users, many=True)
+    user_data = serializer.data
     return Response({
-        'users': serializer.data,
-        'count': users.count()
+        'users': user_data,
+        'count': len(user_data)  # reuse already-evaluated data — no extra COUNT(*) query
     }, status=status.HTTP_200_OK)
 
 

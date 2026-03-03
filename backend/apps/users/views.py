@@ -218,12 +218,6 @@ def me_view(request):
     GET /api/auth/me - Return current authenticated user information
     PUT /api/auth/me - Update user profile
     """
-    # Check if user is disabled
-    if request.user.status == 'disabled':
-        return Response({
-            'error': 'Your account has been disabled. Please contact support.'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
     if request.method == 'GET':
         serializer = UserSerializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)

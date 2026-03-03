@@ -5,7 +5,7 @@ from rest_framework.pagination import PageNumberPagination
 from typing import Any, Dict, cast
 from datetime import timedelta
 from django.utils import timezone
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg, Count, Q, OuterRef, Subquery
 from .models import Application, TestRun, GeneratedTestCase
 from .serializers import (
     ApplicationSerializer, ApplicationCreateSerializer,
@@ -27,12 +27,6 @@ def application_list_create(request):
     GET /api/applications - List all applications owned by the current user
     POST /api/applications - Create a new application
     """
-    # Check if user is disabled
-    if request.user.status == 'disabled':
-        return Response({
-            'error': 'Your account has been disabled. Please contact support.'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
     if request.method == 'GET':
         # Get only applications owned by the current user
         applications = Application.objects.filter(owner=request.user)  # type: ignore[attr-defined]
@@ -66,12 +60,6 @@ def application_detail(request, pk):
     PUT /api/applications/<id> - Update application
     DELETE /api/applications/<id> - Delete application
     """
-    # Check if user is disabled
-    if request.user.status == 'disabled':
-        return Response({
-            'error': 'Your account has been disabled. Please contact support.'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
     try:
         application = Application.objects.get(pk=pk, owner=request.user)  # type: ignore[attr-defined]
     except Application.DoesNotExist:  # type: ignore[attr-defined]
@@ -113,21 +101,22 @@ def testrun_list_create(request):
     GET /api/test-runs - List all test runs for user's applications
     POST /api/test-runs - Create and start a new test run
     """
-    # Check if user is disabled
-    if request.user.status == 'disabled':
-        return Response({
-            'error': 'Your account has been disabled. Please contact support.'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
     if request.method == 'GET':
-        # Get test runs for applications owned by the user
-        # Use select_related for FK and prefetch_related for reverse FK to avoid N+1 queries
-        # Defer heavy JSON fields for better performance
+        # Get test runs for applications owned by the user.
+        # Annotate version_number via subquery so the serializer avoids N+1 queries.
+        version_sq = (
+            TestRun.objects  # type: ignore[attr-defined]
+            .filter(application=OuterRef('application'), started_at__lte=OuterRef('started_at'))
+            .values('application')
+            .annotate(_c=Count('id'))
+            .values('_c')
+        )
         test_runs = (
             TestRun.objects  # type: ignore[attr-defined]
             .filter(application__owner=request.user)
             .select_related('application')
             .prefetch_related('step_results')
+            .annotate(version_number=Subquery(version_sq))
         )
         
         # Apply pagination
@@ -176,12 +165,6 @@ def testrun_detail(request, pk):
     GET /api/test-runs/<id> - Retrieve test run details
     DELETE /api/test-runs/<id> - Delete test run
     """
-    # Check if user is disabled
-    if request.user.status == 'disabled':
-        return Response({
-            'error': 'Your account has been disabled. Please contact support.'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
     try:
         test_run = (
             TestRun.objects  # type: ignore[attr-defined]
@@ -212,11 +195,6 @@ def testrun_stats(request):
     Returns aggregated statistics for test runs owned by the user.
     All counts + average are fetched in a single DB query.
     """
-    if request.user.status == 'disabled':
-        return Response({
-            'error': 'Your account has been disabled. Please contact support.'
-        }, status=status.HTTP_403_FORBIDDEN)
-
     # Single aggregated query — no separate .count() calls
     agg = TestRun.objects.filter(application__owner=request.user).aggregate(  # type: ignore[attr-defined]
         total=Count('id'),
@@ -246,23 +224,24 @@ def testrun_active(request):
     GET /api/applications/test-runs/active/
     Return only running or pending test runs (optimized for polling).
     """
-    if request.user.status == 'disabled':
-        return Response({
-            'error': 'Your account has been disabled. Please contact support.'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
-    # Only fetch necessary fields and limit results
+    # Only fetch necessary fields and limit results.
+    # Annotate version_number and prefetch step_results to avoid N+1 queries.
+    version_sq = (
+        TestRun.objects  # type: ignore[attr-defined]
+        .filter(application=OuterRef('application'), started_at__lte=OuterRef('started_at'))
+        .values('application')
+        .annotate(_c=Count('id'))
+        .values('_c')
+    )
     test_runs = (
         TestRun.objects  # type: ignore[attr-defined]
         .filter(
             application__owner=request.user,
             status__in=['running', 'pending']
         )
-        .only(
-            'id', 'application', 'test_type', 'status', 
-            'started_at', 'pass_rate', 'fail_rate', 'check_broken_links', 'check_auth'
-        )
         .select_related('application')
+        .prefetch_related('step_results')
+        .annotate(version_number=Subquery(version_sq))
         .order_by('-started_at')[:20]  # Limit to 20 most recent active tests
     )
     
@@ -276,11 +255,6 @@ def testrun_status(request, pk):
     GET /api/applications/test-runs/<id>/status/
     Lightweight status endpoint for polling (no heavy JSON fields).
     """
-    if request.user.status == 'disabled':
-        return Response({
-            'error': 'Your account has been disabled.'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
     try:
         test_run = (
             TestRun.objects  # type: ignore[attr-defined]
@@ -324,30 +298,17 @@ def generate_test_case(request):
     POST /api/applications/test-cases/generate
     Generate a test case from natural language using AI.
     """
-    # Check if user is disabled
-    if request.user.status == 'disabled':
-        return Response({
-            'error': 'Your account has been disabled. Please contact support.'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
     serializer = GeneratedTestCaseCreateSerializer(data=request.data, context={'request': request})
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     validated_data = cast(Dict[str, Any], serializer.validated_data)
     prompt = str(validated_data.get('prompt', ''))
-    application_id = validated_data.get('application_id')
+    application = validated_data.get('application')
     test_type = str(validated_data.get('test_type', 'functional'))
 
-    if not isinstance(application_id, int):
-        return Response({'error': 'Invalid application_id'}, status=status.HTTP_400_BAD_REQUEST)
-    
-    try:
-        application = Application.objects.get(pk=application_id, owner=request.user)  # type: ignore[attr-defined]
-    except Application.DoesNotExist:  # type: ignore[attr-defined]
-        return Response({
-            'error': 'Application not found or you do not have permission to access it'
-        }, status=status.HTTP_404_NOT_FOUND)
+    if not isinstance(application, Application):
+        return Response({'error': 'Invalid application'}, status=status.HTTP_400_BAD_REQUEST)
     
     # Generate test case using AI
     from common.test_case_generator import generate_test_case_from_prompt
@@ -372,12 +333,6 @@ def refine_test_case(request):
     POST /api/applications/test-cases/refine
     Refine an existing test case based on user feedback.
     """
-    # Check if user is disabled
-    if request.user.status == 'disabled':
-        return Response({
-            'error': 'Your account has been disabled. Please contact support.'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
     serializer = TestCaseRefineSerializer(data=request.data)
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -403,12 +358,6 @@ def save_test_case(request):
     POST /api/applications/test-cases/save
     Save a generated test case to the database.
     """
-    # Check if user is disabled
-    if request.user.status == 'disabled':
-        return Response({
-            'error': 'Your account has been disabled. Please contact support.'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
     application_id = request.data.get('application_id')
     test_case_data = request.data.get('test_case')
     
@@ -447,12 +396,6 @@ def list_test_cases(request, application_id):
     GET /api/applications/<id>/test-cases
     List all saved test cases for an application.
     """
-    # Check if user is disabled
-    if request.user.status == 'disabled':
-        return Response({
-            'error': 'Your account has been disabled. Please contact support.'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
     try:
         application = Application.objects.get(pk=application_id, owner=request.user)  # type: ignore[attr-defined]
     except Application.DoesNotExist:  # type: ignore[attr-defined]
@@ -460,7 +403,7 @@ def list_test_cases(request, application_id):
             'error': 'Application not found or you do not have permission to access it'
         }, status=status.HTTP_404_NOT_FOUND)
     
-    test_cases = GeneratedTestCase.objects.filter(application=application)  # type: ignore[attr-defined]
+    test_cases = GeneratedTestCase.objects.filter(application=application).select_related('application')  # type: ignore[attr-defined]
     serializer = GeneratedTestCaseSerializer(test_cases, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -471,12 +414,6 @@ def delete_test_case(request, pk):
     DELETE /api/applications/test-cases/<id>
     Delete a saved test case.
     """
-    # Check if user is disabled
-    if request.user.status == 'disabled':
-        return Response({
-            'error': 'Your account has been disabled. Please contact support.'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
     try:
         test_case = GeneratedTestCase.objects.get(pk=pk, application__owner=request.user)  # type: ignore[attr-defined]
     except GeneratedTestCase.DoesNotExist:  # type: ignore[attr-defined]
@@ -496,12 +433,6 @@ def run_generated_test_case(request, pk):
     POST /api/applications/test-cases/<id>/run
     Run a saved generated test case.
     """
-    # Check if user is disabled
-    if request.user.status == 'disabled':
-        return Response({
-            'error': 'Your account has been disabled. Please contact support.'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
     try:
         test_case = GeneratedTestCase.objects.get(pk=pk, application__owner=request.user)  # type: ignore[attr-defined]
     except GeneratedTestCase.DoesNotExist:  # type: ignore[attr-defined]
