@@ -21,7 +21,9 @@ class ReportSerializer(serializers.ModelSerializer):
     def get_screenshots(self, obj):
         """Return screenshot URLs for this report's test run."""
         urls = []
-        for s in obj.test_run.screenshots.all().order_by('created_at'):
+        # Do NOT call .order_by() — it bypasses the prefetch cache.
+        # Screenshot model Meta already orders by created_at.
+        for s in obj.test_run.screenshots.all():
             if getattr(s, 'cloudinary_url', None):
                 urls.append(s.cloudinary_url)
                 continue
@@ -33,7 +35,9 @@ class ReportSerializer(serializers.ModelSerializer):
     def get_artifacts(self, obj):
         """Return artifacts (videos, traces) for this report's test run."""
         artifacts = []
-        for a in obj.test_run.artifacts.all().order_by('created_at'):
+        # Do NOT call .order_by() — it bypasses the prefetch cache.
+        # TestArtifact model Meta already orders by created_at.
+        for a in obj.test_run.artifacts.all():
             artifacts.append({
                 'id': a.id,
                 'kind': a.kind,

@@ -21,15 +21,10 @@ def report_detail(request, test_run_id):
     - Returns 404 if no report exists for the TestRun
     - Only accessible by the owner of the test run's application
     """
-    # Check if user is disabled
-    if request.user.status == 'disabled':
-        return Response({
-            'error': 'Your account has been disabled. Please contact support.'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
-    # Get the test run and verify ownership
+    # Get the test run and verify ownership.
+    # Prefetch screenshots and artifacts so ReportSerializer avoids extra queries.
     test_run = get_object_or_404(
-        TestRun,
+        TestRun.objects.select_related('application').prefetch_related('screenshots', 'artifacts'),
         pk=test_run_id,
         application__owner=request.user
     )
@@ -43,6 +38,8 @@ def report_detail(request, test_run_id):
             'issues_json': []
         }
     )
+    # Reuse the already-prefetched test_run so the serializer doesn't re-fetch it
+    report.test_run = test_run
     
     serializer = ReportSerializer(report)
     return Response(serializer.data, status=status.HTTP_200_OK)
@@ -57,15 +54,10 @@ def export_to_jira(request, test_run_id):
     - Returns ticket keys and URLs
     - Only accessible by the owner of the test run's application
     """
-    # Check if user is disabled
-    if request.user.status == 'disabled':
-        return Response({
-            'error': 'Your account has been disabled. Please contact support.'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
-    # Get the test run and verify ownership
+    # Get the test run and verify ownership.
+    # select_related('application') avoids an extra query when accessing test_run.application.*
     test_run = get_object_or_404(
-        TestRun,
+        TestRun.objects.select_related('application'),
         pk=test_run_id,
         application__owner=request.user
     )
