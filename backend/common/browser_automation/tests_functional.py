@@ -197,9 +197,11 @@ async def run_functional_tests(
             )
     
     # Test 7: Network failures
-    if network_failures:
+    # Exclude 401/403 — these are access-controlled resources, not broken ones.
+    reportable_failures = [f for f in network_failures if f['status'] not in (401, 403)]
+    if reportable_failures:
         tests_failed += 1
-        for failure in network_failures[:5]:
+        for failure in reportable_failures[:5]:
             severity = 'major' if failure['status'] >= 500 else 'minor'
             await issue_manager.add_issue(
                 issues, severity, f"Network request failed ({failure['status']})",

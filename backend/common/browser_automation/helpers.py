@@ -32,12 +32,15 @@ async def check_broken_links(page: Page, url: str, issues: List[Dict]) -> None:
     # Concurrent link checking with semaphore to limit concurrent requests
     semaphore = asyncio.Semaphore(5)  # Check up to 5 links at a time
     
+    # 401/403 mean the resource is access-controlled, not broken.
+    ACCESS_RESTRICTED_STATUSES = {401, 403}
+
     async def check_single_link(link: Dict) -> None:
         """Check a single link and add to issues if broken."""
         async with semaphore:
             try:
                 response = await page.context.request.get(link['href'], timeout=5000)
-                if response.status >= 400:
+                if response.status >= 400 and response.status not in ACCESS_RESTRICTED_STATUSES:
                     issues.append({
                         'severity': 'major',
                         'title': 'Broken Link Found',

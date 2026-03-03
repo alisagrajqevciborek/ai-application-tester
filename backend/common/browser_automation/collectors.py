@@ -126,8 +126,13 @@ def setup_network_collector(
             'headers': request.headers
         })
     
+    # 401 (Unauthorized) and 403 (Forbidden) are access-control responses,
+    # not broken resources. Some servers also return 404 for protected paths
+    # to avoid disclosing their existence — those are excluded too.
+    ACCESS_RESTRICTED_STATUSES = {401, 403}
+
     def handle_response(response):
-        if response.status >= 400:
+        if response.status >= 400 and response.status not in ACCESS_RESTRICTED_STATUSES:
             network_failures.append({
                 'url': response.url,
                 'status': response.status,

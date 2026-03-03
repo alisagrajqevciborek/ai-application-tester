@@ -15,6 +15,7 @@ from typing import Dict, List, Optional
 from dotenv import load_dotenv
 from .ai_helpers import get_openai_client
 from .ai_prompts import AIPrompts
+from .model_router import TEST_CASE_GENERATION_MODEL, TEST_CASE_REFINEMENT_MODEL
 
 # Load environment variables from .env file
 env_path = Path(__file__).resolve().parent.parent / '.env'
@@ -177,7 +178,7 @@ Important:
         logger.info(f"Generating test case for prompt: {user_prompt[:100]}...")
         
         response = client.chat.completions.create(
-            model="gpt-4o",  # Use same model as report generator for consistency
+            model=TEST_CASE_GENERATION_MODEL,
             messages=[
                 {
                     "role": "system",
@@ -354,7 +355,7 @@ IMPORTANT:
         logger.info(f"Refining test case with prompt: {refinement_prompt}")
         
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model=TEST_CASE_REFINEMENT_MODEL,
             messages=[
                 {
                     "role": "system",

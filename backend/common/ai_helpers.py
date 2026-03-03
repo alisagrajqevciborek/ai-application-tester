@@ -13,6 +13,11 @@ import os
 from typing import Dict, List, Optional
 from django.conf import settings
 from .ai_prompts import AIPrompts
+from .model_router import (
+    SCREENSHOT_ANALYSIS_MODEL,
+    REPORT_GENERATION_MODEL,
+    ISSUE_ENHANCEMENT_MODEL,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +82,7 @@ def analyze_screenshot_with_ai(
         prompt = AIPrompts.screenshot_analysis_prompt(test_type, issue_context)
         
         response = client.chat.completions.create(
-            model="gpt-5",
+            model=SCREENSHOT_ANALYSIS_MODEL,
             messages=[
                 {
                     "role": "user",
@@ -147,7 +152,7 @@ def enhance_issue_description(
         prompt = AIPrompts.issue_enhancement_user_prompt(issue, test_type, screenshot_url)
 
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model=ISSUE_ENHANCEMENT_MODEL,
             messages=[
                 {
                     "role": "system",
@@ -283,7 +288,7 @@ def generate_ai_report(
             })
         
         response = client.chat.completions.create(
-            model="gpt-4o",  # Keep gpt-4o for main report (most important)
+            model=REPORT_GENERATION_MODEL,
             messages=[
                 {
                     "role": "system",
