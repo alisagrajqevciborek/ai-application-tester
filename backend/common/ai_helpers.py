@@ -77,7 +77,7 @@ def analyze_screenshot_with_ai(
         prompt = AIPrompts.screenshot_analysis_prompt(test_type, issue_context)
         
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5",
             messages=[
                 {
                     "role": "user",
