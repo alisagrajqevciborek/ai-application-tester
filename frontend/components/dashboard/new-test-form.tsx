@@ -106,11 +106,11 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
   const handleStopTest = async () => {
     if (!testRunIdRef.current) return
 
-    try {
-      // Delete the test run from the database
-      await testRunsApi.delete(testRunIdRef.current)
+    // Close the dialog first
+    setStopDialogOpen(false)
 
-      // Clear all intervals
+    try {
+      // Clear all intervals before deletion to prevent continued polling
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current)
         pollIntervalRef.current = null
@@ -119,6 +119,9 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
         clearInterval(timeTrackerRef.current)
         timeTrackerRef.current = null
       }
+
+      // Delete the test run from the database
+      await testRunsApi.delete(testRunIdRef.current)
 
       // Reset state
       testRunIdRef.current = null
@@ -137,7 +140,11 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
       setError(null)
     } catch (err) {
       console.error("Failed to stop test:", err)
-      setError(err instanceof Error ? err.message : "Failed to stop test")
+      // Continue with reset even if delete fails
+      testRunIdRef.current = null
+      setTestState("idle")
+      setProgress(0)
+      isPausedRef.current = false
     }
   }
 
@@ -403,6 +410,24 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
         } catch (err) {
           console.error("Error polling test run:", err)
 
+          // If test not found (deleted or no permission), stop polling immediately
+          const errorMessage = err instanceof Error ? err.message : String(err)
+          if (errorMessage.includes("not found") || errorMessage.includes("not have permission")) {
+            if (pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current)
+              pollIntervalRef.current = null
+            }
+            if (timeTrackerRef.current) {
+              clearInterval(timeTrackerRef.current)
+              timeTrackerRef.current = null
+            }
+            testRunIdRef.current = null
+            setTestState("idle")
+            setProgress(0)
+            setError("Test was stopped or deleted")
+            return
+          }
+
           // If we get multiple errors, stop polling but don't show error (test may still be running)
           if (pollAttempts >= 20) { // Increased from 10 to 20 attempts
             if (pollIntervalRef.current) {
@@ -414,7 +439,6 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
               timeTrackerRef.current = null
             }
             testRunIdRef.current = null
-            const errorMessage = err instanceof Error ? err.message : "Failed to get test status"
             setError(`Error checking test status: ${errorMessage}. The test may still be running in the background.`)
             setShowContinueButton(true)
             setTestState("idle")
