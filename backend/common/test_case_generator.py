@@ -9,28 +9,11 @@ This module provides:
 
 import json
 import logging
-import os
-from pathlib import Path
 from typing import Dict, List, Optional
-from dotenv import load_dotenv
+
 from .ai_helpers import get_openai_client
 from .ai_prompts import AIPrompts
-
-# Load environment variables from .env file
-env_path = Path(__file__).resolve().parent.parent / '.env'
-if env_path.exists():
-    load_dotenv(dotenv_path=env_path, override=True)
-    print(f"✓ Loaded .env from: {env_path}")
-else:
-    load_dotenv(override=True)
-    print(f"✗ .env not found at: {env_path}, trying current directory")
-
-# Debug: Check if key is loaded
-api_key = os.getenv('OPENAI_API_KEY')
-if api_key:
-    print(f"✓ OPENAI_API_KEY loaded: {api_key[:20]}...")
-else:
-    print("✗ OPENAI_API_KEY not found in environment")
+from .model_router import TEST_CASE_GENERATION_MODEL, TEST_CASE_REFINEMENT_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +160,7 @@ Important:
         logger.info(f"Generating test case for prompt: {user_prompt[:100]}...")
         
         response = client.chat.completions.create(
-            model="gpt-4o",  # Use same model as report generator for consistency
+            model=TEST_CASE_GENERATION_MODEL,
             messages=[
                 {
                     "role": "system",
@@ -354,7 +337,7 @@ IMPORTANT:
         logger.info(f"Refining test case with prompt: {refinement_prompt}")
         
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model=TEST_CASE_REFINEMENT_MODEL,
             messages=[
                 {
                     "role": "system",

@@ -49,7 +49,8 @@ async def run_regression_tests(
                 if natural_width == 0:
                     src = await img.get_attribute('src')
                     broken_images.append(src or 'unknown')
-            except:
+            except Exception as e:
+                logger.debug(f"Error checking image naturalWidth: {e}")
                 src = await img.get_attribute('src')
                 broken_images.append(src or 'unknown')
         
@@ -64,8 +65,9 @@ async def run_regression_tests(
                     if natural_width == 0:
                         broken_img_elem = img
                         break
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Error re-checking broken image candidate: {e}")
+                    continue
             
             await issue_manager.add_issue(
                 issues, 'major', f'{len(broken_images)} broken image(s) found',

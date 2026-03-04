@@ -13,6 +13,11 @@ import os
 from typing import Dict, List, Optional
 from django.conf import settings
 from .ai_prompts import AIPrompts
+from .model_router import (
+    SCREENSHOT_ANALYSIS_MODEL,
+    REPORT_GENERATION_MODEL,
+    ISSUE_ENHANCEMENT_MODEL,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +46,9 @@ def get_openai_client() -> Optional['OpenAI']:  # type: ignore[name-defined]
         return None
     
     try:
-        return OpenAI(api_key=api_key)  # type: ignore[name-defined]
+        # Use a conservative default timeout; individual calls can still override.
+        client = OpenAI(api_key=api_key, timeout=20)  # type: ignore[name-defined]
+        return client
     except Exception as e:
         logger.error(f"Failed to initialize OpenAI client: {e}")
         return None
@@ -77,7 +84,7 @@ def analyze_screenshot_with_ai(
         prompt = AIPrompts.screenshot_analysis_prompt(test_type, issue_context)
         
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model=SCREENSHOT_ANALYSIS_MODEL,
             messages=[
                 {
                     "role": "user",
@@ -96,7 +103,8 @@ def analyze_screenshot_with_ai(
                 }
             ],
             max_tokens=300,  # Reduced from 500
-            temperature=0.3
+            temperature=0.3,
+            timeout=30,
         )
         
         analysis = response.choices[0].message.content
@@ -147,7 +155,7 @@ def enhance_issue_description(
         prompt = AIPrompts.issue_enhancement_user_prompt(issue, test_type, screenshot_url)
 
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model=ISSUE_ENHANCEMENT_MODEL,
             messages=[
                 {
                     "role": "system",
@@ -159,7 +167,8 @@ def enhance_issue_description(
                 }
             ],
             max_tokens=1000,  # Increased to allow for more detailed explanations
-            temperature=0.3  # Slightly higher for more natural language
+            temperature=0.3,  # Slightly higher for more natural language
+            timeout=40,
         )
         
         content = response.choices[0].message.content
@@ -230,7 +239,6 @@ def generate_ai_report(
     try:
         issues = test_results.get('issues', [])
         pass_rate = test_results.get('pass_rate', 0)
-        fail_rate = test_results.get('fail_rate', 100)
         status = test_results.get('status', 'failed')
         
         # Only include critical/major issues in prompt to reduce tokens
@@ -283,7 +291,7 @@ def generate_ai_report(
             })
         
         response = client.chat.completions.create(
-            model="gpt-4o",  # Keep gpt-4o for main report (most important)
+            model=REPORT_GENERATION_MODEL,
             messages=[
                 {
                     "role": "system",
@@ -295,7 +303,8 @@ def generate_ai_report(
                 }
             ],
             max_tokens=4000,  # Reduced from 10000 for cost optimization
-            temperature=0.2
+            temperature=0.2,
+            timeout=60,
         )
         
         ai_response = response.choices[0].message.content

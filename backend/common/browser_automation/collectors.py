@@ -44,9 +44,11 @@ def setup_console_collector(
                         if found and await found.is_visible():
                             element = found
                             break
-                    except:
+                    except Exception as e:
+                        logger.debug(f"Error querying selector {selector} for console {msg.type}: {e}")
                         continue
                 
+                # Only attach a screenshot when we can actually highlight a visible element.
                 if element:
                     try:
                         box = await element.bounding_box()
@@ -74,24 +76,11 @@ def setup_console_collector(
                                 screenshots_dir,
                                 kind=f"console_{msg.type}",
                             )
-                    except:
-                        screenshot_url = await screenshot_manager.upload_and_record(
-                            screenshot_bytes,
-                            url,
-                            test_type,
-                            f"console_{msg.type}_{len(console_logs)-1}",
-                            screenshots_dir,
-                            kind=f"console_{msg.type}",
-                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to upload console screenshot for {msg.type}: {e}")
+                        screenshot_url = None
                 else:
-                    screenshot_url = await screenshot_manager.upload_and_record(
-                        screenshot_bytes,
-                        url,
-                        test_type,
-                        f"console_{msg.type}_{len(console_logs)-1}",
-                        screenshots_dir,
-                        kind=f"console_{msg.type}",
-                    )
+                    screenshot_url = None
                 
                 if screenshot_url:
                     log_entry['screenshot'] = screenshot_url
@@ -126,8 +115,13 @@ def setup_network_collector(
             'headers': request.headers
         })
     
+    # 401 (Unauthorized) and 403 (Forbidden) are access-control responses,
+    # not broken resources. Some servers also return 404 for protected paths
+    # to avoid disclosing their existence — those are excluded too.
+    ACCESS_RESTRICTED_STATUSES = {401, 403}
+
     def handle_response(response):
-        if response.status >= 400:
+        if response.status >= 400 and response.status not in ACCESS_RESTRICTED_STATUSES:
             network_failures.append({
                 'url': response.url,
                 'status': response.status,
@@ -137,8 +131,8 @@ def setup_network_collector(
         if response.request.resource_type == 'document' and response.url == url:
             try:
                 main_document_headers.update(dict(response.headers))
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to copy main document headers from {response.url}: {e}")
     
     page.on('request', handle_request)
     page.on('response', handle_response)
