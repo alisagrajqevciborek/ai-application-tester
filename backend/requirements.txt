@@ -28,3 +28,4 @@ jira>=3.5.0
 
 # Cryptography for encrypting sensitive credentials
 cryptography>=41.0.0
+gunicorn==21.2.0
