@@ -20,7 +20,12 @@ media/
 venv/
 env/
 ENV/
-
+.venv/
+.pip-cache/
+pip-wheel-metadata/
+__pypackages__/
+Lib/
+site-packages/
 # IDE
 .vscode/
 .idea/

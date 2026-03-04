@@ -35,8 +35,14 @@ if not SECRET_KEY:
     raise ImproperlyConfigured("SECRET_KEY environment variable must be set")
  
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'True') == 'True'
- 
+# DEBUG is OFF by default.  Enable it explicitly for local development only:
+#   ENV=local          → activates debug mode
+#   DJANGO_DEBUG=1     → also activates debug mode (alternative)
+DEBUG = os.getenv('ENV', '') == 'local' or os.getenv('DJANGO_DEBUG', '0') == '1'
+
+# Required in production: set ALLOWED_HOSTS to a comma-separated list of
+# domains/IPs that Django will serve (e.g. "example.com,www.example.com").
+# Leaving this as localhost/127.0.0.1 will cause 400 errors on any real host.
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
  
 # Application definition
@@ -105,12 +111,21 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 #
 # Dev-friendly default:
-# - If `DB_PASSWORD` is not provided, fall back to SQLite so the app can run out-of-the-box.
-# - To use Postgres, set `DB_PASSWORD` (and related DB_* env vars).
+# - In DEBUG / local mode, fall back to SQLite when DB_PASSWORD is absent.
+# - In production (DEBUG=False), all DB_* vars MUST be set; omitting them will
+#   prevent startup rather than silently using an ephemeral SQLite database.
+#
+# Required production env vars:
+#   DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
 
 DB_PASSWORD = os.getenv('DB_PASSWORD', '')
 
 if not DB_PASSWORD:
+    if not DEBUG:
+        raise ImproperlyConfigured(
+            "Database is not configured for production. "
+            "Set DB_PASSWORD (and DB_HOST, DB_PORT, DB_NAME, DB_USER) or run with ENV=local for SQLite."
+        )
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -214,6 +229,10 @@ SIMPLE_JWT = {
 }
  
 # CORS Configuration
+# Required in production: set CORS_ALLOWED_ORIGINS to a comma-separated list
+# of allowed frontend origins (e.g. "https://app.example.com").
+# Set CORS_ALLOW_CREDENTIALS=True only when cookies/auth headers are needed
+# across origins; avoid True in combination with a wildcard origin.
 cors_allowed_origins = os.getenv(
     'CORS_ALLOWED_ORIGINS',
     'http://localhost:3000,http://127.0.0.1:3000',

@@ -7,6 +7,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.contrib.auth import get_user_model
 from typing import Any, cast
+import logging
 from .serializers import (
     LoginSerializer, UserSerializer, UserRegistrationSerializer,
     EmailVerificationSerializer, ResendCodeSerializer,
@@ -15,6 +16,7 @@ from .serializers import (
 from .utils import send_verification_email
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 class UserOrIPRateThrottle(SimpleRateThrottle):
@@ -72,9 +74,7 @@ def register_view(request):
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
-        import traceback
-        print(f"Registration error: {e}")
-        print(traceback.format_exc())
+        logger.exception("Unhandled error during user registration")
         return Response({
             'error': 'An error occurred during registration. Please try again.'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

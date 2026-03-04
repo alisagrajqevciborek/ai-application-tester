@@ -1,9 +1,12 @@
 """
 Utility functions for user management.
 """
+import logging
 from django.core.mail import send_mail
 from django.conf import settings
 import os
+
+logger = logging.getLogger(__name__)
 
 
 def send_verification_email(user_email, verification_code):
@@ -26,19 +29,18 @@ Best regards,
 TestFlow AI Team
 """
     from_email = os.getenv('EMAIL_FROM', settings.DEFAULT_FROM_EMAIL if hasattr(settings, 'DEFAULT_FROM_EMAIL') else 'noreply@testflowai.com')
-    
-    # Debug: Print email configuration
-    print(f"\n{'='*50}")
-    print("EMAIL CONFIGURATION:")
-    print(f"Backend: {settings.EMAIL_BACKEND}")
-    print(f"Host: {settings.EMAIL_HOST}")
-    print(f"Port: {settings.EMAIL_PORT}")
-    print(f"TLS: {settings.EMAIL_USE_TLS}")
-    print(f"From: {from_email}")
-    print(f"To: {user_email}")
-    print(f"Code: {verification_code}")
-    print(f"{'='*50}\n")
-    
+
+    if settings.DEBUG:
+        logger.debug(
+            "Email configuration: backend=%s host=%s port=%s tls=%s from=%s to=%s",
+            settings.EMAIL_BACKEND,
+            settings.EMAIL_HOST,
+            settings.EMAIL_PORT,
+            settings.EMAIL_USE_TLS,
+            from_email,
+            user_email,
+        )
+
     try:
         result = send_mail(
             subject,
@@ -47,15 +49,9 @@ TestFlow AI Team
             [user_email],
             fail_silently=False,
         )
-        print(f"Email sent successfully! Result: {result}")
+        logger.info("Verification email sent to %s (result=%s)", user_email, result)
         return True
-    except Exception as e:
-        import traceback
-        print(f"\n{'='*50}")
-        print("ERROR SENDING EMAIL:")
-        print(f"Error: {e}")
-        print(f"Traceback:")
-        print(traceback.format_exc())
-        print(f"{'='*50}\n")
+    except Exception:
+        logger.exception("Failed to send verification email to %s", user_email)
         return False
 
