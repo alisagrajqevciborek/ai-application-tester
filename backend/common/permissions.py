@@ -6,47 +6,28 @@ from rest_framework import permissions
 
 class IsAdmin(permissions.BasePermission):
     """
-    Permission to only allow admin users.
+    Allow access only to authenticated admin users with an active status.
+    Use this permission class for admin-only endpoints.
     """
 
     def has_permission(self, request, view):
-        return (
-            request.user and
-            request.user.is_authenticated and
-            request.user.role == 'admin' and
-            request.user.status == 'active'
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.role == 'admin'
+            and request.user.status == 'active'
         )
 
 
 class IsActiveUser(permissions.BasePermission):
     """
-    Permission to check if user is active (not disabled).
+    Allow access only to authenticated users whose account is active (status == 'active').
+    Rejects anonymous users and any account that has been disabled.
     """
 
     def has_permission(self, request, view) -> bool:  # type: ignore[override]
-        if not request.user or not request.user.is_authenticated:
-            return False
-        return request.user.status == 'active'
-
-    """
-    Permission to only allow admin users.
-    """
-    
-    def has_permission(self, request, view):
-        return (
-            request.user and
-            request.user.is_authenticated and
-            request.user.role == 'admin' and
-            request.user.status == 'active'
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.status == 'active'
         )
-
-
-class IsActiveUser(permissions.BasePermission):
-    """
-    Permission to check if user is active (not disabled).
-    """
-    
-    def has_permission(self, request, view) -> bool:  # type: ignore[override]
-        if not request.user or not request.user.is_authenticated:
-            return False
-        return request.user.status == 'active'

@@ -301,7 +301,60 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
     )
   }
 
+  // ── PDF helpers ──────────────────────────────────────────────────────────
+
+  /**
+   * Strip long bundler paths like /_next/static/chunks/abc-123.js down to the
+   * bare filename so they don't blow out PDF columns.
+   */
+  const sanitizeStackTrace = (text: string): string =>
+    text.replace(/\/_next\/static\/chunks\/[^\s),:\]]+/g, (match) => {
+      const filename = match.split('/').pop() ?? match
+      // drop query-string / hash fragments (e.g. chunk.js?v=abc123)
+      return filename.replace(/[?#].*$/, '')
+    })
+
+  /**
+   * Insert spaces after common path delimiters in tokens longer than maxLen
+   * so jsPDF's splitTextToSize can wrap them instead of overflowing the page.
+   */
+  const breakLongWords = (text: string, maxLen = 55): string =>
+    text.replace(/\S{55,}/g, (word) =>
+      word.replace(/([/_.\\-])(?=[A-Za-z0-9])/g, '$1 ').trimEnd()
+    )
+
+  /** Sanitize stack traces then force-break any remaining long tokens. */
+  const pdfText = (text: string): string =>
+    breakLongWords(sanitizeStackTrace(text ?? ''))
+
+  /**
+   * Resolve once the network has been idle for `idleMs` milliseconds —
+   * equivalent to Puppeteer's waitUntil: 'networkidle0'.
+   * Falls back to a plain timeout when PerformanceObserver isn't available.
+   */
+  const waitForNetworkIdle = (idleMs = 500): Promise<void> =>
+    new Promise((resolve) => {
+      let timer: ReturnType<typeof setTimeout> = setTimeout(resolve, idleMs)
+      try {
+        const observer = new PerformanceObserver(() => {
+          clearTimeout(timer)
+          timer = setTimeout(() => {
+            observer.disconnect()
+            resolve()
+          }, idleMs)
+        })
+        observer.observe({ entryTypes: ['resource'] })
+      } catch {
+        // PerformanceObserver not supported — the fallback timer already runs
+      }
+    })
+
+  // ─────────────────────────────────────────────────────────────────────────
+
   const handleExportPDF = async () => {
+    // Wait for all in-flight assets/scripts to finish (networkidle0 equivalent)
+    await waitForNetworkIdle()
+
     const { default: jsPDF } = await import('jspdf')
     const doc = new jsPDF()
     const pageWidth = doc.internal.pageSize.getWidth()
@@ -359,7 +412,7 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
 
     doc.setFontSize(10)
     doc.setFont("helvetica", "normal")
-    const summaryLines = doc.splitTextToSize(summaryText, pageWidth - 2 * margin)
+    const summaryLines = doc.splitTextToSize(pdfText(summaryText), pageWidth - 2 * margin)
     summaryLines.forEach((line: string) => {
       if (yPos > doc.internal.pageSize.getHeight() - 30) {
         doc.addPage()
@@ -423,22 +476,22 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
       // Issue header
       doc.setFontSize(11)
       doc.setFont("helvetica", "bold")
-      doc.text(`Issue ${index + 1}: ${issue.title}`, margin, yPos)
+      doc.text(pdfText(`Issue ${index + 1}: ${issue.title}`), margin, yPos)
       yPos += 7
 
       // Severity
       doc.setFontSize(9)
       doc.setFont("helvetica", "normal")
-      doc.text(`Severity: ${issue.severity.charAt(0).toUpperCase() + issue.severity.slice(1)}`, margin, yPos)
+      doc.text(pdfText(`Severity: ${issue.severity.charAt(0).toUpperCase() + issue.severity.slice(1)}`), margin, yPos)
       yPos += 6
 
       // Location
-      doc.text(`Location: ${issue.location}`, margin, yPos)
+      doc.text(pdfText(`Location: ${issue.location}`), margin, yPos)
       yPos += 6
 
       // Description
       doc.setFontSize(9)
-      const descLines = doc.splitTextToSize(issue.description, pageWidth - 2 * margin)
+      const descLines = doc.splitTextToSize(pdfText(issue.description), pageWidth - 2 * margin)
       descLines.forEach((line: string) => {
         if (yPos > doc.internal.pageSize.getHeight() - 30) {
           doc.addPage()

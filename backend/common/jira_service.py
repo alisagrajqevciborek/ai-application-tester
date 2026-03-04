@@ -25,24 +25,38 @@ class JiraService:
         self._jira_client = None
     
     def _get_jira_client(self):
-        """Get or create Jira client instance."""
+        """Get or create Jira client instance.
+
+        Returns None (with a logged warning) when the jira package is not
+        installed or when required configuration variables are missing.
+        Callers must check for None before using the returned client.
+        """
         if self._jira_client is None:
             try:
-                from jira import JIRA
-                
-                if not all([self.jira_url, self.jira_email, self.jira_api_token, self.jira_project_key]):
-                    raise ValueError("Missing required Jira configuration. Please set JIRA_URL, JIRA_EMAIL, JIRA_API_TOKEN, and JIRA_PROJECT_KEY.")
-                
+                from jira import JIRA  # noqa: PLC0415
+            except ImportError:
+                logger.warning(
+                    "Jira integration is disabled: the 'jira' package is not installed. "
+                    "Install it with: pip install jira"
+                )
+                return None
+
+            if not all([self.jira_url, self.jira_email, self.jira_api_token, self.jira_project_key]):
+                logger.warning(
+                    "Jira integration is disabled: missing required configuration. "
+                    "Set JIRA_URL, JIRA_EMAIL, JIRA_API_TOKEN, and JIRA_PROJECT_KEY."
+                )
+                return None
+
+            try:
                 self._jira_client = JIRA(
                     server=self.jira_url,
                     basic_auth=(self.jira_email, self.jira_api_token)
                 )
-            except ImportError:
-                raise ImportError("Jira library not installed. Please install it with: pip install jira")
             except Exception as e:
                 logger.error(f"Failed to initialize Jira client: {e}")
-                raise
-        
+                return None
+
         return self._jira_client
     
     def format_console_logs_for_jira(self, logs: List[Dict], log_type: str) -> str:
@@ -109,7 +123,13 @@ class JiraService:
         """
         try:
             jira = self._get_jira_client()
-            
+
+            if jira is None:
+                logger.warning(
+                    "Skipping Jira ticket creation: Jira is not configured or unavailable."
+                )
+                return None
+
             # Create issue
             issue_dict = {
                 'project': {'key': self.jira_project_key},
@@ -151,7 +171,7 @@ class JiraService:
             }
         except Exception as e:
             logger.error(f"Failed to create Jira ticket: {e}", exc_info=True)
-            raise
+            return None
     
     def export_console_logs_to_jira(
         self,

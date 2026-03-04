@@ -9,7 +9,7 @@ import TopNav from "@/components/dashboard/top-nav"
 import VersionCard from "@/components/reports/version-card"
 import { useAuth } from "@/contexts/AuthContext"
 import { useData } from "@/contexts/DataContext"
-import { testRunsApi } from "@/lib/api"
+import { testRunsApi, type TestRunStats } from "@/lib/api"
 import { Loader2 } from "lucide-react"
 import {
   DropdownMenu,
@@ -31,7 +31,31 @@ export default function AppVersionsPage() {
   const params = useParams()
   const appName = decodeURIComponent(params.appName as string)
   const [statsModalOpen, setStatsModalOpen] = useState(false)
+  const [liveStats, setLiveStats] = useState<TestRunStats | null>(null)
   const { toast } = useToast()
+
+  // Poll stats every 3 s while the modal is open so numbers update immediately
+  useEffect(() => {
+    if (!statsModalOpen) return
+
+    let cancelled = false
+
+    const fetchStats = () => {
+      testRunsApi.stats()
+        .then((data) => { if (!cancelled) setLiveStats(data) })
+        .catch(() => {})
+    }
+
+    setLiveStats(null)
+    fetchStats()
+
+    const interval = setInterval(fetchStats, 3000)
+
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [statsModalOpen])
 
   // Local state for optimistic updates
   const [localVersions, setLocalVersions] = useState<typeof testHistory>([])
@@ -236,7 +260,7 @@ export default function AppVersionsPage() {
       <StatisticsModal
         open={statsModalOpen}
         onOpenChange={setStatsModalOpen}
-        stats={stats}
+        stats={liveStats ?? stats}
       />
     </div>
   )

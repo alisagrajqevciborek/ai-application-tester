@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { Package, Sparkles, Plus, BarChart3, Search, Filter, X } from "lucide-react"
+import { Package, Sparkles, Plus, BarChart3, Play, ChevronDown, Search, Filter, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import TopNav from "@/components/dashboard/top-nav"
@@ -33,13 +33,29 @@ export default function DashboardPage() {
   const [statsModalOpen, setStatsModalOpen] = useState(false)
   const [liveStats, setLiveStats] = useState<TestRunStats | null>(null)
 
-  // Fetch fresh stats every time the modal opens so Running count is always live
+  // Poll stats every 3 s while the modal is open so numbers update immediately
   useEffect(() => {
-    if (statsModalOpen) {
-      setLiveStats(null)
-      testRunsApi.stats().then(setLiveStats).catch(() => setLiveStats(stats))
+    if (!statsModalOpen) return
+
+    let cancelled = false
+
+    const fetchStats = () => {
+      testRunsApi.stats()
+        .then((data) => { if (!cancelled) setLiveStats(data) })
+        .catch(() => {})
     }
-  }, [statsModalOpen, stats])
+
+    // Clear stale data then fetch immediately
+    setLiveStats(null)
+    fetchStats()
+
+    const interval = setInterval(fetchStats, 3000)
+
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [statsModalOpen])
 
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<"all" | "success" | "failed" | "running">("all")

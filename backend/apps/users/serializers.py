@@ -1,8 +1,10 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from typing import Any, cast
+import logging
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -41,10 +43,12 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         email_sent = send_verification_email(user.email, code)
         
         if not email_sent:
-            print(f"\n⚠️  WARNING: Failed to send verification email to {user.email}")
-            print(f"   Verification code: {code}")
-            print(f"   User can use 'resend-code' endpoint to get a new code.\n")
-        
+            logger.warning(
+                "Failed to send verification email to %s. "
+                "User can use the 'resend-code' endpoint to request a new code.",
+                user.email,
+            )
+
         return user
 
 
