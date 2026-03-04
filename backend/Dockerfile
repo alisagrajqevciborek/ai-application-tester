@@ -42,8 +42,11 @@ RUN apt-get update && apt-get install -y \
 # Copy the rest of the application
 COPY . .
 
+# Make start script executable
+RUN chmod +x start.sh
+
 # Expose port 8000
 EXPOSE 8000
 
 # Default command (can be overridden in docker-compose)
-CMD ["gunicorn", "core.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2"]
+CMD ["./start.sh"]
