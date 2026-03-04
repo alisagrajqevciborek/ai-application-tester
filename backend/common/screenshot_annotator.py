@@ -114,7 +114,8 @@ class ScreenshotAnnotator:
         # Try to load a font, fall back to default if not available
         try:
             font = ImageFont.truetype("arial.ttf", 16)
-        except:
+        except Exception as e:
+            logger.debug(f"Failed to load custom font for label, using default: {e}")
             font = ImageFont.load_default()
         
         # Calculate label size
@@ -207,7 +208,8 @@ class ScreenshotAnnotator:
             draw = ImageDraw.Draw(combined)
             try:
                 font = ImageFont.truetype("arial.ttf", 20)
-            except:
+            except Exception as e:
+                logger.debug(f"Failed to load custom font for comparison labels, using default: {e}")
                 font = ImageFont.load_default()
             
             draw.text((10, 10), "BEFORE", fill=(0, 0, 0), font=font)

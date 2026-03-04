@@ -81,7 +81,8 @@ async def test_authentication(page: Page, url: str, issues: List[Dict], credenti
                 if await page.is_visible(s):
                     user_field = s
                     break
-            except:
+            except Exception as e:
+                logger.debug(f"Visibility check failed for user selector {s}: {e}")
                 continue
         
         pass_field = None
@@ -90,7 +91,8 @@ async def test_authentication(page: Page, url: str, issues: List[Dict], credenti
                 if await page.is_visible(s):
                     pass_field = s
                     break
-            except:
+            except Exception as e:
+                logger.debug(f"Visibility check failed for password selector {s}: {e}")
                 continue
         
         if user_field and pass_field:
@@ -103,7 +105,8 @@ async def test_authentication(page: Page, url: str, issues: List[Dict], credenti
                     if await page.is_visible(s):
                         submit_btn = s
                         break
-                except:
+                except Exception as e:
+                    logger.debug(f"Visibility check failed for submit selector {s}: {e}")
                     continue
             
             if submit_btn:
@@ -117,7 +120,8 @@ async def test_authentication(page: Page, url: str, issues: List[Dict], credenti
                         if await page.is_visible(s):
                             found_error = True
                             break
-                    except:
+                    except Exception as e:
+                        logger.debug(f"Visibility check failed for error indicator {s}: {e}")
                         continue
                 
                 if found_error:

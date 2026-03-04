@@ -265,8 +265,9 @@ async def run_functional_tests(
                     min_size = min(box['width'], box['height'])
                     if min_size < 44:
                         small_touch_targets += 1
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Error checking touch target size: {e}")
+                continue
         
         if small_touch_targets > 0:
             issues.append({

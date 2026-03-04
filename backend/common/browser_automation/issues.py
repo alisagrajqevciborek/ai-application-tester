@@ -42,14 +42,16 @@ class IssueManager:
                 }
                 return path.join(" > ");
             }''')
-        except:
+        except Exception as e:
+            logger.debug(f"Failed to compute element selector: {e}")
             return "unknown"
     
     async def get_element_box(self, element) -> Optional[Dict]:
         """Get the bounding box for an element."""
         try:
             return await element.bounding_box()
-        except:
+        except Exception as e:
+            logger.debug(f"Failed to get element bounding box: {e}")
             return None
     
     async def capture_annotated_issue_screenshot(
@@ -110,8 +112,9 @@ class IssueManager:
             'location': location
         }
         
-        # Capture before/after screenshots for this specific issue (if artifact_manager is available)
-        if self.artifact_manager:
+        # Capture before/after screenshots for this specific issue (if artifact_manager is available).
+        # These are primarily useful for visually inspectable issues where the page actually changes.
+        if self.artifact_manager and element:
             try:
                 logger.info(f"Capturing before/after screenshots for issue: {title}")
                 
@@ -185,21 +188,8 @@ class IssueManager:
                         issue['element_screenshot'] = annotated_url
             except Exception:
                 pass
-        elif not issue.get('element_screenshot'):
-            try:
-                screenshot_bytes = await page.screenshot(full_page=False)
-                screenshot_url = await self.screenshot_manager.upload_and_record(
-                    screenshot_bytes,
-                    location,
-                    self.current_test_type or "automated",
-                    f"issue_{severity}_{len(issues)}",
-                    screenshots_dir,
-                    kind='issue_viewport',
-                    issue_title=title,
-                )
-                if screenshot_url:
-                    issue['element_screenshot'] = screenshot_url
-            except Exception as e:
-                logger.warning(f"Failed to capture screenshot for issue: {e}")
+        # If there is no element and no screenshot coming from the console context,
+        # skip taking a generic viewport screenshot. Non-visual issues are still fully
+        # described in text and do not need an arbitrary image.
         
         issues.append(issue)
