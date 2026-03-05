@@ -22,6 +22,19 @@ const breakLongWords = (text: string, maxLen = 55): string =>
 
 const pdfText = (text: string): string => breakLongWords(sanitizeStackTrace(text ?? ""))
 
+const getLiveIssueCounts = (issues: TestIssue[]) => {
+  const counts = { critical: 0, major: 0, minor: 0 }
+
+  for (const issue of issues) {
+    const severity = (issue.severity ?? "").toLowerCase()
+    if (severity === "critical") counts.critical += 1
+    else if (severity === "major") counts.major += 1
+    else if (severity === "minor") counts.minor += 1
+  }
+
+  return counts
+}
+
 const buildExpectedBehaviorFromIssue = (issue: TestIssue): string => {
   const title = (issue.title ?? "").toLowerCase()
   const description = (issue.description ?? "").toLowerCase()
@@ -136,6 +149,11 @@ export const exportReportPdf = async ({
 }: ExportReportParams): Promise<void> => {
   await waitForNetworkIdle()
 
+  const liveCounts = getLiveIssueCounts(issues)
+  const resolvedCriticalCount = Math.max(criticalCount, liveCounts.critical)
+  const resolvedMajorCount = Math.max(majorCount, liveCounts.major)
+  const resolvedMinorCount = Math.max(minorCount, liveCounts.minor)
+
   const { default: jsPDF } = await import("jspdf")
   const doc = new jsPDF()
   const pageWidth = doc.internal.pageSize.getWidth()
@@ -216,9 +234,9 @@ export const exportReportPdf = async ({
   doc.setFontSize(12)
   doc.setFont("times", "normal")
   const stats = [
-    ["Critical Issues", criticalCount.toString()],
-    ["Major Issues", majorCount.toString()],
-    ["Minor Issues", minorCount.toString()],
+    ["Critical Issues", resolvedCriticalCount.toString()],
+    ["Major Issues", resolvedMajorCount.toString()],
+    ["Minor Issues", resolvedMinorCount.toString()],
     ["Total Issues", issues.length.toString()],
   ]
 
@@ -394,7 +412,10 @@ export const exportReportExcel = async ({
     return "Low"
   }
 
-  const overallPriority = criticalCount > 0 ? "High" : majorCount > 0 ? "Medium" : "Low"
+  const liveCounts = getLiveIssueCounts(issues)
+  const resolvedCriticalCount = Math.max(criticalCount, liveCounts.critical)
+  const resolvedMajorCount = Math.max(majorCount, liveCounts.major)
+  const overallPriority = resolvedCriticalCount > 0 ? "High" : resolvedMajorCount > 0 ? "Medium" : "Low"
 
   const rows: Array<Array<string>> = []
   const emptyRow = () => new Array(10).fill("")
