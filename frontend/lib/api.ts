@@ -1,8 +1,8 @@
-// Always use localhost in the browser (browser can't resolve Docker service names)
-// Server-side can use the env variable for internal Docker network calls
-const API_BASE_URL = typeof window !== 'undefined' 
-  ? 'http://localhost:8000/api'  // Browser/client-side
-  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api')  // Server-side/SSR
+// Base URL for the backend API.
+// In production, this is provided via NEXT_PUBLIC_API_URL (e.g. your Render URL).
+// For local development, it falls back to localhost:8000.
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 
 // Types
 export interface User {
