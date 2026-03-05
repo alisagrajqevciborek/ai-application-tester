@@ -102,6 +102,7 @@ def testrun_list_create(request):
     POST /api/test-runs - Create and start a new test run
     """
     if request.method == 'GET':
+        include_steps = request.query_params.get('include_steps', 'true').lower() in ('1', 'true', 'yes')
         # Get test runs for applications owned by the user.
         # Annotate version_number via subquery so the serializer avoids N+1 queries.
         version_sq = (
@@ -115,19 +116,28 @@ def testrun_list_create(request):
             TestRun.objects  # type: ignore[attr-defined]
             .filter(application__owner=request.user)
             .select_related('application')
-            .prefetch_related('step_results')
             .annotate(version_number=Subquery(version_sq))
         )
+        if include_steps:
+            test_runs = test_runs.prefetch_related('step_results')
         
         # Apply pagination
         paginator = TestRunPagination()
         page = paginator.paginate_queryset(test_runs, request)
         
         if page is not None:
-            serializer = TestRunSerializer(page, many=True)
+            serializer = TestRunSerializer(
+                page,
+                many=True,
+                context={'request': request, 'include_step_results': include_steps}
+            )
             return paginator.get_paginated_response(serializer.data)
         
-        serializer = TestRunSerializer(test_runs, many=True)
+        serializer = TestRunSerializer(
+            test_runs,
+            many=True,
+            context={'request': request, 'include_step_results': include_steps}
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     elif request.method == 'POST':

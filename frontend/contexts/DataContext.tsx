@@ -30,6 +30,7 @@ const DataContext = createContext<DataContextType | undefined>(undefined)
 
 // Cache duration: 5 minutes - data older than this triggers a background refresh
 const CACHE_DURATION = 300000
+const LIVE_STATS_POLL_INTERVAL = 2000
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading: authLoading } = useAuth()
@@ -79,7 +80,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     try {
       const [apps, testRuns, statsData] = await Promise.all([
         applicationsApi.list().catch(() => [] as Application[]),
-        testRunsApi.list().catch(() => [] as TestRun[]),
+        testRunsApi.list({ includeSteps: false, pageSize: 100 }).catch(() => [] as TestRun[]),
         testRunsApi.stats().catch(() => null),
       ])
 
@@ -121,6 +122,31 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const forceRefresh = useCallback(async () => {
     await fetchAll(true)
   }, [fetchAll])
+
+  // Keep running/pending counters in near real-time while tests are active.
+  useEffect(() => {
+    if (!isAuthenticated || !stats) return
+
+    const hasActiveRuns = (stats.running + stats.pending) > 0
+    if (!hasActiveRuns) return
+
+    let cancelled = false
+    const interval = setInterval(async () => {
+      try {
+        const nextStats = await testRunsApi.stats()
+        if (!cancelled) {
+          setStats(nextStats)
+        }
+      } catch {
+        // Keep the current snapshot; polling is best-effort
+      }
+    }, LIVE_STATS_POLL_INTERVAL)
+
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [isAuthenticated, stats?.running, stats?.pending])
 
   return (
     <DataContext.Provider value={{ applications, testHistory, stats, isLoading, isRefreshing, forceRefresh }}>

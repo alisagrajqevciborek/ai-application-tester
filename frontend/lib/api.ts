@@ -531,8 +531,11 @@ export const applicationsApi = {
 
 // Test Runs API
 export const testRunsApi = {
-  async list(): Promise<TestRun[]> {
-    return fetchAllPages<TestRun>('/applications/test-runs/')
+  async list(options?: { includeSteps?: boolean; pageSize?: number }): Promise<TestRun[]> {
+    const includeSteps = options?.includeSteps ?? true
+    const pageSize = options?.pageSize ?? 100
+    const query = `?include_steps=${includeSteps ? 'true' : 'false'}&page_size=${pageSize}`
+    return fetchAllPages<TestRun>(`/applications/test-runs/${query}`)
   },
 
   async listActive(): Promise<TestRun[]> {
