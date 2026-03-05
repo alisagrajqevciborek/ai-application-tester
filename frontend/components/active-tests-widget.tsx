@@ -57,19 +57,35 @@ export default function ActiveTestsWidget() {
               {activeTests.map((tr) => {
                 const progress = calculateTestProgress(tr)
                 return (
-                  <button
+                  <div
                     key={tr.id}
                     onClick={() => handleNavigate(tr.id)}
-                    className="w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors group"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        handleNavigate(tr.id)
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    className="w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
                   >
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="text-sm font-medium text-foreground truncate max-w-[180px]">
                         {tr.application_name}
                       </span>
-                      <span className="flex items-center gap-1 text-xs text-primary">
-                        <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleNavigate(tr.id)
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+                        aria-label={`View progress for ${tr.application_name}`}
+                      >
+                        <ExternalLink className="w-3 h-3" />
                         View
-                      </span>
+                      </button>
                     </div>
 
                     <div className="flex items-center gap-2 mb-1.5">
@@ -103,7 +119,7 @@ export default function ActiveTestsWidget() {
                         </span>
                       )}
                     </div>
-                  </button>
+                  </div>
                 )
               })}
             </div>

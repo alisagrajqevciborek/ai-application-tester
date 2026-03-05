@@ -81,6 +81,9 @@ class TestRunSerializer(serializers.ModelSerializer):
         return value
 
     def get_step_results(self, obj):
+        include_step_results = self.context.get('include_step_results', True)
+        if not include_step_results:
+            return []
         # Do NOT call .order_by() here — it would bypass the prefetch cache and
         # fire a new query per test run. The model Meta already orders by created_at.
         step_results = obj.step_results.all()  # type: ignore[attr-defined]
