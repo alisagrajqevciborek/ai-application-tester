@@ -635,19 +635,28 @@ export interface GeneratedTestCase {
   estimated_duration: string
   is_ai_generated?: boolean
   fallback?: boolean
+  // Optional script generation fields (when requested)
+  script_framework?: 'playwright' | 'selenium' | 'cypress'
+  script_code?: string
   created_at?: string
   updated_at?: string
 }
 
 // Test Case Generator API
 export const testCaseApi = {
-  async generate(prompt: string, applicationId: number, testType: string = 'functional'): Promise<GeneratedTestCase> {
+  async generate(
+    prompt: string,
+    applicationId: number,
+    testType: string = 'functional',
+    scriptFramework?: 'playwright' | 'selenium' | 'cypress'
+  ): Promise<GeneratedTestCase> {
     return apiRequest<GeneratedTestCase>('/applications/test-cases/generate/', {
       method: 'POST',
       body: JSON.stringify({
         prompt,
         application_id: applicationId,
         test_type: testType,
+        ...(scriptFramework ? { script_framework: scriptFramework } : {}),
       }),
     })
   },

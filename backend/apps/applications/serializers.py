@@ -169,6 +169,12 @@ class GeneratedTestCaseCreateSerializer(serializers.Serializer):
         choices=['functional', 'regression', 'performance', 'accessibility', 'broken_links', 'authentication'],
         default='functional'
     )
+    script_framework = serializers.ChoiceField(
+        choices=['playwright', 'selenium', 'cypress'],
+        required=False,
+        allow_null=True,
+        help_text="Optional: framework to generate a ready-to-use script for (Playwright, Selenium, or Cypress).",
+    )
 
     def validate(self, attrs):
         """Ensure application exists and user owns it; attach object to avoid a second DB lookup."""

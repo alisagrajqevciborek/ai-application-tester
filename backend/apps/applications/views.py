@@ -316,12 +316,14 @@ def generate_test_case(request):
     prompt = str(validated_data.get('prompt', ''))
     application = validated_data.get('application')
     test_type = str(validated_data.get('test_type', 'functional'))
+    script_framework = validated_data.get('script_framework')
 
     if not isinstance(application, Application):
         return Response({'error': 'Invalid application'}, status=status.HTTP_400_BAD_REQUEST)
     
     # Generate test case using AI
     from common.test_case_generator import generate_test_case_from_prompt
+    from common.test_case_codegen import generate_script, FrameworkName  # type: ignore[attr-defined]
     
     test_case_data = generate_test_case_from_prompt(
         user_prompt=prompt,
@@ -332,6 +334,24 @@ def generate_test_case(request):
     
     # Add fallback flag for frontend
     test_case_data['fallback'] = test_case_data.get('fallback', False)
+    
+    # Optionally generate a framework-specific script for the test case
+    if script_framework:
+        try:
+            script = generate_script(
+                test_case=test_case_data,
+                framework=script_framework,  # type: ignore[arg-type]
+            )
+            test_case_data['script_framework'] = script_framework
+            test_case_data['script_code'] = script
+        except Exception as e:  # pragma: no cover - defensive
+            # If script generation fails, still return the JSON test case
+            import logging
+            logging.getLogger(__name__).warning(
+                "Script generation failed for framework %r: %s",
+                script_framework,
+                e,
+            )
     
     # Return the generated test case (not saved yet)
     return Response(test_case_data, status=status.HTTP_200_OK)
