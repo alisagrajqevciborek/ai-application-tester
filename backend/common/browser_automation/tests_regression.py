@@ -14,7 +14,8 @@ async def run_regression_tests(
     screenshots_dir: Optional[str],
     console_logs: List[Dict],
     network_failures: List[Dict],
-    issue_manager
+    issue_manager,
+    skip_runtime_checks: bool = False,
 ) -> Dict:
     """Run regression tests - check for broken functionality."""
     issues = []
@@ -99,36 +100,36 @@ async def run_regression_tests(
     except Exception as e:
         logger.warning(f"Error checking external links: {e}")
     
-    # Test 4: Console errors
-    console_errors = [log for log in console_logs if log['type'] == 'error']
-    if console_errors:
-        tests_failed += 1
-        for error in console_errors[:5]:
-            log_idx = next((i for i, log in enumerate(console_logs) if log == error), None)
-            await issue_manager.add_issue(
-                issues, 'major', 'Console error in regression test',
-                f"Console error: {error.get('text', 'Unknown')}",
-                error.get('location', url), page,
-                console_log_index=log_idx,
-                console_logs=console_logs
-            )
-    
-    # Test 5: Missing resources
-    missing_resources = [f for f in network_failures if f['resource_type'] in ['stylesheet', 'script', 'font']]
-    if missing_resources:
-        tests_failed += 1
-        resource_types = {}
-        for res in missing_resources:
-            res_type = res['resource_type']
-            resource_types[res_type] = resource_types.get(res_type, 0) + 1
-        
-        for res_type, count in resource_types.items():
-            severity = 'critical' if res_type == 'stylesheet' else 'major'
-            await issue_manager.add_issue(
-                issues, severity, f'{count} missing {res_type}(s)',
-                f'Failed to load {count} {res_type} resource(s), which may break page functionality or styling.',
-                url, page
-            )
+    # Test 4/5: Runtime console and resource checks
+    if not skip_runtime_checks:
+        console_errors = [log for log in console_logs if log['type'] == 'error']
+        if console_errors:
+            tests_failed += 1
+            for error in console_errors[:5]:
+                log_idx = next((i for i, log in enumerate(console_logs) if log == error), None)
+                await issue_manager.add_issue(
+                    issues, 'major', 'Console error in regression test',
+                    f"Console error: {error.get('text', 'Unknown')}",
+                    error.get('location', url), page,
+                    console_log_index=log_idx,
+                    console_logs=console_logs
+                )
+
+        missing_resources = [f for f in network_failures if f['resource_type'] in ['stylesheet', 'script', 'font']]
+        if missing_resources:
+            tests_failed += 1
+            resource_types = {}
+            for res in missing_resources:
+                res_type = res['resource_type']
+                resource_types[res_type] = resource_types.get(res_type, 0) + 1
+
+            for res_type, count in resource_types.items():
+                severity = 'critical' if res_type == 'stylesheet' else 'major'
+                await issue_manager.add_issue(
+                    issues, severity, f'{count} missing {res_type}(s)',
+                    f'Failed to load {count} {res_type} resource(s), which may break page functionality or styling.',
+                    url, page
+                )
     
     # Calculate pass rate
     issue_penalty = 0

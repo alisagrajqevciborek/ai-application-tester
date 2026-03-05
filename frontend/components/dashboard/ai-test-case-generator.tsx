@@ -172,6 +172,9 @@ export default function AITestCaseGenerator({
     }
   }
 
+  const isFeatureNotFound = generatedTestCase?.generation_status === 'feature_not_found'
+  const hasExecutableSteps = Boolean(generatedTestCase && generatedTestCase.steps.length > 0)
+
   const convertTestRunToHistory = (testRun: TestRun): TestHistory => {
     return {
       id: testRun.id.toString(),
@@ -545,6 +548,7 @@ export default function AITestCaseGenerator({
                       variant="ghost"
                       size="sm"
                       onClick={handleCopySteps}
+                      disabled={!hasExecutableSteps}
                       title="Copy steps"
                     >
                       <Copy className="w-4 h-4" />
@@ -553,6 +557,7 @@ export default function AITestCaseGenerator({
                       variant="default"
                       size="sm"
                       onClick={handleRunTest}
+                      disabled={!hasExecutableSteps || isFeatureNotFound}
                       title="Run this test"
                     >
                       <Play className="w-4 h-4 mr-1" />
@@ -561,6 +566,11 @@ export default function AITestCaseGenerator({
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 mt-3">
+                  {isFeatureNotFound && (
+                    <Badge variant="destructive" className="text-xs">
+                      Feature Not Found
+                    </Badge>
+                  )}
                   {generatedTestCase.tags.map((tag, idx) => (
                     <Badge key={idx} variant="secondary" className="text-xs">
                       {tag}
@@ -572,6 +582,14 @@ export default function AITestCaseGenerator({
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
+                {isFeatureNotFound && (
+                  <Alert>
+                    <AlertDescription>
+                      {generatedTestCase.unavailable_reason || "The requested feature could not be found on the target website, so no executable test steps were generated."}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <div>
                   <h4 className="text-sm font-semibold mb-2">Expected Results</h4>
                   <p className="text-sm text-muted-foreground">{generatedTestCase.expected_results}</p>
@@ -579,68 +597,72 @@ export default function AITestCaseGenerator({
 
                 <div>
                   <h4 className="text-sm font-semibold mb-3">Test Steps</h4>
-                  <ScrollArea className="h-[400px] pr-4">
-                    <div className="space-y-2">
-                      {generatedTestCase.steps.map((step, idx) => (
-                        <motion.div
-                          key={idx}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: idx * 0.05 }}
-                          className={cn(
-                            "p-3 rounded-lg border border-border bg-secondary/30",
-                            expandedStep === idx && "bg-secondary/50"
-                          )}
-                        >
-                          <div
-                            className="flex items-start gap-3 cursor-pointer"
-                            onClick={() => setExpandedStep(expandedStep === idx ? null : idx)}
+                  {hasExecutableSteps ? (
+                    <ScrollArea className="h-[400px] pr-4">
+                      <div className="space-y-2">
+                        {generatedTestCase.steps.map((step, idx) => (
+                          <motion.div
+                            key={idx}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: idx * 0.05 }}
+                            className={cn(
+                              "p-3 rounded-lg border border-border bg-secondary/30",
+                              expandedStep === idx && "bg-secondary/50"
+                            )}
                           >
-                            <div className={cn(
-                              "flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold flex-shrink-0",
-                              getActionColor(step.action)
-                            )}>
-                              {step.order}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-lg">{getActionIcon(step.action)}</span>
-                                <Badge variant="outline" className="text-xs">
-                                  {step.action}
-                                </Badge>
-                                <span className="text-sm font-medium text-foreground">
-                                  {step.description}
-                                </span>
+                            <div
+                              className="flex items-start gap-3 cursor-pointer"
+                              onClick={() => setExpandedStep(expandedStep === idx ? null : idx)}
+                            >
+                              <div className={cn(
+                                "flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold flex-shrink-0",
+                                getActionColor(step.action)
+                              )}>
+                                {step.order}
                               </div>
-                              {expandedStep === idx && (
-                                <motion.div
-                                  initial={{ opacity: 0, height: 0 }}
-                                  animate={{ opacity: 1, height: "auto" }}
-                                  className="mt-2 space-y-2 text-xs text-muted-foreground"
-                                >
-                                  {step.selector && (
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-lg">{getActionIcon(step.action)}</span>
+                                  <Badge variant="outline" className="text-xs">
+                                    {step.action}
+                                  </Badge>
+                                  <span className="text-sm font-medium text-foreground">
+                                    {step.description}
+                                  </span>
+                                </div>
+                                {expandedStep === idx && (
+                                  <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: "auto" }}
+                                    className="mt-2 space-y-2 text-xs text-muted-foreground"
+                                  >
+                                    {step.selector && (
+                                      <div>
+                                        <span className="font-medium">Selector:</span>{" "}
+                                        <code className="bg-muted px-1.5 py-0.5 rounded">{step.selector}</code>
+                                      </div>
+                                    )}
+                                    {step.value && (
+                                      <div>
+                                        <span className="font-medium">Value:</span>{" "}
+                                        <code className="bg-muted px-1.5 py-0.5 rounded">{step.value}</code>
+                                      </div>
+                                    )}
                                     <div>
-                                      <span className="font-medium">Selector:</span>{" "}
-                                      <code className="bg-muted px-1.5 py-0.5 rounded">{step.selector}</code>
+                                      <span className="font-medium">Expected:</span> {step.expected_result}
                                     </div>
-                                  )}
-                                  {step.value && (
-                                    <div>
-                                      <span className="font-medium">Value:</span>{" "}
-                                      <code className="bg-muted px-1.5 py-0.5 rounded">{step.value}</code>
-                                    </div>
-                                  )}
-                                  <div>
-                                    <span className="font-medium">Expected:</span> {step.expected_result}
-                                  </div>
-                                </motion.div>
-                              )}
+                                  </motion.div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  </ScrollArea>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No executable steps were generated for this request.</p>
+                  )}
                 </div>
 
                 {/* Refinement Section */}
@@ -656,7 +678,7 @@ export default function AITestCaseGenerator({
                     />
                     <Button
                       onClick={handleRefine}
-                      disabled={isRefining || !refinementPrompt.trim()}
+                      disabled={isRefining || !refinementPrompt.trim() || isFeatureNotFound}
                       variant="outline"
                       size="sm"
                       className="w-full"

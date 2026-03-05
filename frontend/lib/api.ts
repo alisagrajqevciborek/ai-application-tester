@@ -515,10 +515,15 @@ export const applicationsApi = {
     })
   },
 
-  async update(id: number, name: string, url: string): Promise<Application> {
+  async update(
+    id: number,
+    name: string,
+    url: string,
+    authData?: { test_username?: string; test_password?: string; login_url?: string }
+  ): Promise<Application> {
     return apiRequest<Application>(`/applications/${id}`, {
       method: 'PUT',
-      body: JSON.stringify({ name, url }),
+      body: JSON.stringify({ name, url, ...(authData || {}) }),
     })
   },
 
@@ -635,6 +640,8 @@ export interface GeneratedTestCase {
   estimated_duration: string
   is_ai_generated?: boolean
   fallback?: boolean
+  generation_status?: 'ready' | 'feature_not_found'
+  unavailable_reason?: string | null
   created_at?: string
   updated_at?: string
 }

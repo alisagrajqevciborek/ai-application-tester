@@ -345,6 +345,13 @@ For each regression:
 
 Your task is to convert natural language test descriptions into structured, executable test cases.
 
+If the requested feature/workflow clearly does not exist on the target website, return a non-executable response by setting:
+- generation_status: "feature_not_found"
+- unavailable_reason: concise human-readable reason
+- steps: []
+
+Otherwise, set generation_status to "ready" and provide executable steps.
+
 Test actions you can use:
 - navigate: Go to a URL
 - click: Click on an element (button, link, etc.)

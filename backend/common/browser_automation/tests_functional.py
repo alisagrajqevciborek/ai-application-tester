@@ -15,7 +15,8 @@ async def run_functional_tests(
     console_logs: List[Dict],
     network_failures: List[Dict],
     main_document_headers: Dict,
-    issue_manager
+    issue_manager,
+    skip_runtime_checks: bool = False,
 ) -> Dict:
     """Run functional tests - check basic page functionality."""
     issues = []
@@ -169,45 +170,44 @@ async def run_functional_tests(
     except Exception as e:
         logger.warning(f"Error checking forms: {e}")
     
-    # Test 6: Console errors/warnings
-    console_errors = [log for log in console_logs if log['type'] == 'error']
-    console_warnings = [log for log in console_logs if log['type'] == 'warning']
-    
-    if console_errors:
-        tests_failed += 1
-        for error in console_errors[:5]:
-            log_idx = next((i for i, log in enumerate(console_logs) if log == error), None)
-            await issue_manager.add_issue(
-                issues, 'major', 'Console error detected',
-                f"JavaScript console error: {error.get('text', 'Unknown error')}",
-                error.get('location', url), page,
-                console_log_index=log_idx,
-                console_logs=console_logs
-            )
-    
-    if console_warnings:
-        for warning in console_warnings[:3]:
-            log_idx = next((i for i, log in enumerate(console_logs) if log == warning), None)
-            await issue_manager.add_issue(
-                issues, 'minor', 'Console warning detected',
-                f"JavaScript console warning: {warning.get('text', 'Unknown warning')}",
-                warning.get('location', url), page,
-                console_log_index=log_idx,
-                console_logs=console_logs
-            )
-    
-    # Test 7: Network failures
-    # Exclude 401/403 — these are access-controlled resources, not broken ones.
-    reportable_failures = [f for f in network_failures if f['status'] not in (401, 403)]
-    if reportable_failures:
-        tests_failed += 1
-        for failure in reportable_failures[:5]:
-            severity = 'major' if failure['status'] >= 500 else 'minor'
-            await issue_manager.add_issue(
-                issues, severity, f"Network request failed ({failure['status']})",
-                f"Failed to load resource: {failure['url']} (Status: {failure['status']} {failure['status_text']})",
-                failure['url'], page
-            )
+    # Test 6/7: Console + Network runtime checks
+    if not skip_runtime_checks:
+        console_errors = [log for log in console_logs if log['type'] == 'error']
+        console_warnings = [log for log in console_logs if log['type'] == 'warning']
+
+        if console_errors:
+            tests_failed += 1
+            for error in console_errors[:5]:
+                log_idx = next((i for i, log in enumerate(console_logs) if log == error), None)
+                await issue_manager.add_issue(
+                    issues, 'major', 'Console error detected',
+                    f"JavaScript console error: {error.get('text', 'Unknown error')}",
+                    error.get('location', url), page,
+                    console_log_index=log_idx,
+                    console_logs=console_logs
+                )
+
+        if console_warnings:
+            for warning in console_warnings[:3]:
+                log_idx = next((i for i, log in enumerate(console_logs) if log == warning), None)
+                await issue_manager.add_issue(
+                    issues, 'minor', 'Console warning detected',
+                    f"JavaScript console warning: {warning.get('text', 'Unknown warning')}",
+                    warning.get('location', url), page,
+                    console_log_index=log_idx,
+                    console_logs=console_logs
+                )
+
+        reportable_failures = [f for f in network_failures if f['status'] not in (401, 403)]
+        if reportable_failures:
+            tests_failed += 1
+            for failure in reportable_failures[:5]:
+                severity = 'major' if failure['status'] >= 500 else 'minor'
+                await issue_manager.add_issue(
+                    issues, severity, f"Network request failed ({failure['status']})",
+                    f"Failed to load resource: {failure['url']} (Status: {failure['status']} {failure['status_text']})",
+                    failure['url'], page
+                )
     
     # Test 8: Security headers
     try:

@@ -55,6 +55,7 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
   const [error, setError] = useState<string | null>(null)
   const [showNewAppForm, setShowNewAppForm] = useState(false)
   const [showAuthFields, setShowAuthFields] = useState(false)
+  const [showGeneralAuthFields, setShowGeneralAuthFields] = useState(false)
   const [testProgressData, setTestProgressData] = useState<TestProgressData>({
     progress: 0,
     currentStep: "Initializing...",
@@ -263,8 +264,26 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
     }, 1000)
 
     try {
+      const hasInlineAuthCreds = Boolean(loginUrl.trim() && testUsername.trim() && testPassword.trim())
+
+      if (testType === 'general' && selectedApp && hasInlineAuthCreds) {
+        const updatedApp = await applicationsApi.update(selectedApp.id, selectedApp.name, selectedApp.url, {
+          test_username: testUsername.trim(),
+          test_password: testPassword,
+          login_url: loginUrl.trim(),
+        })
+        appToTest = updatedApp
+      }
+
+      const hasSavedAuthCreds = Boolean(
+        appToTest?.login_url && appToTest?.test_username && appToTest?.test_password
+      )
+      const enableAuthCheck = testType === 'general' ? (hasInlineAuthCreds || hasSavedAuthCreds) : false
+
       // Create test run via API
-      const testRun = await testRunsApi.create(appToTest.id, testType as string)
+      const testRun = await testRunsApi.create(appToTest.id, testType as string, {
+        check_auth: enableAuthCheck,
+      })
       testRunIdRef.current = testRun.id // Store the test run ID
 
       // Poll for test completion
@@ -668,6 +687,70 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                   </SelectContent>
                 </Select>
               </div>
+
+              {testType === 'general' && (
+                <div className="space-y-3 p-4 bg-secondary/30 rounded-xl border border-border/50">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-foreground">Optional login credentials for this general run</p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowGeneralAuthFields(!showGeneralAuthFields)}
+                      className="text-xs text-primary hover:bg-primary/10 rounded-lg h-8 px-2"
+                    >
+                      {showGeneralAuthFields ? "Hide" : "Add"}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    If left empty, the test runs without authentication checks and won’t fail just for login access restrictions.
+                  </p>
+                  <AnimatePresence>
+                    {showGeneralAuthFields && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="space-y-3 overflow-hidden"
+                      >
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="generalUsername" className="text-xs text-foreground/60">Username</Label>
+                            <Input
+                              id="generalUsername"
+                              placeholder="test_user"
+                              value={testUsername}
+                              onChange={(e) => setTestUsername(e.target.value)}
+                              className="bg-input border-border/30 focus:border-primary h-10 rounded-lg text-sm"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="generalPassword" className="text-xs text-foreground/60">Password</Label>
+                            <Input
+                              id="generalPassword"
+                              type="password"
+                              placeholder="••••••••"
+                              value={testPassword}
+                              onChange={(e) => setTestPassword(e.target.value)}
+                              className="bg-input border-border/30 focus:border-primary h-10 rounded-lg text-sm"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="generalLoginUrl" className="text-xs text-foreground/60">Login URL</Label>
+                          <Input
+                            id="generalLoginUrl"
+                            placeholder="https://myapp.com/login"
+                            value={loginUrl}
+                            onChange={(e) => setLoginUrl(e.target.value)}
+                            className="bg-input border-border/30 focus:border-primary h-10 rounded-lg text-sm"
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
 
               <Button
                 onClick={handleStartTest}

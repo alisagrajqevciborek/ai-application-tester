@@ -74,6 +74,9 @@ def _build_parallel_general_steps(test_run: TestRun) -> List[Dict[str, Any]]:
         test_run.application.test_password and
         test_run.application.login_url
     )
+    for step in steps:
+        step["skip_runtime_checks"] = not has_auth_creds and step.get("test_type") in {"functional", "regression"}
+
     if bool(test_run.check_broken_links):
         steps.append(
             {
@@ -83,6 +86,7 @@ def _build_parallel_general_steps(test_run: TestRun) -> List[Dict[str, Any]]:
                 "check_broken_links": True,
                 "check_auth": False,
                 "auth_credentials": None,
+                "skip_runtime_checks": False,
             }
         )
 
@@ -99,6 +103,7 @@ def _build_parallel_general_steps(test_run: TestRun) -> List[Dict[str, Any]]:
                     "password": test_run.application.test_password,
                     "login_url": test_run.application.login_url,
                 },
+                "skip_runtime_checks": False,
             }
         )
 
@@ -115,6 +120,7 @@ def execute_test_run_step_task(
     check_broken_links: bool = False,
     check_auth: bool = False,
     auth_credentials: Dict[str, Any] | None = None,
+    skip_runtime_checks: bool = False,
 ):
     """
     Execute one test step (suite) for a parallelized general run.
@@ -153,6 +159,7 @@ def execute_test_run_step_task(
                     check_broken_links=check_broken_links,
                     check_auth=check_auth,
                     auth_credentials=auth_credentials,
+                    skip_runtime_checks=skip_runtime_checks,
                 )
             )
         finally:
@@ -541,6 +548,7 @@ def execute_test_run_task(self, test_run_id):
                     bool(step.get("check_broken_links", False)),
                     bool(step.get("check_auth", False)),
                     step.get("auth_credentials"),
+                    bool(step.get("skip_runtime_checks", False)),
                 )
                 for step in step_configs
             ]
@@ -736,6 +744,7 @@ def execute_generated_test_case_task(self, test_run_id, test_steps):
                     url=url,
                     test_type=test_type,
                     steps=test_steps,
+                    include_console_issues=False,
                 )
             )
         finally:

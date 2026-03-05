@@ -40,7 +40,8 @@ class BrowserAutomationService:
         screenshots_dir: Optional[str] = None,
         check_broken_links: bool = False,
         check_auth: bool = False,
-        auth_credentials: Optional[Dict] = None
+        auth_credentials: Optional[Dict] = None,
+        skip_runtime_checks: bool = False,
     ) -> Dict:
         """Run automated tests on a given URL."""
         async with async_playwright() as p:
@@ -132,11 +133,13 @@ class BrowserAutomationService:
                 if test_type == 'functional':
                     results = await tests_functional.run_functional_tests(
                         page, url, screenshots_dir, console_logs, network_failures,
-                        main_document_headers or {}, issue_manager
+                        main_document_headers or {}, issue_manager,
+                        skip_runtime_checks=skip_runtime_checks,
                     )
                 elif test_type == 'regression':
                     results = await tests_regression.run_regression_tests(
-                        page, url, screenshots_dir, console_logs, network_failures, issue_manager
+                        page, url, screenshots_dir, console_logs, network_failures, issue_manager,
+                        skip_runtime_checks=skip_runtime_checks,
                     )
                 elif test_type == 'performance':
                     results = await tests_performance.run_performance_tests(
@@ -156,13 +159,15 @@ class BrowserAutomationService:
                     # as parallel Celery steps in execute_test_run_task().
                     results = await tests_functional.run_functional_tests(
                         page, url, screenshots_dir, console_logs, network_failures,
-                        main_document_headers or {}, issue_manager
+                        main_document_headers or {}, issue_manager,
+                        skip_runtime_checks=skip_runtime_checks,
                     )
                 else:
                     logger.warning(f"Unknown test_type={test_type!r}; defaulting to functional suite")
                     results = await tests_functional.run_functional_tests(
                         page, url, screenshots_dir, console_logs, network_failures,
-                        main_document_headers or {}, issue_manager
+                        main_document_headers or {}, issue_manager,
+                        skip_runtime_checks=skip_runtime_checks,
                     )
                 
                 issues = results.get('issues', [])

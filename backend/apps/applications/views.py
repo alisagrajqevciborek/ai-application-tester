@@ -375,6 +375,22 @@ def save_test_case(request):
         return Response({
             'error': 'application_id and test_case are required'
         }, status=status.HTTP_400_BAD_REQUEST)
+
+    if not isinstance(test_case_data, dict):
+        return Response({
+            'error': 'test_case must be a JSON object'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    if test_case_data.get('generation_status') == 'feature_not_found':
+        return Response({
+            'error': test_case_data.get('unavailable_reason') or 'Requested feature was not found on the target application. Generate a different test case prompt.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    steps = test_case_data.get('steps')
+    if not isinstance(steps, list) or len(steps) == 0:
+        return Response({
+            'error': 'Generated test case has no executable steps. Please refine the prompt and generate again.'
+        }, status=status.HTTP_400_BAD_REQUEST)
     
     try:
         application = Application.objects.get(pk=application_id, owner=request.user)  # type: ignore[attr-defined]
@@ -451,6 +467,11 @@ def run_generated_test_case(request, pk):
         }, status=status.HTTP_404_NOT_FOUND)
     
     # Create a test run for this test case
+    if not isinstance(test_case.steps_json, list) or len(test_case.steps_json) == 0:
+        return Response({
+            'error': 'This generated test case has no executable steps. Please generate a new test case.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
     test_run = TestRun.objects.create(  # type: ignore[attr-defined]
         application=test_case.application,
         test_type=test_case.test_type,

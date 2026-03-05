@@ -30,6 +30,7 @@ class GeneratedTestRunner:
         url: str,
         test_type: str,
         steps: List[Dict],
+        include_console_issues: bool = True,
     ) -> Dict:
         """
         Execute a generated test case with the given steps.
@@ -124,48 +125,46 @@ class GeneratedTestRunner:
                     if step_result.get('screenshot_url'):
                         screenshots.append(step_result['screenshot_url'])
                 
-                # Process console errors as issues
-                for error in console_errors:
-                    error_text = error.get('text', '')
-                    # Skip some common non-critical errors
-                    if any(skip in error_text.lower() for skip in ['favicon', 'devtools']):
-                        continue
-                    issues.append({
-                        'severity': 'major' if 'CORS' in error_text or 'TypeError' in error_text else 'minor',
-                        'title': 'JavaScript Console Error',
-                        'description': error_text[:500],  # Truncate long errors
-                        'location': error.get('location', 'Console'),
-                    })
-                
-                # Process console warnings as minor issues
-                for warning in console_warnings:
-                    warning_text = warning.get('text', '')
-                    # Skip deprecation warnings and other non-critical ones
-                    if any(skip in warning_text.lower() for skip in ['deprecated', 'devtools']):
-                        continue
-                    issues.append({
-                        'severity': 'minor',
-                        'title': 'JavaScript Console Warning',
-                        'description': warning_text[:500],
-                        'location': warning.get('location', 'Console'),
-                    })
+                if include_console_issues:
+                    for error in console_errors:
+                        error_text = error.get('text', '')
+                        if any(skip in error_text.lower() for skip in ['favicon', 'devtools']):
+                            continue
+                        issues.append({
+                            'severity': 'major' if 'CORS' in error_text or 'TypeError' in error_text else 'minor',
+                            'title': 'JavaScript Console Error',
+                            'description': error_text[:500],
+                            'location': error.get('location', 'Console'),
+                        })
+
+                    for warning in console_warnings:
+                        warning_text = warning.get('text', '')
+                        if any(skip in warning_text.lower() for skip in ['deprecated', 'devtools']):
+                            continue
+                        issues.append({
+                            'severity': 'minor',
+                            'title': 'JavaScript Console Warning',
+                            'description': warning_text[:500],
+                            'location': warning.get('location', 'Console'),
+                        })
                 
                 # Calculate pass rate factoring in console errors
                 total_steps = len(steps)
                 step_pass_rate = round((passed_steps / total_steps) * 100) if total_steps > 0 else 100
                 
-                # Penalize for console errors (each error reduces pass rate)
-                critical_console_errors = len([e for e in console_errors if 'CORS' in e.get('text', '') or 'TypeError' in e.get('text', '') or 'ReferenceError' in e.get('text', '')])
-                minor_console_errors = len(console_errors) - critical_console_errors
-                
-                # Deduct points for errors: critical = -5%, minor = -2%
-                error_penalty = (critical_console_errors * 5) + (minor_console_errors * 2)
+                if include_console_issues:
+                    critical_console_errors = len([e for e in console_errors if 'CORS' in e.get('text', '') or 'TypeError' in e.get('text', '') or 'ReferenceError' in e.get('text', '')])
+                    minor_console_errors = len(console_errors) - critical_console_errors
+                    error_penalty = (critical_console_errors * 5) + (minor_console_errors * 2)
+                else:
+                    critical_console_errors = 0
+                    error_penalty = 0
                 pass_rate = max(0, step_pass_rate - error_penalty)
                 fail_rate = 100 - pass_rate
                 
                 # Determine overall status
                 # Failed if: steps failed OR too many console errors OR pass rate below threshold
-                has_critical_errors = critical_console_errors > 0
+                has_critical_errors = include_console_issues and critical_console_errors > 0
                 has_step_failures = failed_steps > 0
                 status = 'failed' if (has_step_failures or has_critical_errors or pass_rate < 70) else 'success'
                 
@@ -179,8 +178,8 @@ class GeneratedTestRunner:
                     'issues': issues,
                     'screenshots': screenshots,
                     'console_logs': console_logs,
-                    'console_error_count': len(console_errors),
-                    'console_warning_count': len(console_warnings),
+                    'console_error_count': len(console_errors) if include_console_issues else 0,
+                    'console_warning_count': len(console_warnings) if include_console_issues else 0,
                 }
                 
             except Exception as e:
@@ -368,7 +367,13 @@ class GeneratedTestRunner:
                 logger.warning(f"Unknown action in generated test: {action}")
                 
         except PlaywrightTimeoutError as e:
-            result['error'] = f"Timeout waiting for element: {selector}"
+            if selector:
+                result['error'] = (
+                    f"Target element not found for selector '{selector}'. "
+                    "The requested feature or UI element may not exist on this page."
+                )
+            else:
+                result['error'] = "Step timed out while waiting for the expected page state."
             logger.warning(f"Step timeout: {description} - {e}")
         except Exception as e:
             result['error'] = str(e)

@@ -89,6 +89,8 @@ Generate a complete, executable test case that can be run with Playwright browse
 
 Return ONLY valid JSON with this exact structure:
 {
+    "generation_status": "ready",
+    "unavailable_reason": null,
     "name": "Descriptive test case name",
     "description": "Clear description of what this test verifies",
     "test_type": "functional",
@@ -148,6 +150,10 @@ Return ONLY valid JSON with this exact structure:
 }
 
 Important:
+- If the requested feature is not present on the target website, return:
+    - "generation_status": "feature_not_found"
+    - "unavailable_reason": "short reason"
+    - "steps": []
 - Use realistic selectors (prefer IDs, data attributes, or semantic selectors)
 - Include wait steps before assertions to handle async operations
 - Provide clear expected results for each step
@@ -194,6 +200,29 @@ Important:
             
             if not isinstance(test_case["steps"], list):
                 raise ValueError("'steps' must be a list")
+
+            generation_status = str(test_case.get("generation_status", "ready")).strip().lower()
+            if generation_status in {"feature_not_found", "not_found", "unavailable"}:
+                unavailable_reason = str(
+                    test_case.get("unavailable_reason")
+                    or test_case.get("description")
+                    or f"The requested feature could not be located on {application_url}."
+                ).strip()
+
+                normalized_not_found = {
+                    "generation_status": "feature_not_found",
+                    "unavailable_reason": unavailable_reason,
+                    "name": test_case.get("name") or "Requested feature not found",
+                    "description": test_case.get("description") or unavailable_reason,
+                    "test_type": test_case.get("test_type", test_type),
+                    "steps": [],
+                    "expected_results": test_case.get("expected_results", "Feature not available on the target application; no executable steps were generated."),
+                    "tags": test_case.get("tags", ["feature-not-found"]),
+                    "estimated_duration": test_case.get("estimated_duration", "0 minutes"),
+                    "ai_generated": True,
+                }
+                logger.info("Generated feature_not_found response for test case request")
+                return normalized_not_found
             
             # Ensure all required fields are present
             test_case.setdefault("name", f"Test: {user_prompt[:50]}")
@@ -202,6 +231,8 @@ Important:
             test_case.setdefault("expected_results", "Test completes successfully")
             test_case.setdefault("tags", [])
             test_case.setdefault("estimated_duration", "5 minutes")
+            test_case["generation_status"] = "ready"
+            test_case.setdefault("unavailable_reason", None)
             
             # Validate and normalize steps
             normalized_steps = []
@@ -254,6 +285,8 @@ def _generate_fallback_test_case(
         Basic test case structure
     """
     return {
+        "generation_status": "ready",
+        "unavailable_reason": None,
         "name": f"Test: {user_prompt[:50]}",
         "description": user_prompt,
         "test_type": test_type,
