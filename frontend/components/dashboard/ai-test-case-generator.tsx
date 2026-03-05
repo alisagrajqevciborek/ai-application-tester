@@ -35,6 +35,8 @@ export default function AITestCaseGenerator({
   const [selectedAppId, setSelectedAppId] = useState<string>(initialApplication?.id.toString() || "")
   const [prompt, setPrompt] = useState("")
   const [testType, setTestType] = useState<string>("functional")
+  // "none" = no script, JSON-only test case
+  const [scriptFramework, setScriptFramework] = useState<string>("none")
   const [isGenerating, setIsGenerating] = useState(false)
   const [generatedTestCase, setGeneratedTestCase] = useState<GeneratedTestCase | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -100,7 +102,14 @@ export default function AITestCaseGenerator({
     setGeneratedTestCase(null)
 
     try {
-      const testCase = await testCaseApi.generate(prompt, application.id, testType)
+      const framework =
+        scriptFramework === "none" ? undefined : (scriptFramework as 'playwright' | 'selenium' | 'cypress')
+      const testCase = await testCaseApi.generate(
+        prompt,
+        application.id,
+        testType,
+        framework
+      )
       setGeneratedTestCase(testCase)
       setPrompt("") // Clear prompt after generation
       onTestCaseGenerated?.(testCase)
@@ -481,6 +490,24 @@ export default function AITestCaseGenerator({
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="script-framework">Script Framework (optional)</Label>
+                <Select
+                  value={scriptFramework}
+                  onValueChange={setScriptFramework}
+                >
+                  <SelectTrigger id="script-framework">
+                    <SelectValue placeholder="No script (JSON test case only)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No script (JSON only)</SelectItem>
+                    <SelectItem value="playwright">Playwright (TypeScript)</SelectItem>
+                    <SelectItem value="selenium">Selenium (Python)</SelectItem>
+                    <SelectItem value="cypress">Cypress (JavaScript)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="test-prompt">What do you want to test?</Label>
                 <Textarea
                   id="test-prompt"
@@ -642,6 +669,32 @@ export default function AITestCaseGenerator({
                     </div>
                   </ScrollArea>
                 </div>
+
+                {generatedTestCase.script_code && (
+                  <div className="pt-4 border-t border-border space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold">
+                        Generated Script ({generatedTestCase.script_framework})
+                      </h4>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(generatedTestCase.script_code || "")
+                        }}
+                        title="Copy script"
+                      >
+                        <Copy className="w-4 h-4 mr-1" />
+                        Copy Script
+                      </Button>
+                    </div>
+                    <ScrollArea className="h-[300px] rounded-md border border-border bg-muted/40 p-3">
+                      <pre className="text-xs font-mono whitespace-pre overflow-x-auto">
+                        {generatedTestCase.script_code}
+                      </pre>
+                    </ScrollArea>
+                  </div>
+                )}
 
                 {/* Refinement Section */}
                 <div className="pt-4 border-t border-border">
