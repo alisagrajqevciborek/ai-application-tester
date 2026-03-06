@@ -3,7 +3,7 @@ Helper functions for additional test checks.
 """
 import asyncio
 import logging
-from typing import List, Dict
+from typing import List, Dict, Optional
 from playwright.async_api import Page
 from urllib.parse import urlparse
 
@@ -71,11 +71,37 @@ async def test_authentication(page: Page, url: str, issues: List[Dict], credenti
         await page.goto(login_url, wait_until='domcontentloaded', timeout=30000)
         await page.wait_for_timeout(3000)  # Wait for JS to execute instead of networkidle
         
-        user_selectors = ['input[type="email"]', 'input[name="email"]', 'input[name="username"]', 'input[id="username"]', 'input[id="email"]']
-        pass_selectors = ['input[type="password"]', 'input[name="password"]', 'input[id="password"]']
-        submit_selectors = ['button[type="submit"]', 'input[type="submit"]', 'button:has-text("Login")', 'button:has-text("Sign in")']
+        user_selectors = [
+            'input[type="email"]',
+            'input[type="text"]',
+            'input[name="email"]',
+            'input[name="username"]',
+            'input[name*="user" i]',
+            'input[name*="email" i]',
+            'input[id="username"]',
+            'input[id="email"]',
+            'input[autocomplete="username"]',
+            'input[placeholder*="email" i]',
+            'input[placeholder*="user" i]',
+        ]
+        pass_selectors = [
+            'input[type="password"]',
+            'input[name="password"]',
+            'input[name*="pass" i]',
+            'input[id="password"]',
+            'input[autocomplete="current-password"]',
+            'input[placeholder*="password" i]',
+        ]
+        submit_selectors = [
+            'button[type="submit"]',
+            'input[type="submit"]',
+            'button:has-text("Login")',
+            'button:has-text("Log in")',
+            'button:has-text("Sign in")',
+            'button:has-text("Continue")',
+        ]
         
-        user_field = None
+        user_field: Optional[str] = None
         for s in user_selectors:
             try:
                 if await page.is_visible(s):
@@ -85,7 +111,7 @@ async def test_authentication(page: Page, url: str, issues: List[Dict], credenti
                 logger.debug(f"Visibility check failed for user selector {s}: {e}")
                 continue
         
-        pass_field = None
+        pass_field: Optional[str] = None
         for s in pass_selectors:
             try:
                 if await page.is_visible(s):
@@ -99,7 +125,7 @@ async def test_authentication(page: Page, url: str, issues: List[Dict], credenti
             await page.fill(user_field, username)
             await page.fill(pass_field, password)
             
-            submit_btn = None
+            submit_btn: Optional[str] = None
             for s in submit_selectors:
                 try:
                     if await page.is_visible(s):
@@ -111,7 +137,11 @@ async def test_authentication(page: Page, url: str, issues: List[Dict], credenti
             
             if submit_btn:
                 await page.click(submit_btn)
-                await page.wait_for_timeout(3000)
+                try:
+                    await page.wait_for_load_state('domcontentloaded', timeout=10000)
+                except Exception:
+                    pass
+                await page.wait_for_timeout(5000)
                 
                 error_indicators = [':has-text("Invalid")', ':has-text("failed")', '.error', '.alert-danger']
                 found_error = False
@@ -133,13 +163,23 @@ async def test_authentication(page: Page, url: str, issues: List[Dict], credenti
                         'type': 'auth_failure'
                     })
             else:
-                issues.append({
-                    'severity': 'minor',
-                    'title': 'Authentication Test Incomplete',
-                    'description': "Could not find a login submit button on the page.",
-                    'location': login_url,
-                    'type': 'auth_warning'
-                })
+                # Fallback: many forms submit on Enter from password field.
+                try:
+                    await page.focus(pass_field)
+                    await page.keyboard.press('Enter')
+                    try:
+                        await page.wait_for_load_state('domcontentloaded', timeout=10000)
+                    except Exception:
+                        pass
+                    await page.wait_for_timeout(5000)
+                except Exception:
+                    issues.append({
+                        'severity': 'minor',
+                        'title': 'Authentication Test Incomplete',
+                        'description': "Could not find a login submit button on the page.",
+                        'location': login_url,
+                        'type': 'auth_warning'
+                    })
         else:
             issues.append({
                 'severity': 'minor',
