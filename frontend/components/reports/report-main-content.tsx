@@ -22,6 +22,7 @@ import {
   Code,
   Layout,
   Maximize2,
+  Video,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { TestHistory, TestIssue } from "@/lib/types"
@@ -283,6 +284,20 @@ export default function ReportMainContent({
     }
   }, [report?.console_logs_json])
 
+  const videoArtifacts = useMemo(() => {
+    const artifacts = report?.artifacts ?? []
+    const uniqueByUrl = new Map<string, (typeof artifacts)[number]>()
+    for (const artifact of artifacts) {
+      if (artifact.kind !== "playwright_video" || !artifact.url) {
+        continue
+      }
+      if (!uniqueByUrl.has(artifact.url)) {
+        uniqueByUrl.set(artifact.url, artifact)
+      }
+    }
+    return Array.from(uniqueByUrl.values())
+  }, [report?.artifacts])
+
   return (
     <>
       <div className="max-w-5xl mx-auto">
@@ -409,6 +424,57 @@ export default function ReportMainContent({
             )}
           </div>
         </motion.div>
+
+        {videoArtifacts.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.18 }}
+            className="glass rounded-2xl p-6 mb-8"
+          >
+            <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+              <Video className="w-5 h-5 text-primary" />
+              Test Recording
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Screen recording captured during test execution. Play to review the full run.
+            </p>
+            <div className="space-y-4">
+              {videoArtifacts.map((artifact) => (
+                  <div
+                    key={`${artifact.id}-${artifact.url}`}
+                    className="rounded-xl overflow-hidden border border-border bg-black/20"
+                  >
+                    <video
+                      src={artifact.url}
+                      controls
+                      className="w-full aspect-video object-contain"
+                      preload="metadata"
+                      playsInline
+                    >
+                      Your browser does not support the video tag.
+                    </video>
+                    {artifact.step_name && (
+                      <p className="text-xs text-muted-foreground px-4 py-2 border-t border-border">
+                        {artifact.step_name}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2 px-4 py-2 border-t border-border">
+                      <a
+                        href={artifact.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-primary hover:underline flex items-center gap-1"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        Open in new tab
+                      </a>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </motion.div>
+        )}
 
         <div className="flex border-b border-border/50 mb-6 px-1">
           <Button

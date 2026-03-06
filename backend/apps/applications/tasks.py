@@ -485,11 +485,11 @@ def aggregate_general_test_run_results(self, step_results, test_run_id: int):
         for artifact in all_artifacts:
             if isinstance(artifact, dict) and artifact.get("url"):
                 try:
-                    TestArtifact.objects.create(  # type: ignore[attr-defined]
+                    TestArtifact.objects.get_or_create(  # type: ignore[attr-defined]
                         test_run=test_run,
                         kind=artifact.get("kind", "playwright_trace"),
                         url=artifact["url"],
-                        step_name=artifact.get("note"),
+                        defaults={"step_name": artifact.get("note")},
                     )
                 except Exception:
                     logger.exception("Failed to save aggregated artifact")
@@ -633,10 +633,14 @@ def execute_test_run_task(self, test_run_id):
             # Save screenshots
             screenshot_urls = results.get('screenshots', [])
             if screenshot_urls:
+                seen_screenshot_urls = set()
                 for screenshot_url in screenshot_urls:
                     if screenshot_url:
+                        if screenshot_url in seen_screenshot_urls:
+                            continue
+                        seen_screenshot_urls.add(screenshot_url)
                         try:
-                            Screenshot.objects.create(  # type: ignore[attr-defined]
+                            Screenshot.objects.get_or_create(  # type: ignore[attr-defined]
                                 test_run=test_run,
                                 cloudinary_url=screenshot_url,
                             )
@@ -647,18 +651,24 @@ def execute_test_run_task(self, test_run_id):
             artifacts = results.get('artifacts', [])
             logger.info(f"Found {len(artifacts)} artifacts to save")
             if artifacts:
+                seen_artifact_keys = set()
                 for idx, artifact in enumerate(artifacts):
                     if isinstance(artifact, dict):
                         url = artifact.get('url')
                         if not isinstance(url, str) or not url:
                             continue
+                        kind = artifact.get('kind', 'playwright_trace')
+                        artifact_key = (kind, url)
+                        if artifact_key in seen_artifact_keys:
+                            continue
+                        seen_artifact_keys.add(artifact_key)
                         try:
-                            logger.info(f"Saving artifact {idx+1}/{len(artifacts)}: kind={artifact.get('kind')}, url={url[:50]}...")
-                            TestArtifact.objects.create(  # type: ignore[attr-defined]
+                            logger.info(f"Saving artifact {idx+1}/{len(artifacts)}: kind={kind}, url={url[:50]}...")
+                            TestArtifact.objects.get_or_create(  # type: ignore[attr-defined]
                                 test_run=test_run,
-                                kind=artifact.get('kind', 'playwright_trace'),
+                                kind=kind,
                                 url=url,
-                                step_name=artifact.get('note'),
+                                defaults={'step_name': artifact.get('note')},
                             )
                             logger.info(f"Successfully saved artifact {idx+1}")
                         except Exception as e:

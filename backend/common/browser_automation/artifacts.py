@@ -31,6 +31,10 @@ class ArtifactManager:
         kind: str,
         note: Optional[str] = None,
     ) -> None:
+        # Avoid duplicate artifacts in the same run payload.
+        for artifact in self._artifact_meta:
+            if artifact.get('url') == url and artifact.get('kind') == kind and artifact.get('note') == note:
+                return
         self._artifact_meta.append({
             'url': url,
             'kind': kind,

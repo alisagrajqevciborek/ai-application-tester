@@ -266,6 +266,8 @@ All environment variables can be set in a `.env` file in the `backend/` director
 | `CLOUDINARY_CLOUD_NAME` | *(empty)*                        | Cloudinary cloud name for image storage          |
 | `CLOUDINARY_API_KEY`    | *(empty)*                        | Cloudinary API key                               |
 | `CLOUDINARY_API_SECRET` | *(empty)*                        | Cloudinary API secret                            |
+| `PLAYWRIGHT_RECORD_VIDEO` | `1`                            | Record video during tests (0 to disable)         |
+| `PLAYWRIGHT_ALWAYS_SAVE_VIDEO` | `0`                         | Save video for every run (1 = also on success)  |
 
 ---
 

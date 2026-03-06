@@ -52,6 +52,7 @@ class BrowserAutomationService:
             issue_manager.artifact_manager = self.artifact_manager  # Give access to artifact manager
             
             record_video = os.getenv('PLAYWRIGHT_RECORD_VIDEO', '1') == '1'
+            always_save_video = os.getenv('PLAYWRIGHT_ALWAYS_SAVE_VIDEO', '0') == '1'
             video_dir: Optional[str] = None
             if record_video:
                 video_dir = tempfile.mkdtemp(prefix='pw-video-')
@@ -221,7 +222,8 @@ class BrowserAutomationService:
                 
                 # Get video path before closing (if video recording is enabled)
                 video_path_to_save: Optional[str] = None
-                if record_video and something_wrong:
+                should_save_video = record_video and (something_wrong or always_save_video)
+                if should_save_video:
                     try:
                         if page.video:
                             video_path = await page.video.path()
@@ -243,7 +245,7 @@ class BrowserAutomationService:
                         url,
                         test_type,
                         save_trace=something_wrong,
-                        save_video=something_wrong and record_video,
+                        save_video=should_save_video,
                         video_path=video_path_to_save,
                     )
                 except Exception as e:
