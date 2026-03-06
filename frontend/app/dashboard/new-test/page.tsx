@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, Suspense } from "react"
+import { useEffect, useMemo, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
 import { ArrowLeft, BarChart3, Home } from "lucide-react"
@@ -19,7 +19,7 @@ const StatisticsModal = dynamic(() => import("@/components/charts/statistics-mod
 
 function NewTestContent() {
   const { isAuthenticated, isLoading, user } = useAuth()
-  const { applications, stats, isLoading: isLoadingData, forceRefresh } = useData()
+  const { applications, testHistory, stats, isLoading: isLoadingData, forceRefresh } = useData()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [statsModalOpen, setStatsModalOpen] = useState(false)
@@ -27,6 +27,11 @@ function NewTestContent() {
   // Get URL params for pre-filling the form
   const initialAppName = searchParams.get('app')
   const initialTestType = searchParams.get('testType') as any
+
+  const applicationsWithVersions = useMemo(() => {
+    const appNamesWithVersions = new Set(testHistory.map((test) => test.appName))
+    return applications.filter((app) => appNamesWithVersions.has(app.name))
+  }, [applications, testHistory])
 
   useEffect(() => {
     if (!isLoading) {
@@ -103,7 +108,7 @@ function NewTestContent() {
             ) : (
               <NewTestForm
                 onTestComplete={handleTestComplete}
-                applications={applications}
+                applications={applicationsWithVersions}
                 initialAppName={initialAppName || undefined}
                 initialTestType={initialTestType}
                 autoStart={false}
