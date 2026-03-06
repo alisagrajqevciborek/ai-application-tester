@@ -35,9 +35,14 @@ class ReportSerializer(serializers.ModelSerializer):
     def get_artifacts(self, obj):
         """Return artifacts (videos, traces) for this report's test run."""
         artifacts = []
+        seen = set()
         # Do NOT call .order_by() — it bypasses the prefetch cache.
         # TestArtifact model Meta already orders by created_at.
         for a in obj.test_run.artifacts.all():
+            dedupe_key = (a.kind, a.url)
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
             artifacts.append({
                 'id': a.id,
                 'kind': a.kind,

@@ -90,6 +90,13 @@ export interface Report {
     location?: string
   }>
   screenshots: string[]
+  artifacts?: Array<{
+    id: number
+    kind: string
+    url: string
+    step_name?: string
+    created_at?: string
+  }>
   created_at: string
 }
 
