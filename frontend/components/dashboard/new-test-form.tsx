@@ -318,7 +318,7 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                   ? `Running ${runningStep.step_label}...`
                   : updatedTestRun.status === 'pending'
                     ? "Queued, waiting for worker..."
-                    : `Initializing ${testType} tests... (${elapsedSeconds}s elapsed)`
+                    : `Initializing ${testType} tests...`
 
                 setProgress(timeProgress)
                 setTestProgressData({
@@ -341,7 +341,7 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                 progress: timeProgress,
                 currentStep: updatedTestRun.status === 'pending' 
                   ? "Queued, waiting for worker..." 
-                  : `Running ${testType} tests... (${elapsedSeconds}s elapsed)`,
+                  : `Running ${testType} tests...`,
                 warnings: 0,
                 errors: 0,
                 elapsedTime: elapsedSeconds,
@@ -723,9 +723,6 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                   <div className="mt-4 mb-6">
                     <div className="text-5xl font-bold text-primary mb-2">
                       {Math.round(testProgressData.progress)}%
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {testProgressData.currentStep}
                     </div>
                   </div>
                 )}

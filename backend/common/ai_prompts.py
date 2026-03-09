@@ -243,96 +243,135 @@ You are conducting a test-type specific technical analysis. Your report must be 
             "functional": """
 ## FUNCTIONAL TESTING FOCUS
 
-Analyze from a functional correctness perspective:
+Analyze from a functional correctness perspective. Write in a clear, friendly tone that is easy for anyone to understand — avoid overly technical jargon.
+
+IMPORTANT: Only output the 3 numbered sections below. Do NOT add a "Screenshot Analysis" section or a "Conclusion" section.
 
 ### 1. Feature Completeness
-- What features were tested?
-- What passed/failed?
-- Any critical user flows broken?
+Give a clear overview of what was tested and how it went:
+- Which key features and user flows were checked?
+- What worked as expected?
+- What failed or behaved unexpectedly?
+- Are there any critical user journeys that are broken?
+
+Output this section as a markdown table (not bullets). Suggested columns:
+| Feature / Module | Key Functions Tested | Status | Critical User Journey Impact |
 
 ### 2. Issue Analysis
-For each critical issue:
-- **What broke**: Specific feature/functionality that failed
-- **User impact**: What users can't do
-- **Repro steps**: Exact steps to reproduce
-- **Expected vs Actual**: What should happen vs what happened
-- **Fix suggestion**: Code-level fix with examples
+For each significant issue found, explain it in plain language:
+- **What went wrong** — Describe the problem in a way anyone can understand
+- **How it affects users** — What can't users do, or what bad experience do they have?
+- **Steps to reproduce** — Simple numbered steps to see the issue
+- **Expected vs. actual behavior** — What should happen vs. what actually happens
+- **Suggested fix** — A concrete, actionable recommendation (code-level hints welcome)
+
+Prioritize the most impactful issues first.
+Output this section as a markdown table. Suggested columns:
+| Issue ID | Problem Description | Steps to Reproduce | Expected vs. Actual | Suggested Fix |
 
 ### 3. Test Coverage Recommendations
-- What wasn't tested that should be?
-- Edge cases to add
-- Regression risks
+Highlight gaps and next steps:
+- What important areas weren't tested yet?
+- Which edge cases should be added?
+- Where are the biggest regression risks?
+
+Keep recommendations specific and actionable — not generic advice.
+Output this section as a markdown table. Suggested columns:
+| Category | Areas of Focus | Specific Action Items |
 """,
             "accessibility": """
 ## ACCESSIBILITY TESTING FOCUS
 
-Analyze from a WCAG 2.1 AA compliance perspective:
+Analyze from a WCAG 2.1 AA compliance perspective. Write in a clear, friendly tone so non-specialists can understand the issues and their impact.
+
+IMPORTANT: Only output the 3 numbered sections below. Do NOT add a "Screenshot Analysis" section or a "Conclusion" section.
 
 ### 1. Violations by WCAG Principle
-Group issues by: Perceivable, Operable, Understandable, Robust
+Group the issues under the four WCAG principles — Perceivable, Operable, Understandable, Robust — and briefly explain each in everyday language. Use bullet points for easy scanning.
+Output this section as a markdown table.
 
 ### 2. Assistive Technology Impact
-For each issue explain:
-- **Screen reader impact**: How it affects screen reader users
-- **Keyboard navigation**: What keyboard users experience
-- **Visual impairments**: Impact on low vision/color blind users
-- **WCAG level**: A, AA, or AAA violation
-- **Fix with ARIA**: Specific ARIA attributes/roles needed
+For each issue, explain the real-world effect on people who rely on assistive tools:
+- **Screen readers** — What do screen reader users hear (or miss)?
+- **Keyboard navigation** — Can keyboard-only users complete the task?
+- **Visual impairments** — How does this affect users with low vision or color blindness?
+- **WCAG level** — Is this an A, AA, or AAA violation?
+- **Recommended fix** — Specific ARIA attributes, roles, or HTML changes needed
+Output this section as a markdown table.
 
 ### 3. Priority Matrix
-- Critical blockers for assistive tech
-- Quick wins (easy fixes, high impact)
-- Long-term improvements
+Rank the fixes so the team knows where to start:
+- **Critical blockers** — Issues that completely prevent assistive-tech users from proceeding
+- **Quick wins** — Easy fixes with high impact
+- **Long-term improvements** — Bigger changes to plan for future sprints
+Output this section as a markdown table.
 """,
             "performance": """
 ## PERFORMANCE TESTING FOCUS
 
-Analyze from a Core Web Vitals & speed perspective:
+Analyze from a Core Web Vitals & speed perspective. Write clearly so non-engineers can understand the impact.
+
+IMPORTANT: Only output the 3 numbered sections below. Do NOT add a "Screenshot Analysis" section or a "Conclusion" section.
 
 ### 1. Metrics Analysis
-Report on:
-- **LCP (Largest Contentful Paint)**: Target <2.5s
-- **FID (First Input Delay)**: Target <100ms
-- **CLS (Cumulative Layout Shift)**: Target <0.1
-- **Page Load Time**: Target <3s
-- **Time to Interactive**: Target <3.8s
+Report the key performance numbers in a simple table or bullet list and explain whether each one is good, needs work, or is poor:
+- **LCP (Largest Contentful Paint)** — How fast the main content appears (target: under 2.5 s)
+- **FID (First Input Delay)** — How quickly the page responds to the first click/tap (target: under 100 ms)
+- **CLS (Cumulative Layout Shift)** — How much the layout jumps around while loading (target: under 0.1)
+- **Page Load Time** — Total time until the page feels ready (target: under 3 s)
+- **Time to Interactive** — When users can actually start using the page (target: under 3.8 s)
+Output this section as a markdown table.
 
 ### 2. Resource Analysis
-Identify bottlenecks:
-- Large resources (>500KB)
-- Blocking resources
-- Render-blocking CSS/JS
-- Slow third-party scripts
-- Unoptimized images
+Identify what's slowing things down, in plain language:
+- Any oversized files (images, scripts, stylesheets over 500 KB)?
+- Resources that block the page from rendering?
+- Slow or unnecessary third-party scripts?
+- Images that aren't optimized?
+
+List each bottleneck with its size/impact so the team can prioritize.
+Output this section as a markdown table.
 
 ### 3. Optimization Roadmap
-Prioritized fixes:
-- **Quick wins**: Compression, caching, CDN
-- **Code splitting**: Lazy load recommendations
-- **Image optimization**: WebP, responsive images
-- **Critical path**: What to inline/defer
+Provide a prioritized action plan:
+- **Quick wins** — Compression, caching headers, CDN setup
+- **Code splitting** — What to lazy-load and where
+- **Image optimization** — Switch to WebP, add responsive sizes
+- **Critical rendering path** — What CSS/JS to inline or defer
+
+Be specific — name the files or resources that need attention.
+Output this section as a markdown table.
 """,
             "regression": """
 ## REGRESSION TESTING FOCUS
 
-Analyze from a stability & compatibility perspective:
+Analyze from a stability & compatibility perspective. Write in a clear, reader-friendly tone.
+
+IMPORTANT: Only output the 3 numbered sections below. Do NOT add a "Screenshot Analysis" section or a "Conclusion" section.
 
 ### 1. Regression Detection
-- What previously worked but now fails?
-- New issues vs known issues
-- Severity of regressions
+Summarize what changed for the worse:
+- Which features or flows that previously worked are now broken?
+- Are these brand-new issues or known problems resurfacing?
+- How severe is each regression (critical / major / minor)?
+
+Use a table or bullet list for quick scanning.
+Output this section as a markdown table.
 
 ### 2. Root Cause Analysis
-For each regression:
-- **What changed**: Recent code/config changes
-- **Impact scope**: What else might be affected
-- **Rollback recommendation**: Should this be reverted?
-- **Fix priority**: How urgent is this?
+For each regression, explain:
+- **What likely changed** — Recent code, config, or dependency updates
+- **Blast radius** — What other areas could be affected?
+- **Rollback recommendation** — Should this change be reverted?
+- **Fix priority** — How urgent is the fix?
+Output this section as a markdown table.
 
 ### 3. Stability Recommendations
-- Flaky tests to investigate
-- Areas needing better coverage
-- High-risk code patterns
+Provide concrete next steps:
+- Flaky or unreliable tests that need investigation
+- Areas that need more test coverage
+- High-risk code patterns to watch out for
+Output this section as a markdown table.
 """
         }
         

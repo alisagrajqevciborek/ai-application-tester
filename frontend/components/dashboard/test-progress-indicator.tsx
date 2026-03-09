@@ -29,12 +29,6 @@ export function TestProgressIndicator({ data, className }: TestProgressIndicator
 
 
 
-    const getTextProgressBar = (progress: number) => {
-        const segments = 10
-        const filledSegments = Math.round((progress / 100) * segments)
-        return `${"#".repeat(filledSegments)}${"-".repeat(segments - filledSegments)}`
-    }
-
     const getProgressBarSegments = (progress: number) => {
         const segments = 10
         const filledSegments = Math.floor((progress / 100) * segments)
@@ -42,7 +36,6 @@ export function TestProgressIndicator({ data, className }: TestProgressIndicator
     }
 
     const progressSegments = getProgressBarSegments(data.progress)
-    const textProgressBar = getTextProgressBar(data.progress)
     const consoleSummary = `${data.warnings} ${data.warnings === 1 ? "warning" : "warnings"
         }, ${data.errors} ${data.errors === 1 ? "error" : "errors"}`
 
@@ -72,7 +65,6 @@ export function TestProgressIndicator({ data, className }: TestProgressIndicator
                     className="space-y-2 text-sm font-mono text-foreground/80"
                 >
                     {[
-                        `Test Progress: ${textProgressBar}`,
                         `Current: ${data.currentStep}`,
                         `Console: ${consoleSummary}`,
                     ].map((line) => (
