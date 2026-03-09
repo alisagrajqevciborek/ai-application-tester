@@ -26,7 +26,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { TestHistory, TestIssue } from "@/lib/types"
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import StatusBadge from "@/components/common/status-badge"
 import DonutChart from "@/components/charts/donut-chart"
 import { cn } from "@/lib/utils"
@@ -164,24 +164,100 @@ type ParsedSection = {
 }
 
 const markdownComponents = {
-  h2: ({ ...props }: any) => <h2 className="text-2xl font-bold mt-8 mb-4 pb-3 border-b-2 border-primary/30" {...props} />,
-  h3: ({ ...props }: any) => <h3 className="text-xl font-semibold mt-6 mb-3" {...props} />,
-  h4: ({ ...props }: any) => <h4 className="text-lg font-medium mt-5 mb-2" {...props} />,
-  p: ({ ...props }: any) => <p className="text-[15px] leading-relaxed mb-4" {...props} />,
-  ul: ({ ...props }: any) => <ul className="space-y-2 mb-4 ml-6" {...props} />,
-  ol: ({ ...props }: any) => <ol className="space-y-2 mb-4 ml-6" {...props} />,
-  li: ({ ...props }: any) => <li className="text-sm leading-relaxed" {...props} />,
+  h2: ({ ...props }: any) => <h2 className="text-base font-semibold mt-5 mb-3 text-foreground" {...props} />,
+  h3: ({ ...props }: any) => <h3 className="text-sm font-semibold mt-4 mb-2 text-foreground" {...props} />,
+  h4: ({ ...props }: any) => <h4 className="text-sm font-medium mt-3 mb-2 text-foreground" {...props} />,
+  p: ({ ...props }: any) => <p className="text-sm text-muted-foreground leading-relaxed mb-3" {...props} />,
+  ul: ({ ...props }: any) => <ul className="space-y-2 mb-3 ml-5 list-disc" {...props} />,
+  ol: ({ ...props }: any) => <ol className="space-y-2 mb-3 ml-5 list-decimal" {...props} />,
+  li: ({ ...props }: any) => <li className="text-sm text-muted-foreground leading-relaxed" {...props} />,
   code: ({ inline, ...props }: any) =>
     inline ? (
-      <code className="px-1.5 py-0.5 rounded bg-muted/80 text-xs font-mono" {...props} />
+      <code className="text-sm font-medium text-foreground" {...props} />
     ) : (
-      <pre className="bg-[#0f1115] p-4 rounded-lg border border-border/50 my-4 overflow-x-auto">
-        <code className="text-sm font-mono text-[#e1e4e8]" {...props} />
+      <pre className="my-2 p-0 bg-transparent border-0 overflow-x-auto whitespace-pre-wrap">
+        <code className="text-sm font-normal text-muted-foreground" {...props} />
       </pre>
     ),
   hr: () => <hr className="border-t border-border/30 my-6" />,
   strong: ({ ...props }: any) => <strong className="font-semibold" {...props} />,
+  table: ({ ...props }: any) => (
+    <details open className="my-3 rounded-xl border border-border/50 bg-muted/10 overflow-hidden">
+      <summary className="cursor-pointer px-4 py-2.5 text-xs font-semibold tracking-wide text-foreground/80 border-b border-border/40 hover:bg-orange-600/10 transition-colors">
+        Table
+      </summary>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm" {...props} />
+      </div>
+    </details>
+  ),
+  thead: ({ ...props }: any) => <thead className="bg-muted/30 border-b border-border/50" {...props} />,
+  tr: ({ ...props }: any) => <tr className="border-b border-border/40 last:border-b-0 align-top" {...props} />,
+  th: ({ ...props }: any) => <th className="text-left px-4 py-3 font-semibold text-foreground" {...props} />,
+  td: ({ ...props }: any) => (
+    <td
+      className="px-4 py-3 text-sm text-muted-foreground leading-relaxed align-top whitespace-normal break-words [&_p]:mb-1 [&_p:last-child]:mb-0 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0.5 [&_code]:whitespace-nowrap"
+      {...props}
+    />
+  ),
 }
+
+const buildFallbackRows = (content: string) => {
+  return content
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => Boolean(line) && !line.startsWith("### ") && !line.startsWith("## "))
+    .map((line, index) => {
+      const normalized = line.replace(/^[-*]\s+/, "").replace(/^\d+\.\s+/, "")
+      const boldMatch = normalized.match(/^\*\*(.+?)\*\*\s*:\s*(.+)$/)
+      if (boldMatch) {
+        return { label: boldMatch[1].trim(), value: boldMatch[2].trim() }
+      }
+
+      const keyValueMatch = normalized.match(/^([^:]{2,80}):\s+(.+)$/)
+      if (keyValueMatch) {
+        return { label: keyValueMatch[1].trim(), value: keyValueMatch[2].trim() }
+      }
+
+      return { label: `Item ${index + 1}`, value: normalized }
+    })
+}
+
+const NumberedSubsectionTable = ({ content }: { content: string }) => {
+  const rows = buildFallbackRows(content)
+
+  if (rows.length === 0) {
+    return null
+  }
+
+  return (
+    <details open className="rounded-xl border border-border/50 overflow-hidden bg-muted/10">
+      <summary className="cursor-pointer px-4 py-2.5 text-xs font-semibold tracking-wide text-foreground/80 border-b border-border/40 hover:bg-orange-600/10 transition-colors">
+        Table
+      </summary>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/30 border-b border-border/50">
+            <tr>
+              <th className="text-left px-4 py-3 font-semibold text-foreground w-[32%]">Category</th>
+              <th className="text-left px-4 py-3 font-semibold text-foreground">Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, idx) => (
+              <tr key={`${row.label}-${idx}`} className="border-b border-border/40 last:border-b-0 align-top">
+                <td className="px-4 py-3 font-medium text-foreground">{row.label}</td>
+                <td className="px-4 py-3 text-muted-foreground leading-relaxed">{row.value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  )
+}
+
+const hasMarkdownTable = (content: string) => /\|.+\|/.test(content) && /\|\s*[-:]{3,}/.test(content)
 
 const parseDetailedReport = (rawReport: string) => {
   const cleanReport = rawReport.split(/={10,}\s*AUTOMATED TEST FINDINGS \(REFERENCE\)/)[0].trim()
@@ -235,7 +311,12 @@ const parseDetailedReport = (rawReport: string) => {
 
   const hasOnlyPlain = parsedSections.length > 0 && parsedSections.every((s) => !s.title)
   const intro = parsedSections[0]?.title ? null : parsedSections[0]
-  const sectionsWithHeadings = parsedSections.filter((s) => s.title)
+
+  // Filter out Screenshot Analysis and Conclusion sections from the accordion
+  const excludedSections = ["screenshot analysis", "conclusion", "conclusions"]
+  const sectionsWithHeadings = parsedSections.filter(
+    (s) => s.title && !excludedSections.includes(s.title.toLowerCase().replace(/^\d+\.\s*/, "").trim())
+  )
   const defaultExpanded = sectionsWithHeadings.length > 0 ? ["section-0"] : []
 
   return { cleanReport, parsedSections, hasOnlyPlain, intro, sectionsWithHeadings, defaultExpanded }
@@ -269,6 +350,10 @@ export default function ReportMainContent({
   onExportToJira,
   onConfirmDelete,
 }: ReportMainContentProps) {
+  const [isDetailedReportExpanded, setIsDetailedReportExpanded] = useState(true)
+  const [expandedReportSections, setExpandedReportSections] = useState<string[]>(["section-0"])
+  const [expandedReportSubsections, setExpandedReportSubsections] = useState<string[]>([])
+
   const parsedDetailedReport = useMemo(() => {
     if (!report?.detailed_report || report.detailed_report.length <= 100) {
       return null
@@ -516,17 +601,42 @@ export default function ReportMainContent({
             transition={{ delay: 0.25 }}
             className="mb-8"
           >
-            <h3 className="text-lg font-semibold text-foreground mb-4">Detailed Report</h3>
-            {isGeneratingReport ? (
-              <div className="rounded-xl border border-primary/30 bg-primary/10 p-4 flex items-center gap-4 mb-8">
-                <Loader2 className="h-6 w-6 shrink-0 animate-spin text-primary" />
-                <p className="font-medium text-foreground">Generating your report</p>
-              </div>
-            ) : parsedDetailedReport ? (
-              <div className="mb-8">
+            <button
+              onClick={() => setIsDetailedReportExpanded((prev) => !prev)}
+              className="w-full mb-4 p-4 flex items-center justify-between text-left rounded-xl border border-border/50 glass hover:bg-orange-600/10 transition-colors"
+            >
+              <h3 className="text-lg font-semibold text-foreground">Detailed Report</h3>
+              <motion.div animate={{ rotate: isDetailedReportExpanded ? 180 : 0 }} className="text-muted-foreground">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                  <path
+                    d="M5 7.5L10 12.5L15 7.5"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </motion.div>
+            </button>
+
+            <motion.div
+              initial={false}
+              animate={{
+                height: isDetailedReportExpanded ? "auto" : 0,
+                opacity: isDetailedReportExpanded ? 1 : 0,
+              }}
+              className="overflow-hidden"
+            >
+              {isGeneratingReport ? (
+                <div className="rounded-xl border border-primary/30 bg-primary/10 p-4 flex items-center gap-4 mb-8">
+                  <Loader2 className="h-6 w-6 shrink-0 animate-spin text-primary" />
+                  <p className="font-medium text-foreground">Generating your report</p>
+                </div>
+              ) : parsedDetailedReport ? (
+                <div className="mb-8">
                 {parsedDetailedReport.hasOnlyPlain ? (
                   <div className="p-6 bg-gradient-to-br from-muted/30 to-muted/50 rounded-xl border border-border/50 shadow-lg">
-                    <div className="prose prose-invert max-w-none prose-p:text-foreground/85 prose-headings:text-foreground prose-strong:text-foreground prose-code:text-primary prose-ul:list-disc prose-ol:list-decimal">
+                    <div className="max-w-none text-sm text-muted-foreground leading-relaxed">
                       <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                         {parsedDetailedReport.cleanReport}
                       </ReactMarkdown>
@@ -536,7 +646,7 @@ export default function ReportMainContent({
                   <div className="space-y-4">
                     {parsedDetailedReport.intro?.content && (
                       <div className="p-6 bg-gradient-to-br from-muted/30 to-muted/50 rounded-xl border border-border/50 shadow-lg mb-4">
-                        <div className="prose prose-invert max-w-none prose-p:text-foreground/85 prose-headings:text-foreground prose-strong:text-foreground prose-code:text-primary">
+                        <div className="max-w-none text-sm text-muted-foreground leading-relaxed">
                           <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                             {parsedDetailedReport.intro.content}
                           </ReactMarkdown>
@@ -544,62 +654,151 @@ export default function ReportMainContent({
                       </div>
                     )}
 
-                    <Accordion type="multiple" defaultValue={parsedDetailedReport.defaultExpanded} className="space-y-4">
-                      {parsedDetailedReport.sectionsWithHeadings.map((section, idx) => (
-                        <AccordionItem
-                          key={`section-${idx}`}
-                          value={`section-${idx}`}
-                          className="glass rounded-xl border-border/50 shadow-sm overflow-hidden"
-                        >
-                          <AccordionTrigger className="px-6 py-4 hover:bg-muted/30 no-underline hover:no-underline transition-all">
-                            <span className="text-lg font-bold text-foreground">{section.title}</span>
-                          </AccordionTrigger>
-                          <AccordionContent className="px-6 pb-6">
-                            {section.hasSubsections ? (
-                              <div className="space-y-3">
-                                {section.intro?.content && (
-                                  <div className="prose prose-invert max-w-none prose-p:text-foreground/85 prose-headings:text-foreground prose-strong:text-foreground prose-code:text-primary mb-4">
+                    <div className="space-y-4">
+                      {parsedDetailedReport.sectionsWithHeadings.map((section, idx) => {
+                        const sectionKey = `section-${idx}`
+                        const isSectionExpanded = expandedReportSections.includes(sectionKey)
+
+                        return (
+                          <motion.div
+                            key={sectionKey}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.2 + idx * 0.05 }}
+                            className="glass rounded-xl overflow-hidden border border-border/50"
+                          >
+                            <button
+                              onClick={() => {
+                                setExpandedReportSections((prev) =>
+                                  prev.includes(sectionKey)
+                                    ? prev.filter((item) => item !== sectionKey)
+                                    : [...prev, sectionKey]
+                                )
+                              }}
+                              className="w-full p-4 flex items-start gap-4 text-left hover:bg-orange-600/10 transition-colors"
+                            >
+                              <div className="p-2 rounded-lg bg-primary/10">
+                                <FileText className="w-5 h-5 text-primary" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-medium text-foreground">{section.title}</h4>
+                              </div>
+                              <motion.div animate={{ rotate: isSectionExpanded ? 180 : 0 }} className="text-muted-foreground">
+                                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                  <path
+                                    d="M5 7.5L10 12.5L15 7.5"
+                                    stroke="currentColor"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              </motion.div>
+                            </button>
+
+                            <motion.div
+                              initial={false}
+                              animate={{
+                                height: isSectionExpanded ? "auto" : 0,
+                                opacity: isSectionExpanded ? 1 : 0,
+                              }}
+                              className="overflow-hidden"
+                            >
+                              <div className="px-4 pb-4 pt-0 border-t border-border/50">
+                                {section.hasSubsections ? (
+                                  <div className="space-y-3 pt-4">
+                                    {section.intro?.content && (
+                                      <div className="max-w-none text-sm text-muted-foreground leading-relaxed mb-2">
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                                          {section.intro.content}
+                                        </ReactMarkdown>
+                                      </div>
+                                    )}
+
+                                    {section.subsections?.map((subsection, subIdx) => {
+                                      const subsectionKey = `subsection-${idx}-${subIdx}`
+                                      const isSubsectionExpanded = expandedReportSubsections.includes(subsectionKey)
+                                      const isNumberedSubsection = /^\d+\./.test(subsection.title)
+                                      const shouldRenderAsTable = isNumberedSubsection && !hasMarkdownTable(subsection.content)
+
+                                      return (
+                                        <div key={subsectionKey} className="rounded-lg overflow-hidden border border-border/40 bg-muted/10">
+                                          <button
+                                            onClick={() => {
+                                              setExpandedReportSubsections((prev) =>
+                                                prev.includes(subsectionKey)
+                                                  ? prev.filter((item) => item !== subsectionKey)
+                                                  : [...prev, subsectionKey]
+                                              )
+                                            }}
+                                            className="w-full px-4 py-3 flex items-start gap-3 text-left hover:bg-orange-600/10 transition-colors"
+                                          >
+                                            <div className="p-1.5 rounded-md bg-primary/10 mt-0.5">
+                                              <Lightbulb className="w-3.5 h-3.5 text-primary" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                              <span className="font-semibold text-foreground">{subsection.title}</span>
+                                            </div>
+                                            <motion.div
+                                              animate={{ rotate: isSubsectionExpanded ? 180 : 0 }}
+                                              className="text-muted-foreground"
+                                            >
+                                              <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                                                <path
+                                                  d="M5 7.5L10 12.5L15 7.5"
+                                                  stroke="currentColor"
+                                                  strokeWidth="1.5"
+                                                  strokeLinecap="round"
+                                                  strokeLinejoin="round"
+                                                />
+                                              </svg>
+                                            </motion.div>
+                                          </button>
+
+                                          <motion.div
+                                            initial={false}
+                                            animate={{
+                                              height: isSubsectionExpanded ? "auto" : 0,
+                                              opacity: isSubsectionExpanded ? 1 : 0,
+                                            }}
+                                            className="overflow-hidden"
+                                          >
+                                            <div className="px-4 pb-4 pt-0 border-t border-border/40">
+                                              <div className="pt-4">
+                                                {shouldRenderAsTable ? (
+                                                  <NumberedSubsectionTable content={subsection.content} />
+                                                ) : (
+                                                  <div className="max-w-none text-sm text-muted-foreground leading-relaxed">
+                                                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                                                      {subsection.content}
+                                                    </ReactMarkdown>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </motion.div>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="max-w-none text-sm text-muted-foreground leading-relaxed pt-4">
                                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                                      {section.intro.content}
+                                      {section.content || ""}
                                     </ReactMarkdown>
                                   </div>
                                 )}
-                                <Accordion type="multiple" defaultValue={[]} className="space-y-2">
-                                  {section.subsections?.map((subsection, subIdx) => (
-                                    <AccordionItem
-                                      key={`subsection-${idx}-${subIdx}`}
-                                      value={`subsection-${idx}-${subIdx}`}
-                                      className="glass rounded-lg border-border/30 shadow-sm overflow-hidden"
-                                    >
-                                      <AccordionTrigger className="px-4 py-3 hover:bg-muted/20 no-underline hover:no-underline transition-all text-sm">
-                                        <span className="font-semibold text-foreground">{subsection.title}</span>
-                                      </AccordionTrigger>
-                                      <AccordionContent className="px-4 pb-4">
-                                        <div className="prose prose-invert max-w-none prose-p:text-foreground/85 prose-headings:text-foreground prose-strong:text-foreground prose-code:text-primary prose-ul:list-disc prose-ol:list-decimal">
-                                          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                                            {subsection.content}
-                                          </ReactMarkdown>
-                                        </div>
-                                      </AccordionContent>
-                                    </AccordionItem>
-                                  ))}
-                                </Accordion>
                               </div>
-                            ) : (
-                              <div className="prose prose-invert max-w-none prose-p:text-foreground/85 prose-headings:text-foreground prose-strong:text-foreground prose-code:text-primary prose-ul:list-disc prose-ol:list-decimal">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                                  {section.content || ""}
-                                </ReactMarkdown>
-                              </div>
-                            )}
-                          </AccordionContent>
-                        </AccordionItem>
-                      ))}
-                    </Accordion>
+                            </motion.div>
+                          </motion.div>
+                        )
+                      })}
+                    </div>
                   </div>
                 )}
-              </div>
-            ) : null}
+                </div>
+              ) : null}
+            </motion.div>
 
             <h3 className="text-lg font-semibold text-foreground mb-4">Detailed Findings</h3>
             <div className="space-y-4">

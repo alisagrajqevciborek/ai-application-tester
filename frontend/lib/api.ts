@@ -122,6 +122,60 @@ export interface ApiError {
   [key: string]: any
 }
 
+function getDefaultStatusMessage(status: number): string {
+  if (status === 400) return 'Invalid request. Please check your input and try again.'
+  if (status === 401) return 'Session expired. Please log in again.'
+  if (status === 403) return 'You do not have permission to perform this action.'
+  if (status === 404) return 'Requested resource was not found.'
+  if (status >= 500) return 'Server error. Please try again later.'
+  return 'An error occurred'
+}
+
+function buildErrorMessageFromData(data: unknown, status: number): string {
+  if (!data) {
+    return getDefaultStatusMessage(status)
+  }
+
+  if (typeof data === 'string') {
+    const trimmed = data.trim()
+    return trimmed || getDefaultStatusMessage(status)
+  }
+
+  if (Array.isArray(data)) {
+    const items = data.map((item) => String(item)).filter(Boolean)
+    return items.length > 0 ? items.join('\n') : getDefaultStatusMessage(status)
+  }
+
+  if (typeof data === 'object') {
+    const record = data as Record<string, unknown>
+
+    const directMessage = [record.error, record.message, record.detail]
+      .find((value) => typeof value === 'string' && value.trim().length > 0)
+
+    if (typeof directMessage === 'string' && directMessage.trim()) {
+      return directMessage.trim()
+    }
+
+    const entries = Object.entries(record)
+      .filter(([, value]) => value !== null && value !== undefined)
+      .map(([key, value]) => {
+        if (Array.isArray(value)) {
+          return `${key}: ${value.map((item) => String(item)).join(', ')}`
+        }
+        if (typeof value === 'object') {
+          return `${key}: ${JSON.stringify(value)}`
+        }
+        return `${key}: ${String(value)}`
+      })
+
+    if (entries.length > 0) {
+      return entries.join('\n')
+    }
+  }
+
+  return getDefaultStatusMessage(status)
+}
+
 // Helper function to get auth token from localStorage
 function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null
@@ -291,7 +345,15 @@ async function apiRequest<T>(
 
     // Check if response is JSON
     const contentType = response.headers.get('content-type')
-    if (!contentType || !contentType.includes('application/json')) {
+    const isJson = Boolean(contentType && (contentType.includes('application/json') || contentType.includes('+json')))
+
+    if (!isJson) {
+      const textBody = await response.text().catch(() => '')
+
+      if (!response.ok) {
+        throw new Error(textBody.trim() || getDefaultStatusMessage(response.status))
+      }
+
       throw new Error(
         response.status === 404
           ? 'API endpoint not found. Please check if the backend server is running.'
@@ -305,23 +367,14 @@ async function apiRequest<T>(
     try {
       data = await response.json()
     } catch {
+      if (!response.ok) {
+        throw new Error(getDefaultStatusMessage(response.status))
+      }
       throw new Error('Failed to parse response as JSON. The server may be returning an error page.')
     }
 
     if (!response.ok) {
-      // Handle validation errors (field-level)
-      if (data.email || data.password || data.code) {
-        const errorMessages = Object.entries(data)
-          .map(([key, value]) => {
-            if (Array.isArray(value)) {
-              return `${key}: ${value.join(', ')}`
-            }
-            return `${key}: ${value}`
-          })
-          .join('\n')
-        throw new Error(errorMessages)
-      }
-      throw new Error(data.error || data.message || data.detail || 'An error occurred')
+      throw new Error(buildErrorMessageFromData(data, response.status))
     }
 
     return data
