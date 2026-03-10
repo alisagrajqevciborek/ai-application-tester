@@ -575,10 +575,15 @@ export const applicationsApi = {
     })
   },
 
-  async update(id: number, name: string, url: string): Promise<Application> {
+  async update(
+    id: number,
+    name: string,
+    url: string,
+    authData?: { test_username?: string; test_password?: string; login_url?: string }
+  ): Promise<Application> {
     return apiRequest<Application>(`/applications/${id}`, {
       method: 'PUT',
-      body: JSON.stringify({ name, url }),
+      body: JSON.stringify({ name, url, ...authData }),
     })
   },
 
