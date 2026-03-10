@@ -5,6 +5,8 @@ from django.contrib.auth import get_user_model
 from typing import Any, Dict, cast
 from common.permissions import IsAdmin
 from .admin_serializers import AdminUserSerializer, UserStatusUpdateSerializer
+from apps.applications.models import Application, TestRun
+from apps.applications.serializers import ApplicationSerializer, TestRunSerializer
 
 User = get_user_model()
 
@@ -63,4 +65,40 @@ def admin_toggle_user_status_view(request, user_id):
         }, status=status.HTTP_200_OK)
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@permission_classes([IsAdmin])
+def admin_user_activity_view(request, user_id):
+    """
+    GET /api/admin/users/{user_id}/activity
+    Return a summary of the user's applications and test runs (admin only).
+    """
+    try:
+        user = User.objects.get(pk=user_id)
+    except User.DoesNotExist:
+        return Response({
+            'error': 'User not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+    # Applications owned by the user
+    applications = Application.objects.filter(owner=user).order_by('-created_at')
+
+    # Test runs for those applications (with application details)
+    test_runs = (
+        TestRun.objects
+        .filter(application__owner=user)
+        .select_related('application')
+        .order_by('-started_at')
+    )
+
+    app_serializer = ApplicationSerializer(applications, many=True)
+    # Use minimal context for serializer; admin is allowed to see these objects
+    test_run_serializer = TestRunSerializer(test_runs, many=True)
+
+    return Response({
+        'user': AdminUserSerializer(user).data,
+        'applications': app_serializer.data,
+        'test_runs': test_run_serializer.data,
+    }, status=status.HTTP_200_OK)
 

@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Users, Shield, ToggleLeft, ToggleRight, Loader2, AlertCircle, CheckCircle } from "lucide-react"
+import { Users, Shield, ToggleLeft, ToggleRight, Loader2, AlertCircle, CheckCircle, Activity } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { toast } from "sonner"
 import TopNav from "@/components/dashboard/top-nav"
-import { adminApi, type User } from "@/lib/api"
+import { adminApi, type User, type UserActivity } from "@/lib/api"
 
 export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([])
@@ -16,6 +17,11 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [updatingUserId, setUpdatingUserId] = useState<number | null>(null)
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [userActivity, setUserActivity] = useState<UserActivity | null>(null)
+  const [isActivityLoading, setIsActivityLoading] = useState(false)
+  const [activityError, setActivityError] = useState<string | null>(null)
+  const [activityOpen, setActivityOpen] = useState(false)
 
 
   useEffect(() => {
@@ -70,9 +76,56 @@ export default function AdminDashboard() {
     }
   }
 
+  const handleViewActivity = async (user: User) => {
+    setSelectedUser(user)
+    setUserActivity(null)
+    setActivityError(null)
+    setIsActivityLoading(true)
+    setActivityOpen(true)
+    try {
+      const activity = await adminApi.getUserActivity(user.id)
+      setUserActivity(activity)
+    } catch (err: any) {
+      setActivityError(err.message || "Failed to load user activity")
+      toast.error("Error loading activity", {
+        description: err.message || "Could not load this user's activity.",
+      })
+    } finally {
+      setIsActivityLoading(false)
+    }
+  }
+
   const activeUsers = users.filter(u => u.status === 'active').length
   const disabledUsers = users.filter(u => u.status === 'disabled').length
   const adminUsers = users.filter(u => u.role === 'admin').length
+
+  // Derived activity data for popup (last 7 days, versions per app)
+  const now = new Date()
+  const oneWeekAgo = new Date(now)
+  oneWeekAgo.setDate(now.getDate() - 7)
+
+  const recentTestRuns = userActivity
+    ? userActivity.test_runs
+        .filter(run => new Date(run.started_at) >= oneWeekAgo)
+        .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())
+    : []
+
+  const lastActivityDate = userActivity
+    ? recentTestRuns[0]?.started_at ||
+      userActivity.test_runs[0]?.started_at ||
+      userActivity.applications[0]?.created_at ||
+      null
+    : null
+
+  const versionsByApp: Record<number, string[]> = {}
+  if (userActivity) {
+    userActivity.applications.forEach(app => {
+      const versions = userActivity.test_runs
+        .filter(run => run.application === app.id)
+        .map(run => run.version_name)
+      versionsByApp[app.id] = Array.from(new Set(versions)).sort()
+    })
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -253,24 +306,35 @@ export default function AdminDashboard() {
                               {new Date(user.date_joined).toLocaleDateString()}
                             </td>
                             <td className="py-3 px-4">
-                              <Button
-                                onClick={() => handleToggleStatus(user.id, user.status)}
-                                disabled={updatingUserId === user.id}
-                                variant="ghost"
-                                size="sm"
-                                className="text-orange-500 hover:text-orange-400 hover:bg-orange-500/10"
-                              >
-                                {updatingUserId === user.id ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : user.status === 'active' ? (
-                                  <ToggleRight className="w-4 h-4" />
-                                ) : (
-                                  <ToggleLeft className="w-4 h-4" />
-                                )}
-                                <span className="ml-2">
-                                  {user.status === 'active' ? 'Disable' : 'Enable'}
-                                </span>
-                              </Button>
+                              <div className="flex flex-col sm:flex-row gap-2">
+                                <Button
+                                  onClick={() => handleToggleStatus(user.id, user.status)}
+                                  disabled={updatingUserId === user.id}
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-orange-500 hover:text-orange-400 hover:bg-orange-500/10"
+                                >
+                                  {updatingUserId === user.id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : user.status === 'active' ? (
+                                    <ToggleRight className="w-4 h-4" />
+                                  ) : (
+                                    <ToggleLeft className="w-4 h-4" />
+                                  )}
+                                  <span className="ml-2">
+                                    {user.status === 'active' ? 'Disable' : 'Enable'}
+                                  </span>
+                                </Button>
+                                <Button
+                                  onClick={() => handleViewActivity(user)}
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-orange-500/40 text-orange-500 hover:bg-orange-500/10"
+                                >
+                                  <Activity className="w-4 h-4 mr-2" />
+                                  View Activity
+                                </Button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -281,6 +345,188 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
           </motion.div>
+
+          {/* User Activity Popup */}
+          <Dialog
+            open={activityOpen && Boolean(selectedUser)}
+            onOpenChange={(open) => {
+              setActivityOpen(open)
+              if (!open) {
+                setSelectedUser(null)
+                setUserActivity(null)
+                setActivityError(null)
+              }
+            }}
+          >
+            <DialogContent className="w-[96vw] sm:w-[95vw] sm:max-w-6xl max-h-[90vh] overflow-y-auto rounded-2xl bg-background/95 p-0 shadow-2xl backdrop-blur-xl">
+              <div className="w-full">
+                <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/60">
+                  <DialogTitle className="flex items-center gap-2 text-orange-400 text-lg sm:text-xl">
+                    <Activity className="w-5 h-5" />
+                    {selectedUser ? `User Activity – ${selectedUser.email}` : "User Activity"}
+                  </DialogTitle>
+                </DialogHeader>
+
+                <div className="px-6 pb-6">
+                  {isActivityLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
+                    </div>
+                  ) : activityError ? (
+                    <Alert variant="destructive" className="bg-red-500/10 border-red-500/30 mb-4">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription className="text-red-400">
+                        {activityError}
+                      </AlertDescription>
+                    </Alert>
+                  ) : userActivity ? (
+                    <div className="space-y-6">
+                      {/* Summary stats */}
+                      <div className="mt-4 rounded-2xl border border-orange-500/40 bg-gradient-to-br from-orange-500/10 via-card/40 to-background p-4">
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                          <div>
+                            <p className="text-[11px] font-medium tracking-widest text-muted-foreground uppercase mb-1">
+                              Applications
+                            </p>
+                            <p className="text-2xl font-semibold text-foreground">
+                              {userActivity.applications.length}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-medium tracking-widest text-muted-foreground uppercase mb-1">
+                              Test Runs (last 7 days)
+                            </p>
+                            <p className="text-2xl font-semibold text-foreground">
+                              {recentTestRuns.length}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-medium tracking-widest text-muted-foreground uppercase mb-1">
+                              Last Activity
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {lastActivityDate
+                                ? new Date(lastActivityDate).toLocaleString()
+                                : "No activity yet"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-6">
+                        {/* Recent test runs (top) */}
+                        <div>
+                          <p className="text-[11px] font-medium tracking-widest text-orange-300/80 uppercase mb-1">
+                            Recent Test Runs
+                          </p>
+                          <h3 className="text-sm font-semibold mb-3 text-foreground">
+                            Last 7 days
+                          </h3>
+                          {recentTestRuns.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">
+                              No tests have been run in the last week.
+                            </p>
+                          ) : (
+                            <div className="space-y-2 max-h-64 overflow-auto pr-2">
+                              {recentTestRuns.slice(0, 20).map(run => (
+                                <div
+                                  key={run.id}
+                                  className="border border-border/60 rounded-lg p-3 text-sm"
+                                >
+                                  <div className="flex items-center justify-between mb-1">
+                                    <p className="font-medium text-foreground truncate">
+                                      {run.application_name} – {run.test_type} ({run.version_name})
+                                    </p>
+                                    <span
+                                      className={`ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                                        run.status === 'success'
+                                          ? 'bg-green-500/15 text-green-400'
+                                          : run.status === 'failed'
+                                            ? 'bg-red-500/15 text-red-400'
+                                            : 'bg-yellow-500/10 text-yellow-400'
+                                      }`}
+                                    >
+                                      {run.status}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    Started: {new Date(run.started_at).toLocaleString()}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    Pass rate: {run.pass_rate}% &middot; Fail rate: {run.fail_rate}%
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="h-px bg-gradient-to-r from-transparent via-orange-500/40 to-transparent" />
+
+                        {/* Applications with versions (bottom) */}
+                        <div>
+                          <p className="text-[11px] font-medium tracking-widest text-orange-300/80 uppercase mb-1">
+                            Applications
+                          </p>
+                          <h3 className="text-sm font-semibold mb-3 text-foreground">
+                            Applications &amp; Versions
+                          </h3>
+                          {userActivity.applications.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">
+                              No applications created yet.
+                            </p>
+                          ) : (
+                            <div className="space-y-2 max-h-64 overflow-auto pr-2">
+                              {userActivity.applications.map(app => {
+                                const versions = versionsByApp[app.id] || []
+                                return (
+                                  <div
+                                    key={app.id}
+                                    className="border border-border/60 rounded-lg p-3 text-sm bg-card/30"
+                                  >
+                                    <p className="font-medium text-foreground">
+                                      {app.name}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground truncate">
+                                      {app.url}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      Created: {new Date(app.created_at).toLocaleString()}
+                                    </p>
+                                    {versions.length > 0 && (
+                                      <div className="mt-2">
+                                        <p className="text-[11px] font-medium text-muted-foreground mb-1">
+                                          Versions:
+                                        </p>
+                                        <div className="flex flex-wrap gap-1">
+                                          {versions.map(v => (
+                                            <span
+                                              key={v}
+                                              className="inline-flex items-center rounded-full border border-border/60 px-2 py-0.5 text-[11px] text-muted-foreground"
+                                            >
+                                              {v}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Select a user to view their activity.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </main>
     </div>
