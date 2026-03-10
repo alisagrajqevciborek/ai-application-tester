@@ -3,6 +3,7 @@ Functional test suite.
 """
 import logging
 from typing import Dict, Optional, List
+from urllib.parse import urlparse
 from playwright.async_api import Page
 
 logger = logging.getLogger(__name__)
@@ -278,6 +279,112 @@ async def run_functional_tests(
             })
     except Exception as e:
         logger.warning(f"Error checking responsive design: {e}")
+    
+    # Light-weight interaction: try clicking a primary call-to-action so we exercise basic UI flows
+    try:
+        cta_selectors = [
+            'button:has-text("Get started")',
+            'button:has-text("Get Started")',
+            'button:has-text("Start")',
+            'button:has-text("Start now")',
+            'button:has-text("Sign up")',
+            'button:has-text("Sign up free")',
+            'a:has-text("Get started")',
+            'a:has-text("Get Started")',
+            'a:has-text("Sign up")',
+            'a:has-text("Try now")',
+        ]
+        cta_clicked = False
+        for selector in cta_selectors:
+            try:
+                if await page.is_visible(selector):
+                    logger.info(f"Functional tests: clicking primary CTA via selector {selector}")
+                    await page.click(selector, timeout=5000)
+                    cta_clicked = True
+                    break
+            except Exception as e:
+                logger.debug(f"CTA click attempt failed for selector {selector}: {e}")
+                continue
+
+        if cta_clicked:
+            # Give the page a moment to react to the CTA (navigation, modal, etc.)
+            await page.wait_for_timeout(3000)
+    except Exception as e:
+        logger.debug(f"Error during CTA interaction: {e}")
+    
+    # Explore a few additional internal pages so the test doesn't only stay on the homepage
+    try:
+        links_data = await page.evaluate('''() => {
+            const anchors = Array.from(document.querySelectorAll('a[href]'));
+            return anchors.map(a => ({
+                href: a.href,
+                text: (a.innerText || a.textContent || '').trim().substring(0, 80)
+            })).filter(link =>
+                link.href &&
+                !link.href.includes('mailto:') &&
+                !link.href.includes('tel:')
+            );
+        }''')
+
+        base_domain = urlparse(url).netloc
+        seen_urls = set()
+        extra_urls: List[str] = []
+
+        for link in links_data:
+            href = link.get('href')
+            if not href:
+                continue
+            try:
+                parsed = urlparse(href)
+            except Exception:
+                continue
+            if parsed.netloc and parsed.netloc != base_domain:
+                continue
+            if href == url:
+                continue
+            if href in seen_urls:
+                continue
+            seen_urls.add(href)
+            extra_urls.append(href)
+            if len(extra_urls) >= 3:
+                break
+
+        for target_url in extra_urls:
+            try:
+                logger.info(f"Functional tests: visiting additional internal page {target_url}")
+                await page.goto(target_url, wait_until='domcontentloaded', timeout=30000)
+                await page.wait_for_timeout(2000)
+
+                secondary_main = await page.query_selector('main, [role="main"], body > div')
+                if not secondary_main:
+                    await issue_manager.add_issue(
+                        issues,
+                        'minor',
+                        'Secondary page missing main content area',
+                        'An internal page appears to lack a clear main content container (main tag or [role="main"]).',
+                        target_url,
+                        page,
+                    )
+            except Exception as e:
+                logger.warning(f"Error while visiting secondary page {target_url}: {e}")
+                await issue_manager.add_issue(
+                    issues,
+                    'minor',
+                    'Secondary page could not be fully tested',
+                    f'Error while trying to load or inspect {target_url}: {str(e)[:120]}',
+                    target_url,
+                    page,
+                )
+
+        # Best-effort: return to original URL so subsequent checks (or other suites) see the primary page.
+        if extra_urls:
+            try:
+                await page.goto(url, wait_until='domcontentloaded', timeout=15000)
+                await page.wait_for_timeout(1000)
+            except Exception as e:
+                logger.debug(f"Failed to navigate back to original URL {url}: {e}")
+    except Exception as e:
+        logger.debug(f"Error during additional page exploration: {e}")
     
     # Calculate pass rate
     issue_penalty = 0

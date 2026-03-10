@@ -149,11 +149,7 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
   }
 
   const selectedApp = applications.find((app) => app.id.toString() === selectedAppId)
-  const requiresAuthForSelectedType = testType === "authentication" || testType === "general"
-  const selectedAppHasStoredAuth = Boolean(
-    selectedApp?.login_url && selectedApp?.test_username && selectedApp?.test_password
-  )
-  const hasEnteredAuthCreds = Boolean(loginUrl && testUsername && testPassword)
+  const supportsAuthForSelectedType = testType === "authentication" || testType === "general"
 
   useEffect(() => {
     if (!selectedApp) {
@@ -255,11 +251,6 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
       appToTest.login_url && appToTest.test_username && appToTest.test_password
     )
     const hasEnteredAuthCreds = Boolean(loginUrl && testUsername && testPassword)
-
-    if ((testType === "authentication" || testType === "general") && !hasStoredAuthCreds && !hasEnteredAuthCreds) {
-      setError("Provide login URL, username, and password to run authentication checks.")
-      return
-    }
 
     if (hasEnteredAuthCreds) {
       try {
@@ -642,7 +633,7 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                     />
                   </div>
 
-                  {!requiresAuthForSelectedType && (
+                  {!supportsAuthForSelectedType && (
                     <div className="pt-2">
                       <Button
                         type="button"
@@ -656,12 +647,14 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                     </div>
                   )}
 
-                  {requiresAuthForSelectedType && (
-                    <p className="text-xs text-muted-foreground">Authentication checks are included for this test type. Please provide credentials.</p>
+                  {supportsAuthForSelectedType && (
+                    <p className="text-xs text-muted-foreground">
+                      Authentication checks can run for this test type when credentials are provided (optional).
+                    </p>
                   )}
 
                   <AnimatePresence>
-                    {(showAuthFields || requiresAuthForSelectedType) && (
+                    {(showAuthFields || supportsAuthForSelectedType) && (
                       <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
@@ -707,10 +700,10 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                 </motion.div>
               )}
 
-              {selectedApp && requiresAuthForSelectedType && !showNewAppForm && (
+              {selectedApp && supportsAuthForSelectedType && !showNewAppForm && (
                 <div className="space-y-4 p-4 bg-secondary/30 rounded-xl border border-border/50">
                   <p className="text-xs text-muted-foreground">
-                    General and Authentication tests include login checks. Add or update credentials below.
+                    Add or update login credentials if this run needs authentication checks (optional).
                   </p>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -774,24 +767,12 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                 disabled={
                   (!selectedApp && !appName && !appUrl) ||
                   !testType ||
-                  testState !== "idle" ||
-                  (
-                    (testType === 'authentication' || testType === 'general') &&
-                    (selectedApp
-                      ? (!selectedAppHasStoredAuth && !hasEnteredAuthCreds)
-                      : (!loginUrl || !testUsername || !testPassword))
-                  )
+                  testState !== "idle"
                 }
                 className="w-full h-11 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-semibold text-base transition-all duration-200 mt-4"
               >
                 <Play className="w-5 h-5 mr-2" />
-                {(testType === 'authentication' || testType === 'general') && (
-                  selectedApp
-                    ? (!selectedAppHasStoredAuth && !hasEnteredAuthCreds)
-                    : (!loginUrl || !testUsername || !testPassword)
-                )
-                  ? "Set Credentials First"
-                  : "Start Test"}
+                Start Test
               </Button>
             </motion.div>
           )}
