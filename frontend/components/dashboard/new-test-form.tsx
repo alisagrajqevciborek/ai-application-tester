@@ -149,6 +149,22 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
   }
 
   const selectedApp = applications.find((app) => app.id.toString() === selectedAppId)
+  const requiresAuthForSelectedType = testType === "authentication" || testType === "general"
+  const selectedAppHasStoredAuth = Boolean(
+    selectedApp?.login_url && selectedApp?.test_username && selectedApp?.test_password
+  )
+  const hasEnteredAuthCreds = Boolean(loginUrl && testUsername && testPassword)
+
+  useEffect(() => {
+    if (!selectedApp) {
+      return
+    }
+
+    setTestUsername(selectedApp.test_username || "")
+    setTestPassword(selectedApp.test_password || "")
+    setLoginUrl(selectedApp.login_url || "")
+    setShowAuthFields(Boolean(selectedApp.login_url || selectedApp.test_username || selectedApp.test_password))
+  }, [selectedAppId])
 
   const handleCreateApplication = async (): Promise<Application> => {
     if (!appName || !appUrl) {
@@ -238,16 +254,37 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
     const hasStoredAuthCreds = Boolean(
       appToTest.login_url && appToTest.test_username && appToTest.test_password
     )
-    if (testType === "authentication" && !hasStoredAuthCreds) {
-      setError("Selected application is missing login URL, username, or password.")
+    const hasEnteredAuthCreds = Boolean(loginUrl && testUsername && testPassword)
+
+    if ((testType === "authentication" || testType === "general") && !hasStoredAuthCreds && !hasEnteredAuthCreds) {
+      setError("Provide login URL, username, and password to run authentication checks.")
       return
     }
+
+    if (hasEnteredAuthCreds) {
+      try {
+        const updatedApp = await applicationsApi.update(appToTest.id, appToTest.name, appToTest.url, {
+          test_username: testUsername,
+          test_password: testPassword,
+          login_url: loginUrl,
+        })
+        appToTest = updatedApp
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to save authentication credentials")
+        setTestState("idle")
+        return
+      }
+    }
+
+    const hasEffectiveAuthCreds = Boolean(
+      appToTest.login_url && appToTest.test_username && appToTest.test_password
+    )
 
     const createOptions: { check_broken_links?: boolean; check_auth?: boolean } = {}
     if (testType === "broken_links" || testType === "general") {
       createOptions.check_broken_links = true
     }
-    if ((testType === "authentication" || testType === "general") && hasStoredAuthCreds) {
+    if ((testType === "authentication" || testType === "general") && hasEffectiveAuthCreds) {
       createOptions.check_auth = true
     }
 
@@ -605,20 +642,26 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                     />
                   </div>
 
-                  <div className="pt-2">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowAuthFields(!showAuthFields)}
-                      className="text-xs text-primary hover:bg-primary/10 rounded-lg h-8 px-2"
-                    >
-                      {showAuthFields ? "- Hide" : "+ Add"} Authentication Credentials (Optional)
-                    </Button>
-                  </div>
+                  {!requiresAuthForSelectedType && (
+                    <div className="pt-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowAuthFields(!showAuthFields)}
+                        className="text-xs text-primary hover:bg-primary/10 rounded-lg h-8 px-2"
+                      >
+                        {showAuthFields ? "- Hide" : "+ Add"} Authentication Credentials (Optional)
+                      </Button>
+                    </div>
+                  )}
+
+                  {requiresAuthForSelectedType && (
+                    <p className="text-xs text-muted-foreground">Authentication checks are included for this test type. Please provide credentials.</p>
+                  )}
 
                   <AnimatePresence>
-                    {showAuthFields && (
+                    {(showAuthFields || requiresAuthForSelectedType) && (
                       <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
@@ -664,6 +707,47 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                 </motion.div>
               )}
 
+              {selectedApp && requiresAuthForSelectedType && !showNewAppForm && (
+                <div className="space-y-4 p-4 bg-secondary/30 rounded-xl border border-border/50">
+                  <p className="text-xs text-muted-foreground">
+                    General and Authentication tests include login checks. Add or update credentials below.
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="selectedAppUsername" className="text-xs text-foreground/60">Test Username</Label>
+                      <Input
+                        id="selectedAppUsername"
+                        placeholder="test_user"
+                        value={testUsername}
+                        onChange={(e) => setTestUsername(e.target.value)}
+                        className="bg-input border-border/30 focus:border-primary h-10 rounded-lg text-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="selectedAppPassword" className="text-xs text-foreground/60">Test Password</Label>
+                      <Input
+                        id="selectedAppPassword"
+                        type="password"
+                        placeholder="••••••••"
+                        value={testPassword}
+                        onChange={(e) => setTestPassword(e.target.value)}
+                        className="bg-input border-border/30 focus:border-primary h-10 rounded-lg text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="selectedAppLoginUrl" className="text-xs text-foreground/60">Login Page URL</Label>
+                    <Input
+                      id="selectedAppLoginUrl"
+                      placeholder="https://myapp.com/login"
+                      value={loginUrl}
+                      onChange={(e) => setLoginUrl(e.target.value)}
+                      className="bg-input border-border/30 focus:border-primary h-10 rounded-lg text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="testType" className="text-foreground/80 flex items-center gap-2">
                   <FileCode className="w-4 h-4" />
@@ -692,18 +776,18 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                   !testType ||
                   testState !== "idle" ||
                   (
-                    testType === 'authentication' &&
+                    (testType === 'authentication' || testType === 'general') &&
                     (selectedApp
-                      ? (!selectedApp.login_url || !selectedApp.test_username || !selectedApp.test_password)
+                      ? (!selectedAppHasStoredAuth && !hasEnteredAuthCreds)
                       : (!loginUrl || !testUsername || !testPassword))
                   )
                 }
                 className="w-full h-11 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-semibold text-base transition-all duration-200 mt-4"
               >
                 <Play className="w-5 h-5 mr-2" />
-                {testType === 'authentication' && (
+                {(testType === 'authentication' || testType === 'general') && (
                   selectedApp
-                    ? (!selectedApp.login_url || !selectedApp.test_username || !selectedApp.test_password)
+                    ? (!selectedAppHasStoredAuth && !hasEnteredAuthCreds)
                     : (!loginUrl || !testUsername || !testPassword)
                 )
                   ? "Set Credentials First"
