@@ -110,6 +110,12 @@ export interface TestRunStats {
   average_fail_rate: number
 }
 
+export interface UserActivity {
+  user: User
+  applications: Application[]
+  test_runs: TestRun[]
+}
+
 export interface LoginResponse {
   user: User
   access: string
@@ -534,6 +540,10 @@ export const adminApi = {
       method: 'PUT',
       body: JSON.stringify({ status }),
     })
+  },
+
+  async getUserActivity(userId: number): Promise<UserActivity> {
+    return apiRequest<UserActivity>(`/admin/users/${userId}/activity`)
   },
 }
 

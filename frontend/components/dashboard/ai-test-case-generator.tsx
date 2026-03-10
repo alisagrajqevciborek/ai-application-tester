@@ -156,17 +156,17 @@ export default function AITestCaseGenerator({
 
   const getActionIcon = (action: string) => {
     switch (action) {
-      case 'navigate': return '🌐'
-      case 'click': return '👆'
-      case 'fill': return '✏️'
-      case 'wait': return '⏳'
-      case 'assert': return '✓'
-      case 'check': return '☑️'
-      case 'select': return '📋'
-      case 'hover': return '🖱️'
-      case 'scroll': return '📜'
-      case 'screenshot': return '📸'
-      default: return '•'
+      case 'navigate': return ''
+      case 'click': return ''
+      case 'fill': return ''
+      case 'wait': return ''
+      case 'assert': return ''
+      case 'check': return ''
+      case 'select': return ''
+      case 'hover': return ''
+      case 'scroll': return ''
+      case 'screenshot': return ''
+      default: return ''
     }
   }
 
@@ -631,7 +631,9 @@ export default function AITestCaseGenerator({
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
-                                <span className="text-lg">{getActionIcon(step.action)}</span>
+                                {getActionIcon(step.action) && (
+                                  <span className="text-lg">{getActionIcon(step.action)}</span>
+                                )}
                                 <Badge variant="outline" className="text-xs">
                                   {step.action}
                                 </Badge>
