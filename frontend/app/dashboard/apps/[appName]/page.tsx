@@ -3,13 +3,13 @@
 import { useEffect, useState, useMemo } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { motion } from "framer-motion"
-import { ArrowLeft, Package, Play, ChevronDown, BarChart3, Home } from "lucide-react"
+import { ArrowLeft, Package, Play, ChevronDown, BarChart3, Home, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import TopNav from "@/components/dashboard/top-nav"
 import VersionCard from "@/components/reports/version-card"
 import { useAuth } from "@/contexts/AuthContext"
 import { useData } from "@/contexts/DataContext"
-import { testRunsApi, type TestRunStats } from "@/lib/api"
+import { applicationsApi, testRunsApi, type TestRunStats } from "@/lib/api"
 import { Loader2 } from "lucide-react"
 import {
   DropdownMenu,
@@ -19,6 +19,16 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useToast } from "@/components/ui/use-toast"
 import dynamic from "next/dynamic"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 const StatisticsModal = dynamic(() => import("@/components/charts/statistics-modal"), {
   ssr: false,
@@ -26,13 +36,15 @@ const StatisticsModal = dynamic(() => import("@/components/charts/statistics-mod
 
 export default function AppVersionsPage() {
   const { isAuthenticated, isLoading, user } = useAuth()
-  const { testHistory, stats, isLoading: isLoadingData, forceRefresh } = useData()
+  const { applications, testHistory, stats, isLoading: isLoadingData, forceRefresh } = useData()
   const router = useRouter()
   const params = useParams()
   const appName = decodeURIComponent(params.appName as string)
   const [statsModalOpen, setStatsModalOpen] = useState(false)
   const [liveStats, setLiveStats] = useState<TestRunStats | null>(null)
   const { toast } = useToast()
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [isDeletingApp, setIsDeletingApp] = useState(false)
 
   // Poll stats every 3 s while the modal is open so numbers update immediately
   useEffect(() => {
@@ -83,6 +95,12 @@ export default function AppVersionsPage() {
 
   // Use local versions for rendering (allows optimistic updates)
   const displayVersions = localVersions.length > 0 ? localVersions : versions
+
+  // Find the current application by name
+  const currentApp = useMemo(
+    () => applications.find((app) => app.name === appName),
+    [applications, appName],
+  )
 
   if (isLoading || !isAuthenticated || user?.role === 'admin') {
     return (
@@ -142,6 +160,47 @@ export default function AppVersionsPage() {
     router.push(`/dashboard/new-test?app=${encodeURIComponent(appName)}&testType=${testType}`)
   }
 
+  const handleDeleteApplication = async () => {
+    if (!currentApp || isDeletingApp) {
+      if (!currentApp) {
+        toast({
+          title: "Application not found",
+          description: "Unable to find this application. Please refresh and try again.",
+          variant: "destructive",
+        })
+      }
+      return
+    }
+
+    setIsDeletingApp(true)
+
+    try {
+      await applicationsApi.delete(currentApp.id)
+
+      toast({
+        title: "Application deleted",
+        description: "The application and all of its test versions have been permanently deleted.",
+      })
+
+      setDeleteDialogOpen(false)
+
+      // Navigate back to dashboard where the deleted app will no longer appear
+      router.push("/dashboard")
+
+      // Refresh data in the background so lists update
+      forceRefresh().catch(console.error)
+    } catch (err) {
+      console.error("Failed to delete application:", err)
+      toast({
+        title: "Failed to delete application",
+        description: err instanceof Error ? err.message : "An error occurred while deleting the application.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeletingApp(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <TopNav />
@@ -195,38 +254,60 @@ export default function AppVersionsPage() {
                 </span>
               </div>
 
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-                    <Play className="w-4 h-4 mr-2" />
-                    Run New Test
-                    <ChevronDown className="w-4 h-4 ml-2 opacity-50" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="bg-popover border-border">
-                  <DropdownMenuItem onClick={() => handleRunTest(appName, "general")}>
-                    General (Full Suite)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleRunTest(appName, "functional")}>
-                    Functional Testing
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleRunTest(appName, "regression")}>
-                    Regression Testing
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleRunTest(appName, "performance")}>
-                    Performance Testing
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleRunTest(appName, "accessibility")}>
-                    Accessibility Testing
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleRunTest(appName, "broken_links")}>
-                    Broken Link Check
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleRunTest(appName, "authentication")}>
-                    Authentication Flow
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <div className="flex items-center gap-3">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
+                      <Play className="w-4 h-4 mr-2" />
+                      Run New Test
+                      <ChevronDown className="w-4 h-4 ml-2 opacity-50" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-popover border-border">
+                    <DropdownMenuItem onClick={() => handleRunTest(appName, "general")}>
+                      General (Full Suite)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleRunTest(appName, "functional")}>
+                      Functional Testing
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleRunTest(appName, "regression")}>
+                      Regression Testing
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleRunTest(appName, "performance")}>
+                      Performance Testing
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleRunTest(appName, "accessibility")}>
+                      Accessibility Testing
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleRunTest(appName, "broken_links")}>
+                      Broken Link Check
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleRunTest(appName, "authentication")}>
+                      Authentication Flow
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDeleteDialogOpen(true)}
+                  className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  disabled={isDeletingApp || !currentApp}
+                >
+                  {isDeletingApp ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete App
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
 
             {/* Version Cards Grid */}
@@ -262,6 +343,37 @@ export default function AppVersionsPage() {
         onOpenChange={setStatsModalOpen}
         stats={liveStats ?? stats}
       />
+
+      {/* Delete Application Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={isDeletingApp ? undefined : setDeleteDialogOpen}>
+        <AlertDialogContent className="bg-popover border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete App</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the <span className="font-semibold">{appName}</span> application,
+              all of its test runs, reports, screenshots, and related data from the database. This action
+              cannot be undone. Are you sure you want to continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingApp}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteApplication}
+              disabled={isDeletingApp || !currentApp}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+            >
+              {isDeletingApp ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete Application"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

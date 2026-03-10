@@ -522,16 +522,19 @@ export default function ReportMainContent({
               Test Recording
             </h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Screen recording captured during test execution. Play to review the full run.
+              Screen recording captured during test execution. The main video below shows the full run; additional
+              recordings are available when needed.
             </p>
-            <div className="space-y-4">
-              {videoArtifacts.map((artifact) => (
-                  <div
-                    key={`${artifact.id}-${artifact.url}`}
-                    className="rounded-xl overflow-hidden border border-border bg-black/20"
-                  >
+            {(() => {
+              const [primary, ...extras] = videoArtifacts
+              if (!primary) return null
+
+              return (
+                <div className="space-y-4">
+                  {/* Primary video */}
+                  <div className="rounded-xl overflow-hidden border border-border bg-black/20">
                     <video
-                      src={artifact.url}
+                      src={primary.url}
                       controls
                       className="w-full aspect-video object-contain"
                       preload="metadata"
@@ -539,14 +542,15 @@ export default function ReportMainContent({
                     >
                       Your browser does not support the video tag.
                     </video>
-                    {artifact.step_name && (
-                      <p className="text-xs text-muted-foreground px-4 py-2 border-t border-border">
-                        {artifact.step_name}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-2 px-4 py-2 border-t border-border">
+                    <div className="flex items-center justify-between gap-2 px-4 py-2 border-t border-border">
+                      <div className="flex flex-col">
+                        <span className="text-xs font-medium text-foreground">
+                          Main recording
+                          {primary.step_name ? ` – ${primary.step_name}` : ""}
+                        </span>
+                      </div>
                       <a
-                        href={artifact.url}
+                        href={primary.url}
                         target="_blank"
                         rel="noreferrer"
                         className="text-xs text-primary hover:underline flex items-center gap-1"
@@ -556,8 +560,52 @@ export default function ReportMainContent({
                       </a>
                     </div>
                   </div>
-                ))}
-            </div>
+
+                  {/* Extra recordings, collapsed by default */}
+                  {extras.length > 0 && (
+                    <Accordion type="single" collapsible className="w-full">
+                      <AccordionItem value="extra-recordings" className="border border-border/60 rounded-xl px-3">
+                        <AccordionTrigger className="text-sm font-medium text-foreground py-2">
+                          More recordings ({extras.length})
+                        </AccordionTrigger>
+                        <AccordionContent className="space-y-3 pb-3">
+                          {extras.map((artifact) => (
+                            <div
+                              key={`${artifact.id}-${artifact.url}`}
+                              className="rounded-lg overflow-hidden border border-border bg-black/20"
+                            >
+                              <video
+                                src={artifact.url}
+                                controls
+                                className="w-full aspect-video object-contain"
+                                preload="metadata"
+                                playsInline
+                              >
+                                Your browser does not support the video tag.
+                              </video>
+                              <div className="flex items-center justify-between gap-2 px-4 py-2 border-t border-border">
+                                <span className="text-xs text-muted-foreground truncate">
+                                  {artifact.step_name || "Additional recording"}
+                                </span>
+                                <a
+                                  href={artifact.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-xs text-primary hover:underline flex items-center gap-1"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                  Open in new tab
+                                </a>
+                              </div>
+                            </div>
+                          ))}
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
+                  )}
+                </div>
+              )
+            })()}
           </motion.div>
         )}
 
