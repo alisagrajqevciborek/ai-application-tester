@@ -10,7 +10,8 @@ from .models import Application, TestRun, GeneratedTestCase
 from .serializers import (
     ApplicationSerializer, ApplicationCreateSerializer,
     TestRunSerializer, TestRunCreateSerializer,
-    GeneratedTestCaseSerializer, GeneratedTestCaseCreateSerializer, TestCaseRefineSerializer
+    GeneratedTestCaseSerializer, GeneratedTestCaseCreateSerializer,
+    TestCaseRefineSerializer, TestCaseScriptEnhanceSerializer
 )
 
 
@@ -380,6 +381,40 @@ def refine_test_case(request):
     )
     
     return Response(refined_test_case, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+def enhance_test_case_script(request):
+    """
+    POST /api/applications/test-cases/script-enhance
+    AI-enhance a generated script while preserving framework syntax.
+    """
+    serializer = TestCaseScriptEnhanceSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    validated_data = cast(Dict[str, Any], serializer.validated_data)
+    script_code = str(validated_data.get('script_code', ''))
+    enhancement_prompt = str(validated_data.get('enhancement_prompt', ''))
+    framework = str(validated_data.get('framework', 'playwright'))
+    test_case = validated_data.get('test_case')
+
+    from common.test_case_codegen import enhance_script_with_ai
+
+    enhanced_script = enhance_script_with_ai(
+        script_code=script_code,
+        framework=framework,  # type: ignore[arg-type]
+        enhancement_prompt=enhancement_prompt,
+        test_case=test_case if isinstance(test_case, dict) else None,
+    )
+
+    return Response(
+        {
+            'script_code': enhanced_script,
+            'script_framework': framework,
+        },
+        status=status.HTTP_200_OK,
+    )
 
 
 @api_view(['POST'])

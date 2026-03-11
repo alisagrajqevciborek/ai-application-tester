@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Sparkles, Loader2, Send, CheckCircle2, X, Edit2, RefreshCw, Copy, Play, Tag, CheckCircle, Pause } from "lucide-react"
+import { Sparkles, Loader2, RefreshCw, Copy, Play, Tag, CheckCircle, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { testCaseApi, testRunsApi, type GeneratedTestCase, type TestCaseStep, type TestRun } from "@/lib/api"
+import { testCaseApi, testRunsApi, type GeneratedTestCase, type TestRun } from "@/lib/api"
 import type { Application } from "@/lib/api"
 import type { TestHistory } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -43,6 +43,9 @@ export default function AITestCaseGenerator({
   const [refinementPrompt, setRefinementPrompt] = useState("")
   const [isRefining, setIsRefining] = useState(false)
   const [expandedStep, setExpandedStep] = useState<number | null>(null)
+  const [scriptEditValue, setScriptEditValue] = useState("")
+  const [scriptEnhancementPrompt, setScriptEnhancementPrompt] = useState("")
+  const [isEnhancingScript, setIsEnhancingScript] = useState(false)
   
   // Test run state
   const [testState, setTestState] = useState<TestState>("idle")
@@ -154,22 +157,6 @@ export default function AITestCaseGenerator({
     navigator.clipboard.writeText(stepsText)
   }
 
-  const getActionIcon = (action: string) => {
-    switch (action) {
-      case 'navigate': return ''
-      case 'click': return ''
-      case 'fill': return ''
-      case 'wait': return ''
-      case 'assert': return ''
-      case 'check': return ''
-      case 'select': return ''
-      case 'hover': return ''
-      case 'scroll': return ''
-      case 'screenshot': return ''
-      default: return ''
-    }
-  }
-
   const getActionColor = (action: string) => {
     switch (action) {
       case 'navigate': return 'bg-blue-500/20 text-blue-400'
@@ -178,6 +165,58 @@ export default function AITestCaseGenerator({
       case 'wait': return 'bg-yellow-500/20 text-yellow-400'
       case 'assert': return 'bg-orange-500/20 text-orange-400'
       default: return 'bg-gray-500/20 text-gray-400'
+    }
+  }
+
+  useEffect(() => {
+    setScriptEditValue(generatedTestCase?.script_code || "")
+    setScriptEnhancementPrompt("")
+  }, [generatedTestCase?.script_code])
+
+  const handleScriptCodeChange = (nextCode: string) => {
+    setScriptEditValue(nextCode)
+    setGeneratedTestCase((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        script_code: nextCode,
+      }
+    })
+  }
+
+  const handleEnhanceScript = async () => {
+    if (!generatedTestCase?.script_code || !generatedTestCase.script_framework) {
+      setError("Generate a script first, then enhance it.")
+      return
+    }
+    if (!scriptEnhancementPrompt.trim()) {
+      setError("Please describe how you want to enhance the script.")
+      return
+    }
+
+    setError(null)
+    setIsEnhancingScript(true)
+    try {
+      const result = await testCaseApi.enhanceScript(
+        generatedTestCase.script_code,
+        scriptEnhancementPrompt,
+        generatedTestCase.script_framework
+      )
+
+      setGeneratedTestCase((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          script_code: result.script_code,
+          script_framework: result.script_framework,
+        }
+      })
+      setScriptEditValue(result.script_code)
+      setScriptEnhancementPrompt("")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to enhance script")
+    } finally {
+      setIsEnhancingScript(false)
     }
   }
 
@@ -432,120 +471,118 @@ export default function AITestCaseGenerator({
   }
 
   return (
-    <div className="space-y-4 max-w-2xl mx-auto">
-      <Card className="border-border bg-card">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-primary" />
-            <CardTitle>AI Test Case Generator</CardTitle>
-          </div>
-          <CardDescription>
-            Describe what you want to test in natural language, and AI will generate a complete test case
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {applications.length === 0 ? (
-            <Alert>
-              <AlertDescription>
-                Please create an application first using the Quick Test tab to generate test cases
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <>
-              {/* Application Selector */}
-              <div className="space-y-2">
-                <Label htmlFor="app-select" className="flex items-center gap-2">
-                  <Tag className="w-4 h-4" />
-                  Select Application
-                </Label>
-                <Select value={selectedAppId} onValueChange={setSelectedAppId}>
-                  <SelectTrigger id="app-select">
-                    <SelectValue placeholder="Choose an application" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {applications.map((app) => (
-                      <SelectItem key={app.id} value={app.id.toString()}>
-                        {app.name} - {app.url}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+    <div className={`space-y-4 ${generatedTestCase ? "max-w-6xl" : "max-w-2xl"} mx-auto`}>
+      {!generatedTestCase && (
+        <Card className="border-border bg-card">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-primary" />
+              <CardTitle>AI Test Case Generator</CardTitle>
+            </div>
+            <CardDescription>
+              Describe what you want to test in natural language, and AI will generate a complete test case
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {applications.length === 0 ? (
+              <Alert>
+                <AlertDescription>
+                  Please create an application first using the Quick Test tab to generate test cases
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="app-select" className="flex items-center gap-2">
+                    <Tag className="w-4 h-4" />
+                    Select Application
+                  </Label>
+                  <Select value={selectedAppId} onValueChange={setSelectedAppId}>
+                    <SelectTrigger id="app-select">
+                      <SelectValue placeholder="Choose an application" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {applications.map((app) => (
+                        <SelectItem key={app.id} value={app.id.toString()}>
+                          {app.name} - {app.url}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="test-type">Test Type</Label>
-                <Select value={testType} onValueChange={setTestType}>
-                  <SelectTrigger id="test-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="functional">Functional</SelectItem>
-                    <SelectItem value="regression">Regression</SelectItem>
-                    <SelectItem value="performance">Performance</SelectItem>
-                    <SelectItem value="accessibility">Accessibility</SelectItem>
-                    <SelectItem value="broken_links">Broken Links</SelectItem>
-                    <SelectItem value="authentication">Authentication</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="test-type">Test Type</Label>
+                  <Select value={testType} onValueChange={setTestType}>
+                    <SelectTrigger id="test-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="functional">Functional</SelectItem>
+                      <SelectItem value="regression">Regression</SelectItem>
+                      <SelectItem value="performance">Performance</SelectItem>
+                      <SelectItem value="accessibility">Accessibility</SelectItem>
+                      <SelectItem value="broken_links">Broken Links</SelectItem>
+                      <SelectItem value="authentication">Authentication</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="script-framework">Script Framework (optional)</Label>
-                <Select
-                  value={scriptFramework}
-                  onValueChange={setScriptFramework}
-                >
-                  <SelectTrigger id="script-framework">
-                    <SelectValue placeholder="No script (JSON test case only)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No script (JSON only)</SelectItem>
-                    <SelectItem value="playwright">Playwright (TypeScript)</SelectItem>
-                    <SelectItem value="selenium">Selenium (Python)</SelectItem>
-                    <SelectItem value="cypress">Cypress (JavaScript)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="script-framework">Script Framework (optional)</Label>
+                  <Select value={scriptFramework} onValueChange={setScriptFramework}>
+                    <SelectTrigger id="script-framework">
+                      <SelectValue placeholder="No script (JSON test case only)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No script (JSON only)</SelectItem>
+                      <SelectItem value="playwright">Playwright (TypeScript)</SelectItem>
+                      <SelectItem value="selenium">Selenium (Python)</SelectItem>
+                      <SelectItem value="cypress">Cypress (JavaScript)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="test-prompt">What do you want to test?</Label>
-                <Textarea
-                  id="test-prompt"
-                  placeholder="e.g., Test the login form with invalid credentials, Check if the shopping cart updates when items are added, Verify that the contact form sends emails correctly..."
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  className="min-h-[100px] resize-none"
-                  disabled={isGenerating || !application}
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="test-prompt">What do you want to test?</Label>
+                  <Textarea
+                    id="test-prompt"
+                    placeholder="e.g., Test the login form with invalid credentials, Check if the shopping cart updates when items are added, Verify that the contact form sends emails correctly..."
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    className="min-h-[100px] resize-none"
+                    disabled={isGenerating || !application}
+                  />
+                </div>
 
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
-              <Button
-                onClick={handleGenerate}
-                disabled={isGenerating || !application || !prompt.trim()}
-                className="w-full"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Generate Test Case
-                  </>
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
                 )}
-              </Button>
-            </>
-          )}
-        </CardContent>
-      </Card>
+
+                <Button
+                  onClick={handleGenerate}
+                  disabled={isGenerating || !application || !prompt.trim()}
+                  className="w-full"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Generate Test Case
+                    </>
+                  )}
+                </Button>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <AnimatePresence>
         {generatedTestCase && (
@@ -557,8 +594,8 @@ export default function AITestCaseGenerator({
           >
             <Card className="border-border bg-card">
               <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="flex-1 min-w-[220px]">
                     <div className="flex items-center gap-2 mb-2">
                       <CardTitle className="text-lg">{generatedTestCase.name}</CardTitle>
                       {generatedTestCase.fallback && (
@@ -567,7 +604,21 @@ export default function AITestCaseGenerator({
                     </div>
                     <CardDescription>{generatedTestCase.description}</CardDescription>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setGeneratedTestCase(null)
+                        setRefinementPrompt("")
+                        setScriptEnhancementPrompt("")
+                        setScriptEditValue("")
+                        setError(null)
+                      }}
+                    >
+                      <ArrowLeft className="w-4 h-4 mr-1" />
+                      Back
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -598,83 +649,136 @@ export default function AITestCaseGenerator({
                   </Badge>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <h4 className="text-sm font-semibold mb-2">Expected Results</h4>
-                  <p className="text-sm text-muted-foreground">{generatedTestCase.expected_results}</p>
-                </div>
+            </Card>
 
-                <div>
-                  <h4 className="text-sm font-semibold mb-3">Test Steps</h4>
-                  <ScrollArea className="h-[400px] pr-4">
-                    <div className="space-y-2">
-                      {generatedTestCase.steps.map((step, idx) => (
-                        <motion.div
-                          key={idx}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: idx * 0.05 }}
-                          className={cn(
-                            "p-3 rounded-lg border border-border bg-secondary/30",
-                            expandedStep === idx && "bg-secondary/50"
-                          )}
-                        >
-                          <div
-                            className="flex items-start gap-3 cursor-pointer"
-                            onClick={() => setExpandedStep(expandedStep === idx ? null : idx)}
-                          >
-                            <div className={cn(
-                              "flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold flex-shrink-0",
-                              getActionColor(step.action)
-                            )}>
-                              {step.order}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                {getActionIcon(step.action) && (
-                                  <span className="text-lg">{getActionIcon(step.action)}</span>
-                                )}
-                                <Badge variant="outline" className="text-xs">
-                                  {step.action}
-                                </Badge>
-                                <span className="text-sm font-medium text-foreground">
-                                  {step.description}
-                                </span>
-                              </div>
-                              {expandedStep === idx && (
-                                <motion.div
-                                  initial={{ opacity: 0, height: 0 }}
-                                  animate={{ opacity: 1, height: "auto" }}
-                                  className="mt-2 space-y-2 text-xs text-muted-foreground"
-                                >
-                                  {step.selector && (
-                                    <div>
-                                      <span className="font-medium">Selector:</span>{" "}
-                                      <code className="bg-muted px-1.5 py-0.5 rounded">{step.selector}</code>
-                                    </div>
-                                  )}
-                                  {step.value && (
-                                    <div>
-                                      <span className="font-medium">Value:</span>{" "}
-                                      <code className="bg-muted px-1.5 py-0.5 rounded">{step.value}</code>
-                                    </div>
-                                  )}
-                                  <div>
-                                    <span className="font-medium">Expected:</span> {step.expected_result}
-                                  </div>
-                                </motion.div>
-                              )}
-                            </div>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </div>
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-                {generatedTestCase.script_code && (
-                  <div className="pt-4 border-t border-border space-y-2">
+            <div className={generatedTestCase.script_code ? "grid grid-cols-1 xl:grid-cols-2 gap-4" : "max-w-3xl mx-auto"}>
+              <Card className={`border-border bg-card ${generatedTestCase.script_code ? "h-[760px]" : "h-full"}`}>
+                <CardContent className="pt-6 h-full flex flex-col">
+                  <div>
+                    <h4 className="text-sm font-semibold mb-2">Expected Results</h4>
+                    <p className="text-sm text-muted-foreground">{generatedTestCase.expected_results}</p>
+                  </div>
+
+                  <div className="pt-4 border-t border-border space-y-2 mt-4">
                     <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold">Test Steps</h4>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleCopySteps}
+                        title="Copy steps"
+                      >
+                        <Copy className="w-4 h-4 mr-1" />
+                        Copy Steps
+                      </Button>
+                    </div>
+                    <ScrollArea className="h-[400px] pr-4">
+                      <div className="space-y-2">
+                        {generatedTestCase.steps.map((step, idx) => (
+                          <motion.div
+                            key={idx}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: idx * 0.05 }}
+                            className={cn(
+                              "p-3 rounded-lg border border-border bg-secondary/30",
+                              expandedStep === idx && "bg-secondary/50"
+                            )}
+                          >
+                            <div
+                              className="flex items-start gap-3 cursor-pointer"
+                              onClick={() => setExpandedStep(expandedStep === idx ? null : idx)}
+                            >
+                              <div className={cn(
+                                "flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold flex-shrink-0",
+                                getActionColor(step.action)
+                              )}>
+                                {step.order}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <Badge variant="outline" className="text-xs">
+                                    {step.action}
+                                  </Badge>
+                                  <span className="text-sm font-medium text-foreground">
+                                    {step.description}
+                                  </span>
+                                </div>
+                                {expandedStep === idx && (
+                                  <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: "auto" }}
+                                    className="mt-2 space-y-2 text-xs text-muted-foreground"
+                                  >
+                                    {step.selector && (
+                                      <div>
+                                        <span className="font-medium">Selector:</span>{" "}
+                                        <code className="bg-muted px-1.5 py-0.5 rounded">{step.selector}</code>
+                                      </div>
+                                    )}
+                                    {step.value && (
+                                      <div>
+                                        <span className="font-medium">Value:</span>{" "}
+                                        <code className="bg-muted px-1.5 py-0.5 rounded">{step.value}</code>
+                                      </div>
+                                    )}
+                                    <div>
+                                      <span className="font-medium">Expected:</span> {step.expected_result}
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </div>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
+
+                  <div className="pt-4 border-t border-border mt-4">
+                    <h4 className="text-sm font-semibold mb-2">Refine Test Case</h4>
+                    <div className="space-y-2">
+                      <Textarea
+                        placeholder="e.g., Add a step to check error message, Remove step 3, Change the email to test@example.com..."
+                        value={refinementPrompt}
+                        onChange={(e) => setRefinementPrompt(e.target.value)}
+                        className="min-h-[80px] resize-none text-sm"
+                        disabled={isRefining}
+                      />
+                      <Button
+                        onClick={handleRefine}
+                        disabled={isRefining || !refinementPrompt.trim()}
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                      >
+                        {isRefining ? (
+                          <>
+                            <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                            Refining...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="w-3 h-3 mr-2" />
+                            Refine
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {generatedTestCase.script_code && (
+                <Card className="border-border bg-card h-[760px]">
+                  <CardContent className="pt-6 h-full flex flex-col">
+                    <div className="flex items-center justify-between mb-4">
                       <h4 className="text-sm font-semibold">
                         Generated Script ({generatedTestCase.script_framework})
                       </h4>
@@ -690,48 +794,49 @@ export default function AITestCaseGenerator({
                         Copy Script
                       </Button>
                     </div>
-                    <ScrollArea className="h-[300px] rounded-md border border-border bg-muted/40 p-3">
-                      <pre className="text-xs font-mono whitespace-pre overflow-x-auto">
-                        {generatedTestCase.script_code}
-                      </pre>
-                    </ScrollArea>
-                  </div>
-                )}
-
-                {/* Refinement Section */}
-                <div className="pt-4 border-t border-border">
-                  <h4 className="text-sm font-semibold mb-2">Refine Test Case</h4>
-                  <div className="space-y-2">
-                    <Textarea
-                      placeholder="e.g., Add a step to check error message, Remove step 3, Change the email to test@example.com..."
-                      value={refinementPrompt}
-                      onChange={(e) => setRefinementPrompt(e.target.value)}
-                      className="min-h-[80px] resize-none text-sm"
-                      disabled={isRefining}
-                    />
-                    <Button
-                      onClick={handleRefine}
-                      disabled={isRefining || !refinementPrompt.trim()}
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                    >
-                      {isRefining ? (
-                        <>
-                          <Loader2 className="w-3 h-3 mr-2 animate-spin" />
-                          Refining...
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw className="w-3 h-3 mr-2" />
-                          Refine
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                    <div className="flex-1 flex flex-col">
+                      <Textarea
+                        value={scriptEditValue}
+                        onChange={(e) => handleScriptCodeChange(e.target.value)}
+                        className="h-[400px] resize-none overflow-y-auto font-mono text-xs"
+                      />
+                      <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2 mt-3">
+                        <Label htmlFor="script-enhancement" className="text-xs text-muted-foreground">
+                          Enhance script with AI (optional)
+                        </Label>
+                        <Textarea
+                          id="script-enhancement"
+                          placeholder="e.g., use more robust locators, add retries, reduce flakiness"
+                          value={scriptEnhancementPrompt}
+                          onChange={(e) => setScriptEnhancementPrompt(e.target.value)}
+                          className="min-h-[70px] resize-none text-sm"
+                          disabled={isEnhancingScript}
+                        />
+                        <Button
+                          onClick={handleEnhanceScript}
+                          disabled={isEnhancingScript || !scriptEnhancementPrompt.trim()}
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                        >
+                          {isEnhancingScript ? (
+                            <>
+                              <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                              Enhancing script...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-3 h-3 mr-2" />
+                              Enhance Script with AI
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

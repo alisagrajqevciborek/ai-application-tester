@@ -12,6 +12,7 @@ urlpatterns = [
     # Test case generator endpoints
     path('test-cases/generate/', views.generate_test_case, name='generate-test-case'),
     path('test-cases/refine/', views.refine_test_case, name='refine-test-case'),
+    path('test-cases/script-enhance/', views.enhance_test_case_script, name='enhance-test-case-script'),
     path('test-cases/save/', views.save_test_case, name='save-test-case'),
     path('<int:application_id>/test-cases/', views.list_test_cases, name='list-test-cases'),
     path('test-cases/<int:pk>/', views.delete_test_case, name='delete-test-case'),

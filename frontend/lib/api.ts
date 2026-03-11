@@ -717,13 +717,15 @@ export interface GeneratedTestCase {
   updated_at?: string
 }
 
+export type ScriptFramework = 'playwright' | 'selenium' | 'cypress'
+
 // Test Case Generator API
 export const testCaseApi = {
   async generate(
     prompt: string,
     applicationId: number,
     testType: string = 'functional',
-    scriptFramework?: 'playwright' | 'selenium' | 'cypress'
+    scriptFramework?: ScriptFramework
   ): Promise<GeneratedTestCase> {
     return apiRequest<GeneratedTestCase>('/applications/test-cases/generate/', {
       method: 'POST',
@@ -770,5 +772,25 @@ export const testCaseApi = {
     return apiRequest<TestRun>(`/applications/test-cases/${testCaseId}/run/`, {
       method: 'POST',
     })
+  },
+
+  async enhanceScript(
+    scriptCode: string,
+    enhancementPrompt: string,
+    framework: ScriptFramework,
+    testCase?: GeneratedTestCase
+  ): Promise<{ script_code: string; script_framework: ScriptFramework }> {
+    return apiRequest<{ script_code: string; script_framework: ScriptFramework }>(
+      '/applications/test-cases/script-enhance/',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          script_code: scriptCode,
+          enhancement_prompt: enhancementPrompt,
+          framework,
+          ...(testCase ? { test_case: testCase } : {}),
+        }),
+      }
+    )
   },
 }

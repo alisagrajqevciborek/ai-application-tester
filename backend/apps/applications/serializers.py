@@ -197,3 +197,15 @@ class TestCaseRefineSerializer(serializers.Serializer):
     
     test_case = serializers.JSONField(help_text="Existing test case to refine")
     refinement_prompt = serializers.CharField(help_text="Refinement request")
+
+
+class TestCaseScriptEnhanceSerializer(serializers.Serializer):
+    """Serializer for AI-enhancing an existing generated script."""
+
+    script_code = serializers.CharField(help_text="Current script code to enhance")
+    enhancement_prompt = serializers.CharField(help_text="Requested script improvements")
+    framework = serializers.ChoiceField(
+        choices=['playwright', 'selenium', 'cypress'],
+        help_text="Script framework",
+    )
+    test_case = serializers.JSONField(required=False, help_text="Optional test case context")

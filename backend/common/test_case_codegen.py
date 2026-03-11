@@ -14,8 +14,10 @@ Supported frameworks:
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
+from .ai_helpers import get_openai_client
+from .model_router import TEST_CASE_REFINEMENT_MODEL
 
 FrameworkName = Literal["playwright", "selenium", "cypress"]
 
@@ -40,7 +42,7 @@ def generate_script(
     """
     name = str(test_case.get("name") or "Generated Test Case")
     description = str(test_case.get("description") or "")
-    steps: List[Dict] = list(test_case.get("steps") or [])
+    steps: List[Dict] = list[Dict[Any, Any]](test_case.get("steps") or [])
 
     if framework == "playwright":
         return _render_playwright_ts(name, description, steps)
@@ -50,6 +52,70 @@ def generate_script(
         return _render_cypress_js(name, description, steps)
 
     raise ValueError(f"Unsupported framework: {framework}")
+
+
+def enhance_script_with_ai(
+    script_code: str,
+    framework: FrameworkName,
+    enhancement_prompt: str,
+    test_case: Optional[Dict[str, Any]] = None,
+) -> str:
+    """
+    Enhance a generated script using AI while preserving behavior.
+
+    Falls back to the original script when AI is unavailable or fails.
+    """
+    cleaned_script = script_code.strip()
+    if not cleaned_script:
+        return script_code
+
+    client = get_openai_client()
+    if not client:
+        return script_code
+
+    context_block = ""
+    if test_case:
+        # Keep context lightweight to control token usage.
+        name = str(test_case.get("name") or "")
+        test_type = str(test_case.get("test_type") or "")
+        context_block = f"\nTest Case Name: {name}\nTest Type: {test_type}\n"
+
+    user_prompt = (
+        f"Framework: {framework}\n"
+        f"{context_block}"
+        f"Enhancement request: {enhancement_prompt.strip()}\n\n"
+        "Update this test script according to the request.\n"
+        "Rules:\n"
+        "- Keep functionality valid for the selected framework.\n"
+        "- Keep comments minimal and only when truly helpful.\n"
+        "- Preserve existing intent unless the request says otherwise.\n"
+        "- Return only raw code, no markdown or explanations.\n\n"
+        "Current script:\n"
+        f"{cleaned_script}"
+    )
+
+    try:
+        response = client.chat.completions.create(
+            model=TEST_CASE_REFINEMENT_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a senior test automation engineer. "
+                        "Return only executable code."
+                    ),
+                },
+                {"role": "user", "content": user_prompt},
+            ],
+            max_tokens=3000,
+            temperature=0.2,
+        )
+        content = response.choices[0].message.content
+        if not content:
+            return script_code
+        return _strip_markdown_fences(content) + "\n"
+    except Exception:
+        return script_code
 
 
 # ---------------------------------------------------------------------------
@@ -81,6 +147,15 @@ def _indent(line: str, level: int = 1, size: int = 2) -> str:
     return (" " * (level * size)) + line if line else ""
 
 
+def _strip_markdown_fences(code: str) -> str:
+    stripped = code.strip()
+    if stripped.startswith("```") and stripped.endswith("```"):
+        lines = stripped.splitlines()
+        if len(lines) >= 2:
+            return "\n".join(lines[1:-1]).strip()
+    return stripped
+
+
 # ---------------------------------------------------------------------------
 # Playwright TypeScript (@playwright/test)
 # ---------------------------------------------------------------------------
@@ -95,17 +170,12 @@ def _render_playwright_ts(name: str, description: str, steps: List[Dict]) -> str
     lines.append(f"test('{_escape_js_string(name)}', async ({'{ page }'}) => {{")
     if description:
         lines.append(_indent(f"// {description}", 1, 2))
-    lines.append("")
+        lines.append("")
 
     for step in sorted(steps, key=lambda s: int(s.get("order", 0))):
         action = str(step.get("action") or "wait").lower()
         selector = step.get("selector")
         value = step.get("value")
-        step_desc = step.get("description") or f"Step {step.get('order')}"
-        expected = step.get("expected_result") or ""
-
-        # Comment describing the step
-        lines.append(_indent(f"// {step_desc}", 1, 2))
 
         if action == "navigate":
             url = _escape_js_string(str(value or ""))
@@ -185,8 +255,6 @@ def _render_playwright_ts(name: str, description: str, steps: List[Dict]) -> str
         else:
             lines.append(_indent(f"// TODO: unsupported action '{action}'", 1, 2))
 
-        if expected:
-            lines.append(_indent(f"// Expected: {expected}", 1, 2))
         lines.append("")
 
     lines.append("});")
@@ -222,10 +290,6 @@ def _render_selenium_py(name: str, description: str, steps: List[Dict]) -> str:
         action = str(step.get("action") or "wait").lower()
         selector = step.get("selector")
         value = step.get("value")
-        step_desc = step.get("description") or f"Step {step.get('order')}"
-        expected = step.get("expected_result") or ""
-
-        lines.append(_indent(f"# {step_desc}", 2, 4))
 
         if action == "navigate":
             url = _escape_py_string(str(value or ""))
@@ -339,8 +403,6 @@ def _render_selenium_py(name: str, description: str, steps: List[Dict]) -> str:
         else:
             lines.append(_indent(f"# TODO: unsupported action '{action}'", 2, 4))
 
-        if expected:
-            lines.append(_indent(f"# Expected: {expected}", 2, 4))
         lines.append("")
 
     lines.append(_indent("finally:", 1, 4))
@@ -367,10 +429,6 @@ def _render_cypress_js(name: str, description: str, steps: List[Dict]) -> str:
         action = str(step.get("action") or "wait").lower()
         selector = step.get("selector")
         value = step.get("value")
-        step_desc = step.get("description") or f"Step {step.get('order')}"
-        expected = step.get("expected_result") or ""
-
-        lines.append(_indent(f"// {step_desc}", 2, 2))
 
         if action == "navigate":
             url = _escape_js_string(str(value or ""))
@@ -447,8 +505,6 @@ def _render_cypress_js(name: str, description: str, steps: List[Dict]) -> str:
         else:
             lines.append(_indent(f"// TODO: unsupported action '{action}'", 2, 2))
 
-        if expected:
-            lines.append(_indent(f"// Expected: {expected}", 2, 2))
         lines.append("")
 
     lines.append(_indent("});", 1, 2))
