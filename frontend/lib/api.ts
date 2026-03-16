@@ -729,6 +729,7 @@ export const testCaseApi = {
   ): Promise<GeneratedTestCase> {
     return apiRequest<GeneratedTestCase>('/applications/test-cases/generate/', {
       method: 'POST',
+      timeout: 60000,
       body: JSON.stringify({
         prompt,
         application_id: applicationId,
@@ -741,6 +742,7 @@ export const testCaseApi = {
   async refine(testCase: GeneratedTestCase, refinementPrompt: string): Promise<GeneratedTestCase> {
     return apiRequest<GeneratedTestCase>('/applications/test-cases/refine/', {
       method: 'POST',
+      timeout: 60000,
       body: JSON.stringify({
         test_case: testCase,
         refinement_prompt: refinementPrompt,
@@ -784,6 +786,7 @@ export const testCaseApi = {
       '/applications/test-cases/script-enhance/',
       {
         method: 'POST',
+        timeout: 60000,
         body: JSON.stringify({
           script_code: scriptCode,
           enhancement_prompt: enhancementPrompt,

@@ -46,8 +46,9 @@ def get_openai_client() -> Optional['OpenAI']:  # type: ignore[name-defined]
         return None
     
     try:
-        # Use a conservative default timeout; individual calls can still override.
-        client = OpenAI(api_key=api_key, timeout=20)  # type: ignore[name-defined]
+        # AI generation can legitimately take longer than ordinary API calls.
+        timeout = float(os.getenv('OPENAI_TIMEOUT', '60'))
+        client = OpenAI(api_key=api_key, timeout=timeout)  # type: ignore[name-defined]
         return client
     except Exception as e:
         logger.error(f"Failed to initialize OpenAI client: {e}")
