@@ -8,6 +8,7 @@ import { reportsApi, type Report } from "@/lib/api"
 import { toast } from "sonner"
 import { exportReportExcel, exportReportPdf } from "@/lib/report-export"
 import ReportMainContent from "@/components/reports/report-main-content"
+import { ErrorBoundary } from "@/components/common/error-boundary"
 
 interface ReportViewProps {
   test: TestHistory
@@ -206,33 +207,35 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
   }
 
   return (
-    <ReportMainContent
-      test={test}
-      onBack={onBack}
-      onDelete={onDelete}
-      summaryText={summaryText}
-      criticalCount={criticalCount}
-      majorCount={majorCount}
-      minorCount={minorCount}
-      issues={issues}
-      screenshots={screenshots}
-      report={report}
-      isGeneratingReport={isGeneratingReport}
-      expandedIssue={expandedIssue}
-      setExpandedIssue={setExpandedIssue}
-      showFullReport={showFullReport}
-      setShowFullReport={setShowFullReport}
-      activeScreenshotUrl={activeScreenshotUrl}
-      setActiveScreenshotUrl={setActiveScreenshotUrl}
-      activeTab={activeTab}
-      setActiveTab={setActiveTab}
-      deleteDialogOpen={deleteDialogOpen}
-      setDeleteDialogOpen={setDeleteDialogOpen}
-      isExportingToJira={isExportingToJira}
-      onExportPDF={handleExportPDF}
-      onExportExcel={handleExportExcel}
-      onExportToJira={handleExportToJira}
-      onConfirmDelete={handleDeleteConfirm}
-    />
+    <ErrorBoundary>
+      <ReportMainContent
+        test={test}
+        onBack={onBack}
+        onDelete={onDelete}
+        summaryText={summaryText}
+        criticalCount={criticalCount}
+        majorCount={majorCount}
+        minorCount={minorCount}
+        issues={issues}
+        screenshots={screenshots}
+        report={report}
+        isGeneratingReport={isGeneratingReport}
+        expandedIssue={expandedIssue}
+        setExpandedIssue={setExpandedIssue}
+        showFullReport={showFullReport}
+        setShowFullReport={setShowFullReport}
+        activeScreenshotUrl={activeScreenshotUrl}
+        setActiveScreenshotUrl={setActiveScreenshotUrl}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        deleteDialogOpen={deleteDialogOpen}
+        setDeleteDialogOpen={setDeleteDialogOpen}
+        isExportingToJira={isExportingToJira}
+        onExportPDF={handleExportPDF}
+        onExportExcel={handleExportExcel}
+        onExportToJira={handleExportToJira}
+        onConfirmDelete={handleDeleteConfirm}
+      />
+    </ErrorBoundary>
   )
 }

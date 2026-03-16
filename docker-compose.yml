@@ -12,7 +12,7 @@ services:
       - /app/.next
     environment:
       # Use the backend service name inside Docker network
-      - NEXT_PUBLIC_API_URL=http://localhost:8000/api
+      - NEXT_PUBLIC_API_URL=http://backend:8000/api
     # Install deps into the (mounted) /app/node_modules volume, then start Next dev server.
     # (Port is already set in package.json: `next dev -p 3000`)
     command: sh -c "npm install && npm run dev"
@@ -35,9 +35,9 @@ services:
       - backend_static:/app/staticfiles
     environment:
       - DEBUG=${DEBUG:-False}
-      - SECRET_KEY=${SECRET_KEY:-django-insecure-vr4g-p&0a$%!0kk032q$-o6%16h_=-zggep3+o=09gpn2yu=!j}
+      - SECRET_KEY=${SECRET_KEY}
       - ALLOWED_HOSTS=localhost,127.0.0.1,backend
-      - DB_NAME=postgres
+      - DB_NAME=${DB_NAME:-postgres}
       - DB_USER=postgres.mhrzpyfziiwxmfutlnwk
       - DB_PASSWORD=${DB_PASSWORD:-}
       - DB_HOST=${DB_HOST:-aws-1-eu-west-3.pooler.supabase.com}
@@ -70,10 +70,9 @@ services:
       - backend_static:/app/staticfiles
     environment:
       - DEBUG=${DEBUG:-False}
-      - SECRET_KEY=${SECRET_KEY:-django-insecure-vr4g-p&0a$%!0kk032q$-o6%16h_=-zggep3+o=09gpn2yu=!j}
+      - SECRET_KEY=${SECRET_KEY}
       - ALLOWED_HOSTS=localhost,127.0.0.1
-      - DB_NAME=${DB_NAME:-ai_app_tester}
-      - DB_NAME=postgres
+      - DB_NAME=${DB_NAME:-postgres}
       - DB_USER=postgres.mhrzpyfziiwxmfutlnwk
       - DB_PASSWORD=${DB_PASSWORD:-}
       - DB_HOST=${DB_HOST:-aws-1-eu-west-3.pooler.supabase.com}

@@ -45,26 +45,26 @@ SCREENSHOT_ANALYSIS_MODEL = _get_model(
 REPORT_GENERATION_MODEL = _get_model(
     "REPORT_GENERATION_MODEL",
     "REPORT_GENERATION_MODEL",
-    default="gpt-4o",
+    default="gpt-5",
 )
 
 # Plain-English rewriting of individual issue descriptions
 ISSUE_ENHANCEMENT_MODEL = _get_model(
     "ISSUE_ENHANCEMENT_MODEL",
     "ISSUE_ENHANCEMENT_MODEL",
-    default="gpt-4o-mini",
+    default="gpt-5",
 )
 
 # Converts natural language prompts into structured Playwright test cases
 TEST_CASE_GENERATION_MODEL = _get_model(
     "TEST_CASE_GENERATION_MODEL",
     "TEST_CASE_GENERATION_MODEL",
-    default="gpt-4o-mini",
+    default="gpt-5",
 )
 
 # Refines an existing test case based on user feedback
 TEST_CASE_REFINEMENT_MODEL = _get_model(
     "TEST_CASE_REFINEMENT_MODEL",
     "TEST_CASE_REFINEMENT_MODEL",
-    default="gpt-4o-mini",
+    default="gpt-5",
 )

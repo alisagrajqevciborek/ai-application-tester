@@ -814,6 +814,11 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                     <div className="text-5xl font-bold text-primary mb-2">
                       {Math.round(testProgressData.progress)}%
                     </div>
+                    {testProgressData.currentStep && (
+                      <p className="text-sm text-muted-foreground truncate">
+                        {testProgressData.currentStep}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

@@ -482,8 +482,13 @@ def aggregate_general_test_run_results(self, step_results, test_run_id: int):
                 except Exception:
                     logger.exception("Failed to save aggregated screenshot")
 
+        seen_artifact_keys: set = set()
         for artifact in all_artifacts:
             if isinstance(artifact, dict) and artifact.get("url"):
+                artifact_key = (artifact.get("kind", "playwright_trace"), artifact["url"])
+                if artifact_key in seen_artifact_keys:
+                    continue
+                seen_artifact_keys.add(artifact_key)
                 try:
                     TestArtifact.objects.get_or_create(  # type: ignore[attr-defined]
                         test_run=test_run,
