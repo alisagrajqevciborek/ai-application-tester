@@ -118,7 +118,7 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # Required production env vars:
 #   DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
 
-DB_PASSWORD = os.getenv('DB_PASSWORD', '')
+DB_PASSWORD = os.getenv('DB_PASSWORD', '').strip()
 
 if not DB_PASSWORD:
     if not DEBUG:
@@ -141,6 +141,9 @@ else:
             'PASSWORD': DB_PASSWORD,
             'HOST': os.getenv('DB_HOST', 'localhost'),
             'PORT': os.getenv('DB_PORT', '5432'),
+            # Transaction poolers work best with short-lived Django connections.
+            'CONN_MAX_AGE': 0,
+            'DISABLE_SERVER_SIDE_CURSORS': True,
         }
     }
  

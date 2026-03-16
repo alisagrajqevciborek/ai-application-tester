@@ -40,8 +40,9 @@ services:
       - DB_NAME=postgres
       - DB_USER=postgres.mhrzpyfziiwxmfutlnwk
       - DB_PASSWORD=${DB_PASSWORD:-}
-      - DB_HOST=aws-1-eu-west-3.pooler.supabase.com
-      - DB_PORT=5432
+      - DB_HOST=${DB_HOST:-aws-1-eu-west-3.pooler.supabase.com}
+      # Use Supabase transaction pooling for app traffic to avoid exhausting session-mode connections.
+      - DB_PORT=${DB_PORT:-6543}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - EMAIL_BACKEND=${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
@@ -75,8 +76,9 @@ services:
       - DB_NAME=postgres
       - DB_USER=postgres.mhrzpyfziiwxmfutlnwk
       - DB_PASSWORD=${DB_PASSWORD:-}
-      - DB_HOST=aws-1-eu-west-3.pooler.supabase.com
-      - DB_PORT=5432
+      - DB_HOST=${DB_HOST:-aws-1-eu-west-3.pooler.supabase.com}
+      # Use Supabase transaction pooling for worker traffic as well.
+      - DB_PORT=${DB_PORT:-6543}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - EMAIL_BACKEND=${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
@@ -86,7 +88,7 @@ services:
       - EMAIL_HOST_USER=${EMAIL_HOST_USER:-}
       - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD:-}
       - EMAIL_FROM=${EMAIL_FROM:-}
-    command: celery -A core worker --loglevel=info
+    command: celery -A core worker --loglevel=info --concurrency=1
     depends_on:
       - redis
       - backend
