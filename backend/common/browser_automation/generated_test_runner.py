@@ -1,16 +1,16 @@
 """
 Runner for executing AI-generated test cases.
 """
-import asyncio
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List
 try:
-    from playwright.async_api import async_playwright, Page, TimeoutError as PlaywrightTimeoutError  # type: ignore[import-untyped]
+    from playwright.async_api import async_playwright, Locator, Page, TimeoutError as PlaywrightTimeoutError  # type: ignore[import-untyped]
 except ImportError:
     raise ImportError("Playwright is not installed. Run: pip install playwright && playwright install chromium")
 
 from .screenshots import ScreenshotManager
 from ..screenshot_annotator import ScreenshotAnnotator
+from ..test_case_contract import ALLOWED_STEP_ACTIONS
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,53 @@ class GeneratedTestRunner:
         self.viewport_height = 1080
         self.annotator = ScreenshotAnnotator()
         self.screenshot_manager = ScreenshotManager(self.annotator)
+
+    @staticmethod
+    def _parse_wait_time(value: Any) -> int:
+        """Parse an optional wait duration in milliseconds with safe defaults."""
+        default_ms = 2000
+        max_ms = 120000
+
+        if value is None:
+            return default_ms
+
+        if isinstance(value, (int, float)):
+            wait_ms = int(value)
+        elif isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return default_ms
+            try:
+                wait_ms = int(stripped)
+            except ValueError as exc:
+                raise ValueError(f"Invalid wait duration: {value!r}") from exc
+        else:
+            raise ValueError(f"Invalid wait duration type: {type(value).__name__}")
+
+        if wait_ms < 0:
+            raise ValueError("Wait duration cannot be negative")
+
+        return min(wait_ms, max_ms)
+
+    async def _resolve_unique_visible_locator(self, page: Page, selector: Any, action: str) -> Locator:
+        """Resolve a selector to exactly one visible element to avoid ambiguous AI-generated selectors."""
+        if not isinstance(selector, str) or not selector.strip():
+            raise ValueError(f"{action.capitalize()} action requires a non-empty selector")
+
+        normalized_selector = selector.strip()
+        locator = page.locator(normalized_selector)
+        count = await locator.count()
+
+        if count == 0:
+            raise ValueError(f"Selector not found for {action}: {normalized_selector}")
+        if count > 1:
+            raise ValueError(
+                f"Selector is ambiguous for {action}: {normalized_selector} matched {count} elements"
+            )
+
+        target = locator.first
+        await target.wait_for(state='visible', timeout=self.timeout)
+        return target
     
     async def run_test_case(
         self,
@@ -84,7 +131,10 @@ class GeneratedTestRunner:
                 # Navigate to the initial URL
                 logger.info(f"Navigating to {url}")
                 await page.goto(url, wait_until='domcontentloaded', timeout=60000)
-                await page.wait_for_timeout(2000)  # Wait for page to settle
+                try:
+                    await page.wait_for_load_state('load', timeout=5000)
+                except PlaywrightTimeoutError:
+                    logger.debug("Initial page 'load' state timed out; continuing")
                 
                 # Capture initial page screenshot
                 try:
@@ -217,7 +267,7 @@ class GeneratedTestRunner:
         Returns:
             Step result dictionary
         """
-        action = step.get('action', '').lower()
+        action = str(step.get('action', '')).strip().lower()
         selector = step.get('selector')
         value = step.get('value')
         description = step.get('description', f"Execute {action}")
@@ -232,6 +282,9 @@ class GeneratedTestRunner:
         }
         
         try:
+            if action not in ALLOWED_STEP_ACTIONS:
+                raise ValueError(f"Unknown action: {action}")
+
             if action == 'navigate':
                 # Navigate to URL (can be relative or absolute)
                 target_url = value if value else base_url
@@ -239,89 +292,73 @@ class GeneratedTestRunner:
                     # Relative URL
                     target_url = f"{base_url.rstrip('/')}/{target_url.lstrip('/')}"
                 await page.goto(target_url, wait_until='domcontentloaded', timeout=self.timeout)
-                await page.wait_for_timeout(1000)
+                try:
+                    await page.wait_for_load_state('load', timeout=5000)
+                except PlaywrightTimeoutError:
+                    logger.debug("Navigate step 'load' state timed out; continuing")
                 result['passed'] = True
                 
             elif action == 'click':
-                if not selector:
-                    raise ValueError("Click action requires a selector")
-                await page.wait_for_selector(selector, timeout=self.timeout)
-                await page.click(selector)
-                await page.wait_for_timeout(500)
+                target = await self._resolve_unique_visible_locator(page, selector, action)
+                await target.click(timeout=self.timeout)
                 result['passed'] = True
                 
             elif action == 'fill':
-                if not selector:
-                    raise ValueError("Fill action requires a selector")
-                await page.wait_for_selector(selector, timeout=self.timeout)
-                await page.fill(selector, value or '')
+                target = await self._resolve_unique_visible_locator(page, selector, action)
+                await target.fill(str(value or ''), timeout=self.timeout)
                 result['passed'] = True
                 
             elif action == 'select':
-                if not selector:
-                    raise ValueError("Select action requires a selector")
-                await page.wait_for_selector(selector, timeout=self.timeout)
-                await page.select_option(selector, value or '')
+                if value is None:
+                    raise ValueError("Select action requires a value")
+                target = await self._resolve_unique_visible_locator(page, selector, action)
+                await target.select_option(str(value), timeout=self.timeout)
                 result['passed'] = True
                 
             elif action == 'wait':
                 if selector:
-                    await page.wait_for_selector(selector, timeout=self.timeout)
+                    locator = page.locator(str(selector).strip()).first
+                    await locator.wait_for(state='visible', timeout=self.timeout)
                 else:
-                    # Wait for a specific duration (value in ms or default 2s)
-                    wait_time = int(value) if value and value.isdigit() else 2000
+                    # Wait for a specific duration in ms (default 2000ms).
+                    wait_time = self._parse_wait_time(value)
                     await page.wait_for_timeout(wait_time)
                 result['passed'] = True
                 
             elif action == 'assert':
-                if selector:
-                    # Wait for element to be visible
-                    element = await page.wait_for_selector(selector, timeout=self.timeout)
-                    if element:
-                        if value:
-                            # Check if element contains expected text
-                            text_content = await element.text_content()
-                            if text_content and value.lower() in text_content.lower():
-                                result['passed'] = True
-                            else:
-                                result['error'] = f"Expected text '{value}' not found. Got: '{text_content}'"
-                        else:
-                            # Just verify element exists and is visible
-                            is_visible = await element.is_visible()
-                            result['passed'] = is_visible
-                            if not is_visible:
-                                result['error'] = "Element is not visible"
+                target = await self._resolve_unique_visible_locator(page, selector, action)
+                if value is not None:
+                    expected_text = str(value)
+                    text_content = await target.text_content()
+                    actual_text = text_content or ''
+                    if expected_text.lower() in actual_text.lower():
+                        result['passed'] = True
                     else:
-                        result['error'] = f"Element not found: {selector}"
+                        result['error'] = f"Expected text '{expected_text}' not found. Got: '{actual_text}'"
                 else:
-                    result['error'] = "Assert action requires a selector"
+                    result['passed'] = await target.is_visible()
+                    if not result['passed']:
+                        result['error'] = "Element is not visible"
                     
             elif action == 'check':
-                if not selector:
-                    raise ValueError("Check action requires a selector")
-                await page.wait_for_selector(selector, timeout=self.timeout)
-                await page.check(selector)
+                target = await self._resolve_unique_visible_locator(page, selector, action)
+                await target.check(timeout=self.timeout)
                 result['passed'] = True
                 
             elif action == 'uncheck':
-                if not selector:
-                    raise ValueError("Uncheck action requires a selector")
-                await page.wait_for_selector(selector, timeout=self.timeout)
-                await page.uncheck(selector)
+                target = await self._resolve_unique_visible_locator(page, selector, action)
+                await target.uncheck(timeout=self.timeout)
                 result['passed'] = True
                 
             elif action == 'hover':
-                if not selector:
-                    raise ValueError("Hover action requires a selector")
-                await page.wait_for_selector(selector, timeout=self.timeout)
-                await page.hover(selector)
+                target = await self._resolve_unique_visible_locator(page, selector, action)
+                await target.hover(timeout=self.timeout)
                 result['passed'] = True
                 
             elif action == 'scroll':
                 if selector:
-                    element = await page.wait_for_selector(selector, timeout=self.timeout)
-                    if element:
-                        await element.scroll_into_view_if_needed()
+                    target = await self._resolve_unique_visible_locator(page, selector, action)
+                    await target.scroll_into_view_if_needed(timeout=self.timeout)
                 else:
                     # Scroll to bottom of page
                     await page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
@@ -347,28 +384,22 @@ class GeneratedTestRunner:
                     
             elif action == 'press':
                 # Press a key
-                key = value or 'Enter'
+                key = str(value).strip() if value is not None else 'Enter'
                 if selector:
-                    await page.wait_for_selector(selector, timeout=self.timeout)
-                    await page.press(selector, key)
+                    target = await self._resolve_unique_visible_locator(page, selector, action)
+                    await target.press(key, timeout=self.timeout)
                 else:
                     await page.keyboard.press(key)
                 result['passed'] = True
                 
             elif action == 'type':
                 # Type text with delays (more realistic typing)
-                if not selector:
-                    raise ValueError("Type action requires a selector")
-                await page.wait_for_selector(selector, timeout=self.timeout)
-                await page.type(selector, value or '', delay=50)
+                target = await self._resolve_unique_visible_locator(page, selector, action)
+                await target.type(str(value or ''), delay=50, timeout=self.timeout)
                 result['passed'] = True
                 
-            else:
-                result['error'] = f"Unknown action: {action}"
-                logger.warning(f"Unknown action in generated test: {action}")
-                
         except PlaywrightTimeoutError as e:
-            result['error'] = f"Timeout waiting for element: {selector}"
+            result['error'] = f"Timeout during {action} step on selector '{selector}'"
             logger.warning(f"Step timeout: {description} - {e}")
         except Exception as e:
             result['error'] = str(e)

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Play, Globe, Tag, FileCode, Loader2, CheckCircle, Plus, Pause, X } from "lucide-react"
+import { Play, Globe, Tag, FileCode, Loader2, CheckCircle, Plus, Pause, X, Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -46,6 +46,7 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
   // Authentication fields
   const [testUsername, setTestUsername] = useState("")
   const [testPassword, setTestPassword] = useState("")
+  const [showTestPassword, setShowTestPassword] = useState(false)
   const [loginUrl, setLoginUrl] = useState("")
 
   const [testType, setTestType] = useState<TestType | "">(initialTestType || "")
@@ -674,14 +675,26 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="testPassword" className="text-xs text-foreground/60">Test Password</Label>
-                            <Input
-                              id="testPassword"
-                              type="password"
-                              placeholder="••••••••"
-                              value={testPassword}
-                              onChange={(e) => setTestPassword(e.target.value)}
-                              className="bg-input border-border/30 focus:border-primary h-10 rounded-lg text-sm"
-                            />
+                            <div className="relative">
+                              <Input
+                                id="testPassword"
+                                type={showTestPassword ? "text" : "password"}
+                                placeholder="••••••••"
+                                value={testPassword}
+                                onChange={(e) => setTestPassword(e.target.value)}
+                                className="bg-input border-border/30 focus:border-primary h-10 rounded-lg text-sm pr-10"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setShowTestPassword((prev) => !prev)}
+                                className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                aria-label={showTestPassword ? "Hide password" : "Show password"}
+                              >
+                                {showTestPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              </Button>
+                            </div>
                           </div>
                         </div>
                         <div className="space-y-2">
@@ -718,14 +731,26 @@ export default function NewTestForm({ onTestComplete, applications, initialAppNa
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="selectedAppPassword" className="text-xs text-foreground/60">Test Password</Label>
-                      <Input
-                        id="selectedAppPassword"
-                        type="password"
-                        placeholder="••••••••"
-                        value={testPassword}
-                        onChange={(e) => setTestPassword(e.target.value)}
-                        className="bg-input border-border/30 focus:border-primary h-10 rounded-lg text-sm"
-                      />
+                      <div className="relative">
+                        <Input
+                          id="selectedAppPassword"
+                          type={showTestPassword ? "text" : "password"}
+                          placeholder="••••••••"
+                          value={testPassword}
+                          onChange={(e) => setTestPassword(e.target.value)}
+                          className="bg-input border-border/30 focus:border-primary h-10 rounded-lg text-sm pr-10"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setShowTestPassword((prev) => !prev)}
+                          className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          aria-label={showTestPassword ? "Hide password" : "Show password"}
+                        >
+                          {showTestPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                   <div className="space-y-2">

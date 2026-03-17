@@ -9,13 +9,54 @@ This module provides:
 
 import json
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from .ai_helpers import get_openai_client
 from .ai_prompts import AIPrompts
 from .model_router import TEST_CASE_GENERATION_MODEL, TEST_CASE_REFINEMENT_MODEL
+from .test_case_contract import ALLOWED_STEP_ACTIONS
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_and_validate_steps(steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Normalize generated steps and enforce runner-safe schema constraints."""
+    if not isinstance(steps, list):
+        raise ValueError("'steps' must be a list")
+
+    normalized_steps: List[Dict[str, Any]] = []
+    for idx, step in enumerate(steps, start=1):
+        if not isinstance(step, dict):
+            continue
+
+        raw_order = step.get("order", idx)
+        try:
+            order = int(raw_order)
+            if order < 1:
+                order = idx
+        except (TypeError, ValueError):
+            order = idx
+
+        action = str(step.get("action", "wait")).strip().lower() or "wait"
+
+        normalized_step: Dict[str, Any] = {
+            "order": order,
+            "action": action,
+            "selector": step.get("selector"),
+            "value": step.get("value"),
+            "description": step.get("description", f"Step {idx}"),
+            "expected_result": step.get("expected_result", step.get("expected_results", "Step completes")),
+        }
+        normalized_steps.append(normalized_step)
+
+    if len(normalized_steps) == 0:
+        raise ValueError("Test case must have at least one valid step")
+
+    for idx, step in enumerate(normalized_steps, start=1):
+        if not _validate_step_schema(step):
+            raise ValueError(f"Step {idx} failed validation")
+
+    return normalized_steps
 
 
 def generate_test_case_from_prompt(
@@ -203,23 +244,12 @@ Important:
             test_case.setdefault("tags", [])
             test_case.setdefault("estimated_duration", "5 minutes")
             
-            # Validate and normalize steps
-            normalized_steps = []
-            for idx, step in enumerate(test_case["steps"], start=1):
-                if not isinstance(step, dict):
-                    continue
-                
-                normalized_step = {
-                    "order": step.get("order", idx),
-                    "action": step.get("action", "wait"),
-                    "selector": step.get("selector"),
-                    "value": step.get("value"),
-                    "description": step.get("description", f"Step {idx}"),
-                    "expected_result": step.get("expected_result", step.get("expected_results", "Step completes"))
-                }
-                normalized_steps.append(normalized_step)
-            
+            # Normalize and strictly validate steps before returning.
+            normalized_steps = normalize_and_validate_steps(test_case["steps"])
             test_case["steps"] = normalized_steps
+
+            if not _validate_test_case_schema(test_case):
+                raise ValueError("Generated test case failed schema validation")
             
             logger.info(f"Successfully generated test case with {len(normalized_steps)} steps")
             return test_case
@@ -444,12 +474,7 @@ def _validate_step_schema(step: Dict) -> bool:
             return False
     
     # Validate action is one of the allowed actions
-    allowed_actions = [
-        'navigate', 'click', 'fill', 'select', 'wait', 'assert', 
-        'check', 'uncheck', 'hover', 'scroll', 'screenshot', 'press', 'type'
-    ]
-    
-    if step['action'] not in allowed_actions:
+    if step['action'] not in ALLOWED_STEP_ACTIONS:
         logger.warning(f"Invalid action in step: {step['action']}")
         return False
     

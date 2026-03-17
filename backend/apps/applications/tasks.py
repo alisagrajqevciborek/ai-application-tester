@@ -737,24 +737,51 @@ def execute_generated_test_case_task(self, test_run_id, test_steps):
         test_type = test_run.test_type
         
         logger.info(f"Starting generated test case run {test_run_id} for {url} (type: {test_type})")
+
+        from common.test_case_generator import normalize_and_validate_steps
+
+        try:
+            executable_steps = normalize_and_validate_steps(test_steps)
+        except ValueError as step_error:
+            logger.warning("Generated test case preflight validation failed: %s", step_error)
+            results = {
+                'status': 'failed',
+                'pass_rate': 0,
+                'fail_rate': 100,
+                'passed_steps': 0,
+                'failed_steps': 1,
+                'step_results': [],
+                'issues': [{
+                    'severity': 'critical',
+                    'title': 'Invalid generated test case',
+                    'description': str(step_error),
+                    'location': url,
+                }],
+                'screenshots': [],
+                'console_logs': [],
+            }
+            executable_steps = []
+        else:
+            results = None
         
         # Run the browser automation test with custom steps
         from common.browser_automation.generated_test_runner import GeneratedTestRunner
-        
-        # Create event loop and run test
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            runner = GeneratedTestRunner()
-            results = loop.run_until_complete(
-                runner.run_test_case(
-                    url=url,
-                    test_type=test_type,
-                    steps=test_steps,
+
+        if results is None:
+            # Create event loop and run test
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                runner = GeneratedTestRunner()
+                results = loop.run_until_complete(
+                    runner.run_test_case(
+                        url=url,
+                        test_type=test_type,
+                        steps=executable_steps,
+                    )
                 )
-            )
-        finally:
-            loop.close()
+            finally:
+                loop.close()
         
         logger.info(f"Generated test results received: status={results.get('status')}")
         
@@ -773,7 +800,7 @@ def execute_generated_test_case_task(self, test_run_id, test_steps):
                 test_run=test_run,
                 results=results,
                 test_type=test_type,
-                total_steps=len(test_steps),
+                total_steps=len(executable_steps),
             )
             persist_report(
                 test_run,

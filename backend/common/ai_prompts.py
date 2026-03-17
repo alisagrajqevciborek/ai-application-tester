@@ -9,6 +9,8 @@ This module provides:
 
 from typing import Dict, List, Optional
 
+from .test_case_contract import actions_as_csv
+
 # Version tracking for prompts
 PROMPT_VERSION = "1.0.0"
 
@@ -380,6 +382,7 @@ Output this section as a markdown table.
     @staticmethod
     def test_case_generation_system_prompt() -> str:
         """System prompt for test case generation."""
+        actions_csv = actions_as_csv()
         return """You are an expert QA engineer specializing in automated web testing with Playwright.
 
 Your task is to convert natural language test descriptions into structured, executable test cases.
@@ -394,11 +397,17 @@ Test actions you can use:
 - check: Check a checkbox or radio button
 - hover: Hover over an element
 - scroll: Scroll to an element or position
-- screenshot: Take a screenshot at this point"""
+- screenshot: Take a screenshot at this point
+- uncheck: Uncheck a checkbox
+- press: Press a keyboard key
+- type: Type text with key-by-key input
+
+You MUST only use these actions: """ + actions_csv
     
     @staticmethod
     def test_case_refinement_system_prompt() -> str:
         """System prompt for test case refinement."""
+        actions_csv = actions_as_csv()
         return """You are an expert QA engineer. Your task is to refine existing test cases based on user feedback.
 
 CRITICAL REQUIREMENTS:
@@ -409,7 +418,7 @@ CRITICAL REQUIREMENTS:
 5. Each step MUST have: order, action, selector, value, description, expected_result
 6. Return ONLY valid JSON - no markdown, no code blocks, no explanations
 
-Steps actions: navigate, click, fill, select, wait, assert, check, uncheck, hover, scroll, screenshot, press, type
+Steps actions: """ + actions_csv + """
 
 Always maintain the same test type, tags, estimated_duration, and overall structure unless specifically requested to change them."""
 
