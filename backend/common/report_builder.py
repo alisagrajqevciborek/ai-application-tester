@@ -230,18 +230,6 @@ def build_generated_test_case_report_payload(
     detailed_report += f"Status: {status_result}\n"
     detailed_report += f"Pass Rate: {pass_rate}%\n\n"
 
-    detailed_report += "Step Results:\n"
-    detailed_report += f"{'-' * 30}\n"
-
-    step_results = results.get("step_results", []) or []
-    for idx, step_result in enumerate(step_results, 1):
-        status_icon = "\u2713" if step_result.get("passed") else "\u2717"
-        detailed_report += (
-            f"\n{idx}. [{status_icon}] {step_result.get('description', 'Unknown step')}\n"
-        )
-        if not step_result.get("passed"):
-            detailed_report += f"   Error: {step_result.get('error', 'Unknown error')}\n"
-
     if grouped_issues:
         detailed_report += "\n\nIssues Found:\n"
         detailed_report += f"{'-' * 30}\n"
