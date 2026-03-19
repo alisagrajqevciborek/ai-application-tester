@@ -36,16 +36,9 @@ export default function TopNav() {
 
   return (
     <header className="h-16 border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-      <div className="flex items-center justify-between h-full pr-4 lg:pr-6">
-        <div className="flex items-center gap-4 group cursor-pointer transition-all hover:opacity-90 h-full">
-          <div className="h-full aspect-square relative overflow-hidden">
-            <img
-              src="/logo/testflow-logo.png"
-              alt="TestFlow Logo"
-              className="w-full h-full object-cover scale-110"
-            />
-          </div>
-          <span className="font-bold text-xl tracking-tight text-foreground">
+      <div className="flex items-center justify-between h-full px-4 lg:px-6">
+        <div className="ml-5 lg:ml-8 flex items-center gap-4 group cursor-pointer transition-all hover:opacity-90 h-full">
+          <span className="brand-wordmark text-[1.45rem] text-foreground/95">
             TestFlow
           </span>
         </div>

@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { Eye, EyeOff, Mail, Lock, Zap, Loader2, AlertCircle } from "lucide-react"
+import { Eye, EyeOff, Mail, Lock, Loader2, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -40,15 +40,15 @@ export default function LoginPage({ onLogin, onShowRegister }: LoginPageProps) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a1628]">
+    <div className="min-h-screen flex items-center justify-center px-4">
       {/* Login Card */}
       <motion.div
         initial={{ opacity: 0, y: 20, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
-        className="relative z-10 w-full max-w-md mx-4"
+        className="relative z-10 w-full max-w-md"
       >
-        <div className="rounded-2xl p-8 shadow-2xl bg-[#0f1e36] border border-white/10">
+        <div className="glass rounded-2xl p-8 border border-border/60">
           {/* Logo and Title */}
           <div className="text-center mb-8">
             <motion.div
@@ -57,9 +57,9 @@ export default function LoginPage({ onLogin, onShowRegister }: LoginPageProps) {
               transition={{ delay: 0.2 }}
               className="mb-2"
             >
-              <span className="font-bold text-4xl tracking-tight text-foreground">TestFlow</span>
+              <span className="brand-wordmark text-4xl text-foreground">TestFlow</span>
             </motion.div>
-            <p className="text-muted-foreground mt-2">AI-Powered Application Testing</p>
+            <p className="text-muted-foreground mt-2">AI-powered application testing</p>
           </div>
 
           {/* Login Form */}
@@ -83,7 +83,7 @@ export default function LoginPage({ onLogin, onShowRegister }: LoginPageProps) {
                   placeholder="you@company.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10 bg-[#162442] border-white/10 focus:border-primary h-12 rounded-xl"
+                  className="pl-10 bg-background/70 border-border/60 focus:border-primary h-12 rounded-xl"
                   required
                 />
               </div>
@@ -101,7 +101,7 @@ export default function LoginPage({ onLogin, onShowRegister }: LoginPageProps) {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 pr-10 bg-[#162442] border-white/10 focus:border-primary h-12 rounded-xl"
+                  className="pl-10 pr-10 bg-background/70 border-border/60 focus:border-primary h-12 rounded-xl"
                   required
                 />
                 <button
@@ -116,7 +116,7 @@ export default function LoginPage({ onLogin, onShowRegister }: LoginPageProps) {
 
             <Button
               type="submit"
-              className="w-full h-12 rounded-xl bg-primary text-primary-foreground hover:bg-orange-600 font-semibold text-base transition-all duration-200"
+              className="w-full h-12 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-semibold text-base transition-all duration-200"
               disabled={isLoading}
             >
               {isLoading ? (
@@ -136,7 +136,7 @@ export default function LoginPage({ onLogin, onShowRegister }: LoginPageProps) {
             <button
               type="button"
               onClick={onShowRegister}
-              className="text-primary hover:text-orange-600 hover:underline font-medium"
+              className="text-primary hover:text-primary/80 hover:underline font-medium"
             >
               Sign up
             </button>
