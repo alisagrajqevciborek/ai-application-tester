@@ -17,7 +17,7 @@ from common.report_builder import (
     persist_failure_report,
     persist_report,
 )
-from .models import TestRun, TestRunStepResult
+from .models import Application, TestRun, TestRunStepResult
 
 logger = logging.getLogger(__name__)
 
@@ -69,10 +69,11 @@ def _build_parallel_general_steps(test_run: TestRun) -> List[Dict[str, Any]]:
     """Build per-suite step config for general test runs."""
     steps: List[Dict[str, Any]] = [dict(item) for item in PARALLEL_GENERAL_STEP_CONFIG]
 
+    app: Application = test_run.application  # type: ignore[assignment]
     has_auth_creds = bool(
-        test_run.application.test_username and
-        test_run.application.test_password and
-        test_run.application.login_url
+        app.test_username and
+        app.test_password and
+        app.login_url
     )
     if bool(test_run.check_broken_links):
         steps.append(
@@ -95,9 +96,9 @@ def _build_parallel_general_steps(test_run: TestRun) -> List[Dict[str, Any]]:
                 "check_broken_links": False,
                 "check_auth": True,
                 "auth_credentials": {
-                    "username": test_run.application.test_username,
-                    "password": test_run.application.test_password,
-                    "login_url": test_run.application.login_url,
+                    "username": app.test_username,
+                    "password": app.test_password,
+                    "login_url": app.login_url,
                 },
             }
         )

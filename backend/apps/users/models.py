@@ -51,8 +51,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True, max_length=255)
     first_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)
-    is_active = models.BooleanField(default=False)  # Changed to False - requires email verification
-    is_staff = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=False)  # type: ignore[arg-type]  # requires email verification
+    is_staff = models.BooleanField(default=False)  # type: ignore[arg-type]
     date_joined = models.DateTimeField(default=timezone.now)
     
     # Status and role fields
@@ -60,7 +60,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='user')
     
     # Email verification fields
-    email_verified = models.BooleanField(default=False)
+    email_verified = models.BooleanField(default=False)  # type: ignore[arg-type]
     verification_code = models.CharField(max_length=6, blank=True, null=True)
     code_expires_at = models.DateTimeField(blank=True, null=True)
     
@@ -69,13 +69,13 @@ class User(AbstractBaseUser, PermissionsMixin):
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
     
-    class Meta:
+    class Meta:  # type: ignore[override]
         db_table = 'users'
         verbose_name = 'User'
         verbose_name_plural = 'Users'
     
-    def __str__(self):
-        return self.email
+    def __str__(self) -> str:
+        return str(self.email)
     
     def get_full_name(self):
         """Return the user's full name."""

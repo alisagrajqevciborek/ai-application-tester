@@ -82,11 +82,11 @@ def admin_user_activity_view(request, user_id):
         }, status=status.HTTP_404_NOT_FOUND)
 
     # Applications owned by the user
-    applications = Application.objects.filter(owner=user).order_by('-created_at')
+    applications = Application.objects.filter(owner=user).order_by('-created_at')  # type: ignore[attr-defined]
 
     # Test runs for those applications (with application details)
     test_runs = (
-        TestRun.objects
+        TestRun.objects  # type: ignore[attr-defined]
         .filter(application__owner=user)
         .select_related('application')
         .order_by('-started_at')

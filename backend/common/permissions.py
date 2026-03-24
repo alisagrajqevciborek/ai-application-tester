@@ -10,7 +10,7 @@ class IsAdmin(permissions.BasePermission):
     Use this permission class for admin-only endpoints.
     """
 
-    def has_permission(self, request, view):
+    def has_permission(self, request, view) -> bool:  # type: ignore[override]
         return bool(
             request.user
             and request.user.is_authenticated

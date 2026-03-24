@@ -66,11 +66,11 @@ class TestRun(models.Model):
     completed_at = models.DateTimeField(null=True, blank=True)
     
     # Enhanced testing options
-    check_broken_links = models.BooleanField(default=False, help_text="Whether to check for broken links")
-    check_auth = models.BooleanField(default=False, help_text="Whether to test login functionality")
+    check_broken_links = models.BooleanField(default=False, help_text="Whether to check for broken links")  # type: ignore[arg-type]
+    check_auth = models.BooleanField(default=False, help_text="Whether to test login functionality")  # type: ignore[arg-type]
     
     # Cancellation fields
-    cancel_requested = models.BooleanField(default=False, help_text="Whether cancellation was requested")
+    cancel_requested = models.BooleanField(default=False, help_text="Whether cancellation was requested")  # type: ignore[arg-type]
     cancel_requested_at = models.DateTimeField(null=True, blank=True, help_text="When cancellation was requested")
     canceled_at = models.DateTimeField(null=True, blank=True, help_text="When test was canceled")
     cancel_reason = models.CharField(max_length=255, null=True, blank=True, help_text="Reason for cancellation")
@@ -87,9 +87,14 @@ class TestRun(models.Model):
         ]
     
     def get_version_number(self) -> int:
-        """Calculate version number based on test runs for the same application, ordered by creation date."""
-        # Count how many test runs exist for this application that were created before or at the same time
-        # This gives us the version number (1-indexed)
+        """
+        Return the sequential version number for this run within its application.
+
+        WARNING: This method issues a COUNT query per call. Avoid calling it
+        inside a loop over a queryset — use the ``_version_number_subquery()``
+        annotation in ``views.py`` instead so the value is fetched in a single
+        database round-trip.
+        """
         version = TestRun.objects.filter(  # type: ignore[attr-defined]
             application=self.application,
             started_at__lte=self.started_at
@@ -246,7 +251,7 @@ class GeneratedTestCase(models.Model):
     expected_results = models.TextField(help_text="Overall expected outcome")
     tags = models.JSONField(default=list, help_text="Tags for categorization")
     estimated_duration = models.CharField(max_length=50, default="5 minutes", help_text="Estimated test duration")
-    is_ai_generated = models.BooleanField(default=True, help_text="Whether this was AI-generated")
+    is_ai_generated = models.BooleanField(default=True, help_text="Whether this was AI-generated")  # type: ignore[arg-type]
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

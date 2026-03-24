@@ -1,3 +1,4 @@
+import React from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import type { Components, ExtraProps } from "react-markdown"
@@ -110,7 +111,7 @@ export function buildFallbackRows(content: string): Array<{ label: string; value
 // Markdown component overrides (react-markdown v10, properly typed)
 // ---------------------------------------------------------------------------
 
-type ElementProps<T extends keyof JSX.IntrinsicElements> = JSX.IntrinsicElements[T] & ExtraProps
+type ElementProps<T extends keyof React.JSX.IntrinsicElements> = React.JSX.IntrinsicElements[T] & ExtraProps
 
 export const markdownComponents: Components = {
   h2: ({ node: _n, ...props }: ElementProps<"h2">) => (

@@ -24,13 +24,13 @@ def report_detail(request, test_run_id):
     # Get the test run and verify ownership.
     # Prefetch screenshots and artifacts so ReportSerializer avoids extra queries.
     test_run = get_object_or_404(
-        TestRun.objects.select_related('application').prefetch_related('screenshots', 'artifacts'),
+        TestRun.objects.select_related('application').prefetch_related('screenshots', 'artifacts'),  # type: ignore[attr-defined]
         pk=test_run_id,
         application__owner=request.user
     )
     
     # Get or create report
-    report, created = Report.objects.get_or_create(
+    report, _ = Report.objects.get_or_create(  # type: ignore[attr-defined]
         test_run=test_run,
         defaults={
             'summary': f'Test run {test_run_id} completed with {test_run.pass_rate}% pass rate.',
@@ -57,7 +57,7 @@ def export_to_jira(request, test_run_id):
     # Get the test run and verify ownership.
     # select_related('application') avoids an extra query when accessing test_run.application.*
     test_run = get_object_or_404(
-        TestRun.objects.select_related('application'),
+        TestRun.objects.select_related('application'),  # type: ignore[attr-defined]
         pk=test_run_id,
         application__owner=request.user
     )

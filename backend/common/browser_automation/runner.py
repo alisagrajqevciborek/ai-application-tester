@@ -292,77 +292,70 @@ class BrowserAutomationService:
                 
             except PlaywrightTimeoutError as e:
                 logger.error(f"Timeout error: {e}")
-                try:
-                    await self._capture_failure_screenshots(page, url, test_type, screenshots_dir, step_name='timeout')
-                except Exception:
-                    pass
-                try:
-                    await page.close()
-                except Exception:
-                    pass
-                try:
-                    await self.artifact_manager.finalize_debug_artifacts(
-                        context, page, url, test_type, save_trace=True, save_video=record_video
-                    )
-                except Exception:
-                    pass
-                result = {
-                    'pass_rate': 0,
-                    'fail_rate': 100,
-                    'status': 'failed',
-                    'issues': [{'severity': 'critical', 'title': 'Page load timeout', 'description': str(e)}],
-                    'screenshots': [m.get('url') for m in self.screenshot_manager.get_metadata() if m.get('url')],
-                    'screenshots_meta': self.screenshot_manager.get_metadata(),
-                    'artifacts': self.artifact_manager.get_metadata(),
-                    'ai_summary': None,
-                    'ai_tags': [],
-                    'ai_suggestions': [],
-                }
-                try:
-                    await context.close()
-                except Exception:
-                    pass
-                await browser.close()
-                if video_dir:
-                    shutil.rmtree(video_dir, ignore_errors=True)
-                return result
+                return await self._handle_run_error(
+                    e, context, page, browser, url, test_type, screenshots_dir,
+                    video_dir, record_video, step_name='timeout',
+                    issue_title='Page load timeout',
+                )
             except Exception as e:
                 logger.error(f"Error during test execution: {e}")
-                try:
-                    await self._capture_failure_screenshots(page, url, test_type, screenshots_dir, step_name='exception')
-                except Exception:
-                    pass
-                try:
-                    await page.close()
-                except Exception:
-                    pass
-                try:
-                    await self.artifact_manager.finalize_debug_artifacts(
-                        context, page, url, test_type, save_trace=True, save_video=record_video
-                    )
-                except Exception:
-                    pass
-                result = {
-                    'pass_rate': 0,
-                    'fail_rate': 100,
-                    'status': 'failed',
-                    'issues': [{'severity': 'critical', 'title': 'Test execution error', 'description': str(e)}],
-                    'screenshots': [m.get('url') for m in self.screenshot_manager.get_metadata() if m.get('url')],
-                    'screenshots_meta': self.screenshot_manager.get_metadata(),
-                    'artifacts': self.artifact_manager.get_metadata(),
-                    'ai_summary': None,
-                    'ai_tags': [],
-                    'ai_suggestions': [],
-                }
-                try:
-                    await context.close()
-                except Exception:
-                    pass
-                await browser.close()
-                if video_dir:
-                    shutil.rmtree(video_dir, ignore_errors=True)
-                return result
+                return await self._handle_run_error(
+                    e, context, page, browser, url, test_type, screenshots_dir,
+                    video_dir, record_video, step_name='exception',
+                    issue_title='Test execution error',
+                )
     
+    async def _handle_run_error(
+        self,
+        exc: Exception,
+        context,
+        page: 'Page',
+        browser,
+        url: str,
+        test_type: str,
+        screenshots_dir: Optional[str],
+        video_dir: Optional[str],
+        record_video: bool,
+        *,
+        step_name: str,
+        issue_title: str,
+    ) -> Dict:
+        """Shared teardown and error-result builder for run() exception handlers."""
+        try:
+            await self._capture_failure_screenshots(page, url, test_type, screenshots_dir, step_name=step_name)
+        except Exception:
+            pass
+        try:
+            await page.close()
+        except Exception:
+            pass
+        try:
+            await self.artifact_manager.finalize_debug_artifacts(
+                context, page, url, test_type, save_trace=True, save_video=record_video
+            )
+        except Exception:
+            pass
+        result = {
+            'pass_rate': 0,
+            'fail_rate': 100,
+            'status': 'failed',
+            'issues': [{'severity': 'critical', 'title': issue_title, 'description': str(exc)}],
+            'screenshots': [m.get('url') for m in self.screenshot_manager.get_metadata() if m.get('url')],
+            'screenshots_meta': self.screenshot_manager.get_metadata(),
+            'artifacts': self.artifact_manager.get_metadata(),
+            'ai_summary': None,
+            'ai_tags': [],
+            'ai_suggestions': [],
+        }
+        try:
+            await context.close()
+        except Exception:
+            pass
+        await browser.close()
+        if video_dir:
+            shutil.rmtree(video_dir, ignore_errors=True)
+        return result
+
     async def _capture_extra_screenshots(
         self,
         page: Page,

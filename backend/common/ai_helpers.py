@@ -47,7 +47,7 @@ def get_openai_client() -> Optional['OpenAI']:  # type: ignore[name-defined]
     
     try:
         # AI generation can legitimately take longer than ordinary API calls.
-        timeout = float(os.getenv('OPENAI_TIMEOUT', '60'))
+        timeout = float(os.getenv('OPENAI_TIMEOUT', '120'))
         client = OpenAI(api_key=api_key, timeout=timeout)  # type: ignore[name-defined]
         return client
     except Exception as e:
@@ -105,7 +105,7 @@ def analyze_screenshot_with_ai(
             ],
             max_tokens=300,  # Reduced from 500
             temperature=0.3,
-            timeout=30,
+            timeout=60,
         )
         
         analysis = response.choices[0].message.content
@@ -169,7 +169,7 @@ def enhance_issue_description(
             ],
             max_tokens=1000,  # Increased to allow for more detailed explanations
             temperature=0.3,  # Slightly higher for more natural language
-            timeout=40,
+            timeout=90,
         )
         
         content = response.choices[0].message.content
@@ -305,7 +305,7 @@ def generate_ai_report(
             ],
             max_tokens=4000,  # Reduced from 10000 for cost optimization
             temperature=0.2,
-            timeout=60,
+            timeout=120,
         )
         
         ai_response = response.choices[0].message.content

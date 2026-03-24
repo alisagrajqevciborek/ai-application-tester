@@ -318,7 +318,7 @@ CLOUDINARY_STORAGE = {
 
 # OpenAI Configuration
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
-OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-5')
+OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-4o')
 
 # Jira Configuration
 JIRA_URL = os.getenv('JIRA_URL', '')

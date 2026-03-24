@@ -1,11 +1,13 @@
+import logging
+
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from typing import Any, Dict, cast
-from datetime import timedelta
-from django.utils import timezone
 from django.db.models import Avg, Count, Q, OuterRef, Subquery
+
+logger = logging.getLogger(__name__)
 from .models import Application, TestRun, GeneratedTestCase
 from .serializers import (
     ApplicationSerializer, ApplicationCreateSerializer,
@@ -54,11 +56,12 @@ def application_list_create(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['GET', 'PUT', 'DELETE'])
+@api_view(['GET', 'PUT', 'PATCH', 'DELETE'])
 def application_detail(request, pk):
     """
-    GET /api/applications/<id> - Retrieve application details
-    PUT /api/applications/<id> - Update application
+    GET    /api/applications/<id> - Retrieve application details
+    PUT    /api/applications/<id> - Full update (all required fields must be provided)
+    PATCH  /api/applications/<id> - Partial update (only provided fields are changed)
     DELETE /api/applications/<id> - Delete application
     """
     try:
@@ -72,8 +75,9 @@ def application_detail(request, pk):
         serializer = ApplicationSerializer(application)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
-    elif request.method == 'PUT':
-        serializer = ApplicationCreateSerializer(application, data=request.data, partial=True)
+    elif request.method in ('PUT', 'PATCH'):
+        partial = request.method == 'PATCH'
+        serializer = ApplicationCreateSerializer(application, data=request.data, partial=partial)
         if serializer.is_valid():
             serializer.save()
             response_serializer = ApplicationSerializer(application)
@@ -96,6 +100,17 @@ class TestRunPagination(PageNumberPagination):
     max_page_size = 100
 
 
+def _version_number_subquery():
+    """Return a Subquery that annotates each TestRun with its sequential version number."""
+    return Subquery(
+        TestRun.objects  # type: ignore[attr-defined]
+        .filter(application=OuterRef('application'), started_at__lte=OuterRef('started_at'))
+        .values('application')
+        .annotate(_c=Count('id'))
+        .values('_c')
+    )
+
+
 @api_view(['GET', 'POST'])
 def testrun_list_create(request):
     """
@@ -106,18 +121,11 @@ def testrun_list_create(request):
         include_steps = request.query_params.get('include_steps', 'true').lower() in ('1', 'true', 'yes')
         # Get test runs for applications owned by the user.
         # Annotate version_number via subquery so the serializer avoids N+1 queries.
-        version_sq = (
-            TestRun.objects  # type: ignore[attr-defined]
-            .filter(application=OuterRef('application'), started_at__lte=OuterRef('started_at'))
-            .values('application')
-            .annotate(_c=Count('id'))
-            .values('_c')
-        )
         test_runs = (
             TestRun.objects  # type: ignore[attr-defined]
             .filter(application__owner=request.user)
             .select_related('application')
-            .annotate(version_number=Subquery(version_sq))
+            .annotate(version_number=_version_number_subquery())
         )
         if include_steps:
             test_runs = test_runs.prefetch_related('step_results')
@@ -158,8 +166,6 @@ def testrun_list_create(request):
             except Exception as e:
                 # If Celery is not available, log the error but don't fail the request
                 # The test run will remain in pending status and can be manually processed
-                import logging
-                logger = logging.getLogger(__name__)
                 test_run_id = getattr(test_run, "id", None) or getattr(test_run, "pk", None)
                 logger.warning(f"Could not queue Celery task for test run {test_run_id}: {e}")
                 logger.warning("Celery may not be running. Test execution will be delayed.")
@@ -237,13 +243,6 @@ def testrun_active(request):
     """
     # Only fetch necessary fields and limit results.
     # Annotate version_number and prefetch step_results to avoid N+1 queries.
-    version_sq = (
-        TestRun.objects  # type: ignore[attr-defined]
-        .filter(application=OuterRef('application'), started_at__lte=OuterRef('started_at'))
-        .values('application')
-        .annotate(_c=Count('id'))
-        .values('_c')
-    )
     test_runs = (
         TestRun.objects  # type: ignore[attr-defined]
         .filter(
@@ -252,7 +251,7 @@ def testrun_active(request):
         )
         .select_related('application')
         .prefetch_related('step_results')
-        .annotate(version_number=Subquery(version_sq))
+        .annotate(version_number=_version_number_subquery())
         .order_by('-started_at')[:20]  # Limit to 20 most recent active tests
     )
     
@@ -328,9 +327,9 @@ def generate_test_case(request):
     
     test_case_data = generate_test_case_from_prompt(
         user_prompt=prompt,
-        application_url=application.url,
+        application_url=str(application.url),
         test_type=test_type,
-        application_name=application.name
+        application_name=str(application.name),
     )
     
     # Add fallback flag for frontend
@@ -347,8 +346,7 @@ def generate_test_case(request):
             test_case_data['script_code'] = script
         except Exception as e:  # pragma: no cover - defensive
             # If script generation fails, still return the JSON test case
-            import logging
-            logging.getLogger(__name__).warning(
+            logger.warning(
                 "Script generation failed for framework %r: %s",
                 script_framework,
                 e,
@@ -429,6 +427,11 @@ def save_test_case(request):
     if not application_id or not test_case_data:
         return Response({
             'error': 'application_id and test_case are required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    if not isinstance(test_case_data, dict):
+        return Response({
+            'error': 'test_case must be an object'
         }, status=status.HTTP_400_BAD_REQUEST)
     
     try:
@@ -520,8 +523,6 @@ def run_generated_test_case(request, pk):
             raise ValueError(f"Could not determine test run id (got {test_run_id!r})")
         execute_generated_test_case_task.delay(test_run_id, test_case.steps_json)  # type: ignore[attr-defined]
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
         test_run_id = getattr(test_run, "id", None) or getattr(test_run, "pk", None)
         logger.warning(f"Could not queue Celery task for test run {test_run_id}: {e}")
         logger.warning("Celery may not be running. Test execution will be delayed.")

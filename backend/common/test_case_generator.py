@@ -101,10 +101,9 @@ def generate_test_case_from_prompt(
     client = get_openai_client()
     if not client:
         logger.warning("OpenAI client not available. Cannot generate test case.")
-        print("✗ OpenAI client is None - using fallback")
         return _generate_fallback_test_case(user_prompt, application_url, test_type)
     
-    print("✓ OpenAI client created successfully")
+    logger.info("OpenAI client initialised — generating test case")
     
     try:
         # Use centralized system prompt
