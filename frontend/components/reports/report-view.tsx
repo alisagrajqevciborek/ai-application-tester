@@ -93,6 +93,9 @@ export default function ReportView({ test, onBack, onDelete }: ReportViewProps) 
     element_screenshot: issue.element_screenshot,
     before_screenshot: issue.before_screenshot,
     after_screenshot: issue.after_screenshot,
+    reference_screenshot: issue.reference_screenshot,
+    context_screenshot: issue.context_screenshot,
+    all_screenshots: issue.all_screenshots,
   })) || []
 
   const criticalCount = issues.filter((i) => i.severity === "critical").length

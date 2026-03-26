@@ -62,6 +62,8 @@ export function IssueFindingsList({
         const config = severityConfig[issue.severity]
         const Icon = config.icon
         const isExpanded = expandedIssue === issue.id
+        const fallbackScreenshot =
+          screenshots.length > 0 ? screenshots[index % screenshots.length] : null
 
         return (
           <motion.div
@@ -158,6 +160,18 @@ export function IssueFindingsList({
                         maxHeight="400px"
                       />
                     </div>
+                  ) : issue.reference_screenshot ? (
+                    <div className="mt-4">
+                      <p className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide">
+                        Reference Screenshot
+                      </p>
+                      <ScreenshotButton
+                        src={issue.reference_screenshot}
+                        alt={`Reference screenshot for ${issue.title}`}
+                        onClick={() => setActiveScreenshotUrl(issue.reference_screenshot ?? null)}
+                        maxHeight="400px"
+                      />
+                    </div>
                   ) : screenshots.length > 0 ? (
                     <div className="mt-4">
                       <p className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide">
@@ -166,12 +180,12 @@ export function IssueFindingsList({
                       <div className="relative group rounded-lg overflow-hidden border border-border bg-secondary/20">
                         <button
                           type="button"
-                          onClick={() => setActiveScreenshotUrl(screenshots[0])}
+                          onClick={() => setActiveScreenshotUrl(fallbackScreenshot)}
                           className="w-full aspect-video relative"
                           title="Click to view full size"
                         >
                           <img
-                            src={screenshots[0]}
+                            src={fallbackScreenshot ?? ""}
                             alt={`Screenshot for ${issue.title}`}
                             className="w-full h-full object-contain bg-secondary/50"
                           />

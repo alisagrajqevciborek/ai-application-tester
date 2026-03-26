@@ -188,8 +188,33 @@ class IssueManager:
                         issue['element_screenshot'] = annotated_url
             except Exception:
                 pass
-        # If there is no element and no screenshot coming from the console context,
-        # skip taking a generic viewport screenshot. Non-visual issues are still fully
-        # described in text and do not need an arbitrary image.
+
+        # Always try to attach at least one screenshot per issue for UI usefulness.
+        # Prefer element/annotated screenshots when available; otherwise attach a
+        # reference viewport screenshot captured at the time the issue is recorded.
+        if (
+            not issue.get('element_screenshot')
+            and not issue.get('annotated_screenshot')
+            and not issue.get('before_screenshot')
+            and not issue.get('after_screenshot')
+            and not issue.get('context_screenshot')
+            and not issue.get('reference_screenshot')
+        ):
+            try:
+                ref_bytes = await page.screenshot(full_page=False)
+                ref_url = await self.screenshot_manager.upload_and_record(
+                    ref_bytes,
+                    location,
+                    self.current_test_type or "automated",
+                    f"issue_reference_{severity}_{len(issues)}",
+                    screenshots_dir,
+                    kind='issue_reference',
+                    issue_title=title,
+                    selector=issue.get('selector'),
+                )
+                if ref_url:
+                    issue['reference_screenshot'] = ref_url
+            except Exception:
+                pass
         
         issues.append(issue)

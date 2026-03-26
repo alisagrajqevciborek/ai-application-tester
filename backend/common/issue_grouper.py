@@ -113,9 +113,19 @@ def group_similar_issues(issues: List[Dict]) -> List[Dict]:
         groups[group_key]['issues'].append(issue)
         groups[group_key]['locations'].add(location)
         
-        # Collect screenshots (up to 3 per group)
-        if issue.get('element_screenshot') and len(groups[group_key]['screenshots']) < 3:
-            groups[group_key]['screenshots'].append(issue['element_screenshot'])
+        # Collect screenshots (up to 3 per group). Prefer most specific evidence,
+        # but fall back to per-issue reference/context screenshots for non-element issues.
+        if len(groups[group_key]['screenshots']) < 3:
+            candidate = (
+                issue.get('element_screenshot')
+                or issue.get('annotated_screenshot')
+                or issue.get('reference_screenshot')
+                or issue.get('context_screenshot')
+                or issue.get('after_screenshot')
+                or issue.get('before_screenshot')
+            )
+            if candidate:
+                groups[group_key]['screenshots'].append(candidate)
         
         # Update severity to highest in group
         severity_order = {'critical': 3, 'major': 2, 'minor': 1}
@@ -215,7 +225,9 @@ def group_similar_issues(issues: List[Dict]) -> List[Dict]:
                 'title': f"{group_data['type']} ({count} occurrences)",
                 'description': description,
                 'location': ', '.join(locations[:2]) if locations else 'Multiple locations',
+                # Representative screenshot for the group (UI can also use all_screenshots)
                 'element_screenshot': group_data['screenshots'][0] if group_data['screenshots'] else None,
+                'reference_screenshot': group_data['screenshots'][0] if group_data['screenshots'] else None,
                 'frequency': count,
                 'affected_locations': locations,
                 'all_screenshots': group_data['screenshots'],

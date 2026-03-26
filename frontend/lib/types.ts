@@ -21,4 +21,7 @@ export interface TestIssue {
   element_screenshot?: string
   before_screenshot?: string
   after_screenshot?: string
+  reference_screenshot?: string
+  context_screenshot?: string
+  all_screenshots?: string[]
 }
