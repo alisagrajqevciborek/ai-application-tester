@@ -1,5 +1,7 @@
-# Deploy backend to Azure Container Apps (Germany West Central) on push to main.
-# Secrets: AZURE_CREDENTIALS (JSON from az ad sp create-for-rbac), NEXT_PUBLIC_API_URL (backend API URL for frontend builds).
+# Deploy backend + frontend to Azure Container Apps (Germany West Central) on push to main.
+# Secrets (repository):
+#   AZURE_CREDENTIALS — JSON from `az ad sp create-for-rbac` (Contributor on RG + AcrPush on ACR).
+#   NEXT_PUBLIC_API_URL — public backend API base, e.g. https://<backend>.<env>.germanywestcentral.azurecontainerapps.io/api
 
 name: Deploy production (Azure)
 
@@ -11,10 +13,16 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: azure-production-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   AZURE_RESOURCE_GROUP: ai-application-tester
   ACR_NAME: aiapptesteracrgwc
   CONTAINER_APP_BACKEND: ai-app-backend
+  CONTAINER_APP_FRONTEND: ai-app-frontend
+  CONTAINER_APPS_ENVIRONMENT: ai-app-tester-env
 
 jobs:
   deploy-backend:
@@ -46,9 +54,7 @@ jobs:
             --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
             --image "${{ env.ACR_NAME }}.azurecr.io/ai-app-backend:${{ github.sha }}"
 
-  # Fails until frontend TypeScript build passes (e.g. report-view.tsx types). Does not block backend.
   deploy-frontend:
-    needs: deploy-backend
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -62,9 +68,7 @@ jobs:
         run: |
           echo "NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}" > frontend/.env.production
 
-      # Stops at `npm run build` until TypeScript errors in the frontend are resolved.
       - name: Build and push frontend image
-        continue-on-error: true
         run: |
           set -e
           cd frontend
@@ -76,5 +80,50 @@ jobs:
             --file Dockerfile . \
             --no-logs
 
-      # After the first successful frontend image build, create Container App `ai-app-frontend` once in Azure,
-      # then add a step here to `az containerapp update` with the new image tag.
+      - name: Deploy frontend Container App (create if missing)
+        run: |
+          set -e
+          REG_USER=$(az acr credential show -n "${{ env.ACR_NAME }}" --query username -o tsv)
+          REG_PASS=$(az acr credential show -n "${{ env.ACR_NAME }}" --query "passwords[0].value" -o tsv)
+          IMG="${{ env.ACR_NAME }}.azurecr.io/ai-app-frontend:${{ github.sha }}"
+          if az containerapp show -n "${{ env.CONTAINER_APP_FRONTEND }}" -g "${{ env.AZURE_RESOURCE_GROUP }}" &>/dev/null; then
+            az containerapp update \
+              --name "${{ env.CONTAINER_APP_FRONTEND }}" \
+              --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
+              --image "$IMG"
+          else
+            az containerapp create \
+              --name "${{ env.CONTAINER_APP_FRONTEND }}" \
+              --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
+              --environment "${{ env.CONTAINER_APPS_ENVIRONMENT }}" \
+              --image "$IMG" \
+              --target-port 3000 \
+              --ingress external \
+              --registry-server "${{ env.ACR_NAME }}.azurecr.io" \
+              --registry-username "$REG_USER" \
+              --registry-password "$REG_PASS" \
+              --cpu 0.5 \
+              --memory 1.0Gi \
+              --min-replicas 1 \
+              --max-replicas 3
+          fi
+
+  # Runs after both image deploys so we do not race two `containerapp update` calls on the backend app.
+  sync-backend-cors:
+    needs: [deploy-backend, deploy-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Point backend CORS at deployed frontend
+        run: |
+          set -e
+          FQDN=$(az containerapp show -n "${{ env.CONTAINER_APP_FRONTEND }}" -g "${{ env.AZURE_RESOURCE_GROUP }}" \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          az containerapp update \
+            --name "${{ env.CONTAINER_APP_BACKEND }}" \
+            --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
+            --set-env-vars "CORS_ALLOWED_ORIGINS=https://${FQDN},http://localhost:3000,http://127.0.0.1:3000"
