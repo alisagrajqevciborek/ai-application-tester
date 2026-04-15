@@ -174,29 +174,35 @@ def testrun_list_create(request):
 def testrun_detail(request, pk):
     """
     GET /api/test-runs/<id> - Retrieve test run details
-    DELETE /api/test-runs/<id> - Delete test run
+    DELETE /api/test-runs/<id> - Delete test run (idempotent: 204 if already removed)
     """
-    try:
-        test_run = (
-            TestRun.objects  # type: ignore[attr-defined]
-            .select_related('application')
-            .prefetch_related('step_results')
-            .get(pk=pk, application__owner=request.user)
-        )
-    except TestRun.DoesNotExist:  # type: ignore[attr-defined]
-        return Response({
-            'error': 'Test run not found or you do not have permission to access it'
-        }, status=status.HTTP_404_NOT_FOUND)
-    
     if request.method == 'GET':
+        try:
+            test_run = (
+                TestRun.objects  # type: ignore[attr-defined]
+                .select_related('application')
+                .prefetch_related('step_results')
+                .get(pk=pk, application__owner=request.user)
+            )
+        except TestRun.DoesNotExist:  # type: ignore[attr-defined]
+            return Response({
+                'error': 'Test run not found or you do not have permission to access it'
+            }, status=status.HTTP_404_NOT_FOUND)
         serializer = TestRunSerializer(test_run)
         return Response(serializer.data, status=status.HTTP_200_OK)
-    
-    elif request.method == 'DELETE':
-        test_run.delete()
+
+    # DELETE — idempotent so duplicate requests (e.g. retries, double-submit) do not
+    # surface 404 after the row is already gone, which wrongly triggers "failed to delete" in the UI.
+    deleted_count, _ = (
+        TestRun.objects.filter(pk=pk, application__owner=request.user).delete()  # type: ignore[attr-defined]
+    )
+    if deleted_count > 0:
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    if TestRun.objects.filter(pk=pk).exists():  # type: ignore[attr-defined]
         return Response({
-            'message': 'Test run deleted successfully'
-        }, status=status.HTTP_204_NO_CONTENT)
+            'error': 'Test run not found or you do not have permission to access it'
+        }, status=status.HTTP_403_FORBIDDEN)
+    return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @api_view(['GET'])
