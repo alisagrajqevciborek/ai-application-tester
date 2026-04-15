@@ -3,8 +3,6 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from typing import Any, Dict, cast
-from datetime import timedelta
-from django.utils import timezone
 from django.db.models import Avg, Count, Q, OuterRef, Subquery
 from .models import Application, TestRun, GeneratedTestCase
 from .serializers import (
@@ -174,7 +172,7 @@ def testrun_list_create(request):
 def testrun_detail(request, pk):
     """
     GET /api/test-runs/<id> - Retrieve test run details
-    DELETE /api/test-runs/<id> - Delete test run (idempotent: 204 if already removed)
+    DELETE /api/test-runs/<id> - Delete test run (200 JSON; idempotent if already removed)
     """
     if request.method == 'GET':
         try:
@@ -191,18 +189,23 @@ def testrun_detail(request, pk):
         serializer = TestRunSerializer(test_run)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    # DELETE — idempotent so duplicate requests (e.g. retries, double-submit) do not
-    # surface 404 after the row is already gone, which wrongly triggers "failed to delete" in the UI.
-    deleted_count, _ = (
-        TestRun.objects.filter(pk=pk, application__owner=request.user).delete()  # type: ignore[attr-defined]
-    )
-    if deleted_count > 0:
-        return Response(status=status.HTTP_204_NO_CONTENT)
-    if TestRun.objects.filter(pk=pk).exists():  # type: ignore[attr-defined]
-        return Response({
-            'error': 'Test run not found or you do not have permission to access it'
-        }, status=status.HTTP_403_FORBIDDEN)
-    return Response(status=status.HTTP_204_NO_CONTENT)
+    # DELETE — use 200 + JSON (not 204) for better compatibility with proxies/CDNs (e.g. Azure)
+    # that mishandle empty DELETE responses. Idempotent: missing row => success payload.
+    try:
+        test_run = TestRun.objects.select_related('application').get(pk=pk)  # type: ignore[attr-defined]
+    except TestRun.DoesNotExist:  # type: ignore[attr-defined]
+        return Response(
+            {'deleted': True, 'already_removed': True},
+            status=status.HTTP_200_OK,
+        )
+    owner_id = getattr(test_run.application, 'owner_id', None)
+    if owner_id is None or owner_id != getattr(request.user, 'pk', None):
+        return Response(
+            {'error': 'Test run not found or you do not have permission to access it'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    test_run.delete()
+    return Response({'deleted': True}, status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])
@@ -334,9 +337,9 @@ def generate_test_case(request):
     
     test_case_data = generate_test_case_from_prompt(
         user_prompt=prompt,
-        application_url=application.url,
+        application_url=str(application.url),
         test_type=test_type,
-        application_name=application.name
+        application_name=str(application.name),
     )
     
     # Add fallback flag for frontend

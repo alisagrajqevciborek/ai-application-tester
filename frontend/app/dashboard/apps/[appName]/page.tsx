@@ -115,39 +115,40 @@ export default function AppVersionsPage() {
   }
 
   const handleDeleteTest = async (testId: string) => {
+    const id = parseInt(testId, 10)
+    if (Number.isNaN(id)) {
+      toast({
+        title: "Failed to delete test run",
+        description: "Invalid test run id.",
+        variant: "destructive",
+      })
+      return
+    }
+
     const isLastVersion = displayVersions.length === 1
-    
-    // Optimistic update: Remove from UI immediately
-    setLocalVersions(prev => prev.filter(v => v.id !== testId))
-    
+
     toast({
       title: "Deleting test run...",
-      description: "Test run is being deleted.",
+      description: "Please wait while the test run is removed.",
     })
-    
+
     try {
-      // Delete in background
-      await testRunsApi.delete(parseInt(testId))
-      
+      await testRunsApi.delete(id)
+
       toast({
         title: "Test run deleted",
         description: "The test run has been successfully deleted.",
       })
-      
-      // Navigate immediately if last version
+
       if (isLastVersion) {
-        router.push('/dashboard')
+        router.push("/dashboard")
       }
-      
-      // Background refresh (non-blocking)
-      forceRefresh().catch(console.error)
-      
+
+      await forceRefresh()
     } catch (err) {
       console.error("Failed to delete test run:", err)
-      
-      // Revert optimistic update on error
-      await forceRefresh()
-      
+      await forceRefresh().catch(console.error)
+
       toast({
         title: "Failed to delete test run",
         description: err instanceof Error ? err.message : "An error occurred while deleting the test run.",
