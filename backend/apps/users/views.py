@@ -196,21 +196,20 @@ def logout_view(request):
     """
     POST /api/auth/logout
     Logout user by blacklisting the refresh token.
-    Always returns 200 — logout is idempotent. A token that is already
-    blacklisted (e.g. after token rotation) means the user is already
-    logged out, which is the desired end state.
     """
-    refresh_token = request.data.get('refresh')
-    if refresh_token:
-        try:
+    try:
+        refresh_token = request.data.get('refresh')
+        if refresh_token:
             token = RefreshToken(refresh_token)
             token.blacklist()
-        except Exception:
-            # Token already blacklisted or invalid — user is already logged out.
-            # Do not raise; just proceed so the client clears its local state.
-            logger.debug("Logout called with an already-blacklisted or invalid token — ignoring.")
-
-    return Response({'message': 'Successfully logged out'}, status=status.HTTP_200_OK)
+        
+        return Response({
+            'message': 'Successfully logged out'
+        }, status=status.HTTP_200_OK)
+    except Exception:
+        return Response({
+            'error': 'Invalid token or already blacklisted'
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET', 'PUT'])
